@@ -1,0 +1,71 @@
+import type { I18nConfig } from '@editorjs/editorjs'
+
+export const editorZh: I18nConfig = {
+  messages: {
+    ui: {
+      blockTunes: { toggler: { 'Click to tune': '点击设置', 'or drag to move': '或拖动以移动' } },
+      inlineToolbar: { converter: { 'Convert to': '转换为' } },
+      toolbar: { toolbox: { Add: '添加' } },
+      popover: { Filter: '搜索', 'Nothing found': '没有找到匹配项', 'Convert to': '转换为' },
+    },
+    toolNames: {
+      Text: '正文',
+      Heading: '标题',
+      List: '列表',
+      'Unordered List': '无序列表',
+      'Ordered List': '有序列表',
+      Checklist: '待办清单',
+      Quote: '引用',
+      Delimiter: '分隔线',
+      Image: '图片',
+      Bold: '加粗',
+      Italic: '斜体',
+      Link: '链接',
+      Marker: '标记',
+      'Inline Code': '行内代码',
+    },
+    tools: {
+      link: { 'Add a link': '输入链接地址' },
+      stub: { 'The block can not be displayed correctly.': '此内容块无法正确显示。' },
+      header: {
+        'Heading 1': '一级标题',
+        'Heading 2': '二级标题',
+        'Heading 3': '三级标题',
+        'Heading 4': '四级标题',
+        'Heading 5': '五级标题',
+        'Heading 6': '六级标题',
+      },
+      image: {
+        'Select an Image': '选择图片',
+        'With border': '添加边框',
+        'Stretch image': '铺满宽度',
+        'With background': '添加背景',
+        'With caption': '添加说明',
+        'Couldn’t upload image. Please try another.': '图片上传失败，请选择其他图片。',
+      },
+      quote: {
+        'Enter a quote': '输入引用内容',
+        'Enter a caption': '输入引用来源',
+        'Align Left': '左对齐',
+        'Align Center': '居中',
+      },
+      list: {
+        Unordered: '无序列表',
+        Ordered: '有序列表',
+        Checklist: '待办清单',
+        'Start with': '起始编号',
+        'Counter type': '编号类型',
+        Numeric: '数字',
+        'Lower Roman': '小写罗马数字',
+        'Upper Roman': '大写罗马数字',
+        'Lower Alpha': '小写字母',
+        'Upper Alpha': '大写字母',
+      },
+    },
+    blockTunes: {
+      delete: { Delete: '删除', 'Click to delete': '点击确认删除' },
+      moveUp: { 'Move up': '上移' },
+      moveDown: { 'Move down': '下移' },
+    },
+  },
+}

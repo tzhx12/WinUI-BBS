@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.local/
+.playwright-mcp/
+.env
+.env.*
+!.env.example
+apps/api/data/
+apps/web/public/uploads/
+*.log
+.DS_Store
+Thumbs.db
+*.lnk
+HANDOFF.md
