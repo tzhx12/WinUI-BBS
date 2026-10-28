@@ -33,3 +33,7 @@ The application has an About page with links to these projects and their roles:
 | [Prettier](https://prettier.io/)                                                         | Formatting                              | MIT                                 |
 
 Dependency versions are recorded in `package-lock.json`. Package-specific license files and notices remain with the installed dependencies.
+
+## Bmoji
+
+[SomeOvO/Bmoji](https://github.com/SomeOvO/Bmoji) provides the remote emoji browser and compatible API referenced by the remote emoji integration. Its project homepage is <https://bmoji.3mua.cn/>.

@@ -18,6 +18,7 @@ const projectGroups = [
       { name: 'Vue Router', purpose: '社区与管理后台路由', url: 'https://router.vuejs.org/' },
       { name: 'Editor.js', purpose: '块编辑器与图文工具', url: 'https://github.com/codex-team/editor.js' },
       { name: 'DOMPurify', purpose: '富文本内容净化', url: 'https://github.com/cure53/DOMPurify' },
+      { name: 'Bmoji', purpose: '远端表情包浏览与接口来源', url: 'https://github.com/SomeOvO/Bmoji' },
       { name: 'MathLive', purpose: 'WinUIonWeb 的数学内容支持', url: 'https://cortexjs.io/mathlive/' },
       { name: 'rtf.js', purpose: 'WinUIonWeb 的 RTF 内容支持', url: 'https://github.com/tbluemel/rtf.js' },
     ],
@@ -79,12 +80,20 @@ const projectGroups = [
           帖子采用 Editor.js
           块编辑器，支持图片、引用、列表和剧透。管理员可以通过可视化后台配置注册邀请、等级经验、内容审核与上传限额。
         </p>
-        <HyperlinkButton
-          Content="查看 GPL-3.0 许可证"
-          NavigateUri="https://www.gnu.org/licenses/gpl-3.0.html"
-          TargetName="_blank"
-          rel="noopener noreferrer"
-        />
+        <div class="about-links">
+          <HyperlinkButton
+            Content="GitHub 项目"
+            :NavigateUri="projectInfo.repositoryUrl"
+            TargetName="_blank"
+            rel="noopener noreferrer"
+          />
+          <HyperlinkButton
+            Content="查看 GPL-3.0 许可证"
+            NavigateUri="https://www.gnu.org/licenses/gpl-3.0.html"
+            TargetName="_blank"
+            rel="noopener noreferrer"
+          />
+        </div>
       </section>
       <div class="about-acknowledgements">
         <h2>开源致谢</h2>
@@ -141,9 +150,14 @@ const projectGroups = [
 .about-introduction p {
   line-height: 1.8;
 }
-.about-introduction :deep(.win-hyperlink-button) {
-  display: inline-flex;
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-left: -12px;
+}
+.about-links :deep(.win-hyperlink-button) {
+  display: inline-flex;
 }
 .about-acknowledgements h2 {
   margin-bottom: 8px;
