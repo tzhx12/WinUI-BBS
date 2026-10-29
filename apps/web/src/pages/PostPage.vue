@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { InfoBar, PersonPicture, ProgressRing } from 'winuionweb'
+import { InfoBar, ProgressRing } from 'winuionweb'
 import { api } from '../api'
 import { useResource } from '../composables/useResource'
 import { useSite } from '../site'
@@ -11,6 +11,8 @@ import EditorComposer from '../components/EditorComposer.vue'
 import PostBody from '../components/PostBody.vue'
 import IconGlyph from '../components/IconGlyph.vue'
 import WinButton from '../components/ui/WinButton.vue'
+import UserAvatar from '../components/UserAvatar.vue'
+import FavoritePicker from '../components/FavoritePicker.vue'
 defineOptions({ inheritAttrs: false })
 interface Detail {
   post: PostSummary
@@ -23,13 +25,22 @@ interface Detail {
     created_at: string
   }>
   likeCount: number
+  totalReplyCount: number
+  page: number
+  pageSize: number
+  totalPages: number
 }
 const props = defineProps<{ Parameter: PageParameter }>()
 const site = useSite(),
   router = useRouter()
 const isTrash = props.Parameter.path.startsWith('/account/trash/')
+const page = ref(1),
+  favoriteOpen = ref(false)
 const { data, loading, error, saving, reload, run } = useResource<Detail | null>(
-  () => api(`${isTrash ? '/api/me/trash' : '/api/posts'}/${props.Parameter.id}`, { token: site.token.value }),
+  () =>
+    api(`${isTrash ? '/api/me/trash' : '/api/posts'}/${props.Parameter.id}?page=${page.value}`, {
+      token: site.token.value,
+    }),
   null,
 )
 const replyEditor = ref<InstanceType<typeof EditorComposer> | null>(null)
@@ -39,6 +50,14 @@ const canReply = computed(
   () => !isTrash && isPublic.value && site.user.value?.permissions?.includes('replies.create'),
 )
 watch(site.token, reload)
+async function goPage(value: number) {
+  page.value = value
+  await reload()
+}
+function favorite() {
+  if (!site.user.value) site.authOpen.value = true
+  else favoriteOpen.value = true
+}
 async function like() {
   if (!site.user.value) {
     site.authOpen.value = true
@@ -68,12 +87,14 @@ async function reply() {
       await api(`/api/posts/${props.Parameter.id}/replies`, {
         method: 'POST',
         token: site.token.value,
-        body: { body },
+        body: await replyEditor.value!.submission(),
       })
+      await replyEditor.value!.clearDraft()
       await site.refreshUser()
     }, '回复已发送')
   ) {
     editorVersion.value++
+    page.value = Math.ceil(((data.value?.totalReplyCount || 0) + 1) / (data.value?.pageSize || 20))
     await reload()
   }
 }
@@ -99,7 +120,13 @@ async function reply() {
             <p class="secondary-text">
               此帖仅自己可见，{{ formatDateTime(data.post.purge_after!) }} 到期清理。
             </p>
-            <WinButton label="恢复帖子" icon="refresh" :disabled="saving" @click="restore" />
+            <WinButton
+              v-if="!site.user.value?.isBanned"
+              label="恢复帖子"
+              icon="refresh"
+              :disabled="saving"
+              @click="restore"
+            />
           </div>
           <div class="post-labels">
             <span v-if="data.post.status === 'pending'" class="status-tag warning">待审核，仅自己可见</span>
@@ -114,11 +141,10 @@ async function reply() {
           </div>
           <h1>{{ data.post.title }}</h1>
           <div class="post-author">
-            <PersonPicture
-              :DisplayName="data.post.display_name"
-              :ProfilePicture="data.post.avatar_url || undefined"
-              :Width="40"
-              :Height="40"
+            <UserAvatar
+              :uid="data.post.author_uid"
+              :name="data.post.display_name"
+              :url="data.post.avatar_url"
             />
             <div>
               <strong>{{ data.post.display_name }}</strong
@@ -134,25 +160,31 @@ async function reply() {
               v-if="!isTrash && isPublic"
               :label="`${data.likeCount} 喜欢`"
               icon="like"
-              :disabled="saving"
+              :disabled="saving || site.user.value?.isBanned"
               @click="like"
+            /><WinButton
+              v-if="!isTrash && isPublic"
+              label="收藏"
+              icon="favorite"
+              :disabled="site.user.value?.isBanned"
+              @click="favorite"
             /><span><IconGlyph name="eye" :size="16" />{{ data.post.view_count }} 次浏览</span
-            ><span><IconGlyph name="chat" :size="16" />{{ data.replies.length }} 条回复</span>
+            ><span><IconGlyph name="chat" :size="16" />{{ data.totalReplyCount }} 条回复</span>
           </div>
         </article>
         <section class="replies-section">
           <h2>
-            回复 <span class="count">{{ data.replies.length }}</span>
+            回复 <span class="count">{{ data.totalReplyCount }}</span>
           </h2>
           <p v-if="!data.replies.length" class="secondary-text">
             {{ isTrash ? '还没有回复。' : '还没有回复，分享你的看法。' }}
           </p>
           <article v-for="entry in data.replies" :key="entry.id" class="reply-item">
-            <PersonPicture
-              :DisplayName="entry.display_name"
-              :ProfilePicture="entry.avatar_url || undefined"
-              :Width="32"
-              :Height="32"
+            <UserAvatar
+              :uid="entry.author_uid"
+              :name="entry.display_name"
+              :url="entry.avatar_url"
+              :size="32"
             />
             <div class="reply-content">
               <header>
@@ -163,10 +195,28 @@ async function reply() {
               <PostBody :data="entry.body" />
             </div>
           </article>
+          <nav v-if="data.totalPages > 1" class="reply-pagination" aria-label="回复翻页">
+            <WinButton
+              label="上一页"
+              :disabled="loading || data.page <= 1"
+              @click="goPage(data.page - 1)"
+            /><span>第 {{ data.page }} / {{ data.totalPages }} 页 · 每页 {{ data.pageSize }} 条</span
+            ><WinButton
+              label="下一页"
+              :disabled="loading || data.page >= data.totalPages"
+              @click="goPage(data.page + 1)"
+            />
+          </nav>
           <div v-if="canReply" class="reply-compose">
             <h3>参与讨论</h3>
             <div class="editor-surface">
-              <EditorComposer :key="editorVersion" ref="replyEditor" :token="site.token.value!" />
+              <EditorComposer
+                :key="`${site.user.value!.uid}:${editorVersion}`"
+                ref="replyEditor"
+                :token="site.token.value!"
+                kind="reply"
+                :draft-key="`reply:${site.user.value!.uid}:${props.Parameter.id}`"
+              />
             </div>
             <div class="form-actions">
               <WinButton label="发送回复" accent :disabled="saving" @click="reply" />
@@ -178,9 +228,16 @@ async function reply() {
             accent
             @click="site.authOpen.value = true"
           />
-          <p v-else-if="!isTrash && isPublic" class="secondary-text">当前用户组没有回复权限。</p>
+          <p v-else-if="!isTrash && isPublic" class="secondary-text">
+            {{ site.user.value?.isBanned ? '账号封禁期间仅可浏览。' : '当前用户组没有回复权限。' }}
+          </p>
         </section></template
       >
     </div>
+    <FavoritePicker
+      v-if="site.user.value && !site.user.value.isBanned"
+      v-model:open="favoriteOpen"
+      :post-id="props.Parameter.id!"
+    />
   </div>
 </template>

@@ -84,13 +84,14 @@ async function specialPermissions(permissions, user = member) {
 before(async () => {
   await control.query(`CREATE SCHEMA ${schema}`);
   await runMigrations();
+  await query("UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'");
   uploadRoot = await mkdtemp(join(tmpdir(), "forum-review-"));
   await app.register(jwt, { secret: randomUUID() });
   await app.register(multipart);
   await registerSetupRoutes(app);
   await registerAuthRoutes(app);
   await registerAdminRoutes(app);
-  await registerForumRoutes(app);
+  await registerForumRoutes(app, uploadRoot);
   await registerReviewRoutes(app);
   await registerNotificationRoutes(app);
   await registerMediaRoutes(app, uploadRoot);
@@ -186,6 +187,7 @@ test("review precedence: global, category, bypass, mandatory, conflicting and ex
     403,
   );
   await runMigrations();
+  await query("UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'");
   assert.equal(
     (await request("GET", "/api/admin/review-settings")).json()
       .posts_require_review,
@@ -522,7 +524,7 @@ test("rejection and account bans notify the author atomically; duplicate decisio
   assert.equal(banResponse.statusCode, 200, banResponse.body);
   assert.equal(
     (await request("GET", "/api/auth/me", undefined, member)).statusCode,
-    401,
+    200,
   );
   const banNotice = await query(
     "SELECT n.body FROM notifications n JOIN notification_recipients r ON r.notification_id = n.id WHERE n.post_id = $1 AND r.user_uid = $2",

@@ -16,6 +16,28 @@ WinUI-BBS is an open-source discussion forum with a Vue 3 frontend, WinUIonWeb c
 
 The API listens on `http://127.0.0.1:4000`. It applies SQL migrations in filename order on startup, records applied files in `schema_migrations`, and stores uploaded media in `apps/api/data/uploads`.
 
+## Email verification and passwords
+
+The administration navigation groups pages under **用户与注册** (users and registration), **内容管理** (content), and **站点配置** (site configuration). Parent items expand their subtrees; only a child item navigates to a page. Groups and children are filtered by effective permissions.
+
+Configure SMTP delivery and optional IMAP connection checks in **站点配置 → 发信设置**. SMTP sends mail; IMAP checks the receiving connection. SMTP supports direct TLS and STARTTLS. Save the configuration before sending a test message. Saved passwords are encrypted and are never returned to the frontend; an empty password field retains the existing secret.
+
+Set `MAIL_ENCRYPTION_KEY` in `apps/api/.env` before saving mail credentials. Generate a 32-byte Base64 key with the command below, store it in that environment variable, and retain the same key when moving or restoring the database:
+
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+Credentials are encrypted with AES-256-GCM in the database. Real mail addresses, hosts and secrets belong in local deployment configuration, never in source files or committed screenshots.
+
+Enable registration email verification in **用户与注册 → 注册管理**. Codes expire after **60 minutes** by default and can be used only once. Five wrong attempts invalidate a code. Registration, password-change and recovery mail share a per-email send interval of at least **60 seconds**.
+
+The sign-in dialog includes password recovery. A recovery link expires after **30 minutes** by default and can be requested **once per day** per email, using the site timezone. Links use the configured site URL, which must be reachable by the recipient. A successful reset invalidates all previous sessions.
+
+Users can change their password from the dashboard after verifying a code sent to their account email. Passwords must have 10–128 characters; successful changes are limited to **once per 60 seconds** by default. The current session receives a new token and other previous sessions become invalid.
+
+Code expiry, mail interval, recovery availability, link expiry, daily request limit and password-change interval are configurable in registration management. Registration verification starts disabled so installations without a mail service retain their existing registration behavior. These changes do not require existing accounts to verify email before signing in.
+
 ## Main features
 
 - User IDs start at 1 and are paired with generated UUIDs.
@@ -23,12 +45,36 @@ The API listens on `http://127.0.0.1:4000`. It applies SQL migrations in filenam
 - Ordinary and public groups cannot hold management permissions. Management groups retain posting, replying and personal-media access, and must have at least one management permission. These rules apply to group creation, permission edits and type changes, with database constraints protecting the stored configuration. Special and temporary group policies remain configurable.
 - Experience comes from sign-in, posting and replies. Administrators can adjust levels, point values and non-overlapping level-title ranges.
 - Categories form an editable tree with configurable icons, optional navigation badges and separate reader and author level thresholds.
-- Administrators can ban users for 30 minutes to 1095 days, or lift a ban early. Bans block login and authenticated requests until expiry; permanent account suspension remains a separate setting.
+- Administrators can ban users for 30 minutes to 1095 days, or lift a ban early. Temporarily banned accounts can sign in, browse at the baseline reader level (Lv.1), and view their own profile, posts, folders and images. All writes and administration access are blocked until expiry. Permanent suspension remains a separate state that prevents login.
 - Editor.js stores post bodies as JSON, uses Chinese interface text and includes an inline spoiler tool.
 - Image uploads, emoji packs and the site icon are managed in the admin interface.
 - Registration can be closed, open to everyone, or limited to invitations. Administrators create single-use or reusable codes; level rules grant each eligible user a reward once. Users open **我的邀请码** beside the group information in their dashboard to manage invitation links. The configured site URL is used when copying invitation and image links.
 - In **邀请码管理 → 等级奖励**, rules can be enabled, disabled or deleted. Deleting a rule stops future rewards and keeps already issued invitation codes available.
 - Users can upload an avatar, change their login username and edit their nickname from dashboard dialogs. Usernames must be unique without regard to letter case. A successful username change starts a 180-day waiting period; active members of management groups are exempt. Failed requests and saving the same username do not use the allowance. Nicknames can be edited independently and appear in the title bar, profiles and post bylines. Avatar uploads follow the user's image and storage limits. Existing avatars remain in personal uploads; the currently active avatar cannot be deleted. Changing a login username keeps the nickname, UID and other account data intact.
+
+## Content limits, pagination and local drafts
+
+Administrators with `settings.manage` configure **内容管理 → 发帖与回复设置**. Both the editor and API enforce the limits for new submissions; existing content is retained.
+
+| Setting | Default | Allowed range |
+| --- | --- | --- |
+| Post body characters | 20000 | 1–100000 |
+| Post images | 15 | 0–50 |
+| Reply characters | 1000 | 1–10000 |
+| Reply images | 5 | 0–20 |
+| Replies per page | 20 | 1–100 |
+
+Visible Unicode characters count toward the body limit, including nested lists and captions; formatting markup does not. Image counts include emoji blocks. Replies are paginated by the server, including in recycle-bin details.
+
+Unsent bodies, titles, categories and selected image blobs stay in the current browser's IndexedDB, isolated by user and reply target. Refreshing or revisiting restores the draft; clearing site data removes it. Images use local previews until the post or reply is submitted. Validation or storage failures roll back files and database records and preserve the draft. Successful submission clears the draft. New attachments are limited to 100 MiB per submission and the user's media allowance.
+
+Direct library uploads from **我的图片** start disabled. Administrators can enable them in the same settings page. Avatar and emoji-pack uploads keep their dedicated entry points.
+
+## Favorites and public user spaces
+
+Open **我的收藏** from the user dashboard to create, rename or delete folders, choose public visibility, move saved posts or remove favorites. Each user can have up to 100 folders with names of 1–64 characters. The **收藏** button on a post can save it to an existing folder or create one.
+
+Avatars on post lists, post bylines and replies open `/users/:uid`. Public spaces show published posts readable by the visitor and public folders. Hidden, deleted, pending and rejected posts are excluded from public spaces and public favorites. Private folders are owner-only. Public folder contents and counts respect the visitor's reader level.
 
 ## Posts and personal recycle bin
 
@@ -49,7 +95,7 @@ Enable **审核设置 → 全站发帖审核** to queue new posts for review. In
 - `posts.require_review` always requires review, including when another group grants an exemption.
 - `posts.bypass_review` exempts other users from both site and category review requirements.
 - Other users require review when either the site or the selected category requires it.
-- `posts.review` grants access to **发帖审核**, including reading the body, author, creation time, current groups and submission IP. Historical posts have no recorded submission IP. Reviewers can approve, reject with a reason, or reject and temporarily ban the author. Rejection and bans create private notifications. Bans retain the existing login restriction until expiry.
+- `posts.review` grants access to **发帖审核**, including reading the body, author, creation time, current groups and submission IP. Historical posts have no recorded submission IP. Reviewers can approve, reject with a reason, or reject and temporarily ban the author. Rejection and bans create private notifications. Temporarily banned accounts retain read-only access until expiry.
 
 The built-in **站点管理** group starts with `posts.review` and `posts.bypass_review`. New management groups receive the management permissions selected for them. A user with only `posts.manage` cannot publish pending or rejected posts through the post-management API. Pending and rejected posts are visible to their author through their URL and to authorized reviewers in the review interface.
 

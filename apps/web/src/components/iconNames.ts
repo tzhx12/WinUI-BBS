@@ -16,6 +16,7 @@ export type IconName =
   | 'emoji'
   | 'calendar'
   | 'like'
+  | 'favorite'
   | 'pin'
   | 'shield'
   | 'chart'

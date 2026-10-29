@@ -34,6 +34,12 @@ The application has an About page with links to these projects and their roles:
 
 Dependency versions are recorded in `package-lock.json`. Package-specific license files and notices remain with the installed dependencies.
 
+## Email libraries
+
+[entities](https://github.com/fb55/entities) decodes HTML entities when counting visible body characters. It is licensed under BSD-2-Clause.
+
+[Nodemailer](https://nodemailer.com/) provides SMTP message delivery under MIT-0. [ImapFlow](https://imapflow.com/) provides IMAP connections under MIT. The development-only [MailParser](https://nodemailer.com/extras/mailparser/) dependency is used to inspect acceptance-test mail under MIT. Each installed package includes its own license.
+
 ## Bmoji
 
 [SomeOvO/Bmoji](https://github.com/SomeOvO/Bmoji) provides the remote emoji browser and compatible API referenced by the remote emoji integration. Its project homepage is <https://bmoji.3mua.cn/>.

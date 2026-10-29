@@ -6,7 +6,7 @@ import { grantLevelInvitations, invitationCode } from '../invitations.js'
 
 export async function registerInvitationRoutes(app: FastifyInstance) {
   app.get('/api/me/invitations', { preHandler: authenticate }, async (request) => {
-    await grantLevelInvitations(request.user.uid)
+    if (!request.user.isBanned) await grantLevelInvitations(request.user.uid)
     return (
       await query(
         'SELECT id, code, max_uses, used_count, is_enabled, expires_at, created_at FROM invitations WHERE created_by = $1 ORDER BY created_at DESC',

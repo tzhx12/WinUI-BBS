@@ -40,6 +40,8 @@ export interface User {
   permissions?: string[]
   title?: { title: string; color: string } | null
   checkedIn?: boolean
+  isBanned?: boolean
+  bannedUntil?: string | null
   pointsPerLevel?: number
   checkinPoints?: number
 }

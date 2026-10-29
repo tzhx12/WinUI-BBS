@@ -8,6 +8,7 @@ import { Pool } from "pg";
 import Fastify from "fastify";
 import jwt from "@fastify/jwt";
 import multipart from "@fastify/multipart";
+import fastifyStatic from "@fastify/static";
 
 export async function createManagementFixture({ serve = false } = {}) {
   const schema = `forum_permissions_${randomUUID().replaceAll("-", "")}`;
@@ -22,6 +23,7 @@ export async function createManagementFixture({ serve = false } = {}) {
   const uploadRoot = await mkdtemp(join(tmpdir(), "forum-permissions-"));
   await app.register(jwt, { secret: randomUUID() });
   await app.register(multipart);
+  await app.register(fastifyStatic, { root: uploadRoot, prefix: "/uploads/" });
   if (serve)
     app.post("/__fixture/shutdown", async () => {
       setTimeout(close, 100);
@@ -35,8 +37,12 @@ export async function createManagementFixture({ serve = false } = {}) {
     ["invitations", "registerInvitationRoutes"],
     ["reviews", "registerReviewRoutes"],
     ["notifications", "registerNotificationRoutes"],
+    ["email", "registerEmailRoutes"],
+    ["favorites", "registerFavoriteRoutes"],
   ])
-    await (await import(`../../src/routes/${module}.ts`))[fn](app);
+    await (
+      await import(`../../src/routes/${module}.ts`)
+    )[fn](app, ...(module === "forum" ? [uploadRoot] : []));
   await (
     await import("../../src/routes/media.ts")
   ).registerMediaRoutes(app, uploadRoot);
@@ -103,6 +109,7 @@ export async function createManagementFixture({ serve = false } = {}) {
     owner,
     managers,
     password,
+    uploadRoot,
     query,
     pool,
     request,
@@ -114,10 +121,23 @@ export const adminPages = [
   ["overview", "管理概览", "users.manage", "/api/admin/overview"],
   ["users", "用户", "users.manage", "/api/admin/users"],
   ["invitations", "邀请码", "users.manage", "/api/admin/invitations"],
+  [
+    "registration",
+    "注册管理",
+    "settings.manage",
+    "/api/admin/registration-settings",
+  ],
+  ["mail", "发信设置", "settings.manage", "/api/admin/mail-settings"],
   ["groups", "用户组与权限", "groups.manage", "/api/admin/groups"],
   ["levels", "等级与经验", "levels.manage", "/api/admin/level-config"],
   ["categories", "板块结构", "categories.manage", "/api/admin/categories"],
   ["posts", "发帖管理", "posts.manage", "/api/admin/posts"],
+  [
+    "content-settings",
+    "发帖与回复设置",
+    "settings.manage",
+    "/api/admin/content-settings",
+  ],
   ["deleted-posts", "删除记录", "posts.manage", "/api/admin/deleted-posts"],
   ["reviews", "发帖审核", "posts.review", "/api/admin/reviews"],
   [

@@ -1,21 +1,40 @@
-import type { FastifyInstance } from 'fastify'
+import { resolve } from 'node:path'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
-import { requirePermission, authenticate } from '../auth.js'
-import { awardExperience, effectiveLevel, inTransaction, query } from '../db.js'
-import { readSettings } from '../settings.js'
+import { requirePermission, authenticate, readerLevel } from '../auth.js'
+import { awardExperience, inTransaction, query } from '../db.js'
+import { contentLimits, contentLimitsSchema, readSettings, saveSettings } from '../settings.js'
+import { editorBodySchema, readSubmission, validateContent, withSubmission } from '../content.js'
+import { mediaError } from '../media.js'
 import { grantLevelInvitations } from '../invitations.js'
 import { purgeExpiredPosts, recordPostView } from '../posts.js'
 
-async function currentLevel(uid: string) {
-  const result = await query<{ experience: string; level_offset: number }>(
-    "SELECT experience, level_offset FROM users WHERE uid = $1 AND status = 'active'",
-    [uid],
+const currentLevel = readerLevel
+async function replyPage(request: FastifyRequest, id: string) {
+  const parsed = z
+    .object({ page: z.coerce.number().int().min(1).max(1000000).default(1) })
+    .safeParse(request.query)
+  if (!parsed.success) throw mediaError('回复页码无效')
+  const pageSize = (await contentLimits()).repliesPerPage
+  const count = await query<{ count: number }>(
+    'SELECT COUNT(*)::int AS count FROM replies WHERE post_id=$1',
+    [id],
   )
-  const user = result.rows[0]
-  return user ? effectiveLevel(user.experience, user.level_offset) : 0
+  const totalReplyCount = count.rows[0]!.count
+  const totalPages = Math.max(1, Math.ceil(totalReplyCount / pageSize))
+  const page = Math.min(parsed.data.page, totalPages)
+  const replies = await query(
+    `SELECT r.id,r.body,r.created_at,u.uid AS author_uid,u.username,u.display_name,u.avatar_url
+    FROM replies r JOIN users u ON u.uid=r.author_uid WHERE r.post_id=$1 ORDER BY r.created_at,r.id LIMIT $2 OFFSET $3`,
+    [id, pageSize, (page - 1) * pageSize],
+  )
+  return { replies: replies.rows, page, pageSize, totalReplyCount, totalPages }
 }
 
-export async function registerForumRoutes(app: FastifyInstance) {
+export async function registerForumRoutes(
+  app: FastifyInstance,
+  uploadRoot = resolve(process.cwd(), 'data/uploads'),
+) {
   let cleanupTimer: ReturnType<typeof setInterval> | undefined
   app.addHook('onReady', async () => {
     await purgeExpiredPosts()
@@ -38,8 +57,31 @@ export async function registerForumRoutes(app: FastifyInstance) {
       'registration_enabled',
       'registration_mode',
       'posts_require_review',
+      'email_security',
+      'content_limits',
     ])
   })
+
+  app.get('/api/admin/content-settings', { preHandler: requirePermission('settings.manage') }, async () =>
+    contentLimits(),
+  )
+  app.patch(
+    '/api/admin/content-settings',
+    { preHandler: requirePermission('settings.manage') },
+    async (request, reply) => {
+      const parsed = contentLimitsSchema.safeParse(request.body)
+      if (!parsed.success)
+        return reply.code(400).send({ error: '请检查正文、图片和分页限制，不能超过最大上限' })
+      await inTransaction(async (client) => {
+        await saveSettings({ content_limits: parsed.data }, client)
+        await client.query(
+          "INSERT INTO audit_events(actor_uid,action_key,target_type,details) VALUES($1,'content.settings.update','site',$2::jsonb)",
+          [request.user.uid, JSON.stringify(parsed.data)],
+        )
+      })
+      return { saved: true }
+    },
+  )
 
   app.get('/api/categories', async () => {
     const result = await query<{
@@ -205,18 +247,13 @@ export async function registerForumRoutes(app: FastifyInstance) {
       [id, request.user.uid],
     )
     if (!post.rows[0]) return reply.code(404).send({ error: '回收站帖子不存在' })
-    const replies = await query(
-      `SELECT r.id, r.body, r.created_at, u.uid AS author_uid, u.username, u.display_name, u.avatar_url
-      FROM replies r JOIN users u ON u.uid = r.author_uid WHERE r.post_id = $1 ORDER BY r.created_at`,
-      [id],
-    )
     const likes = await query<{ count: number }>(
       'SELECT COUNT(*)::int AS count FROM post_likes WHERE post_id = $1',
       [id],
     )
     return {
       post: post.rows[0],
-      replies: replies.rows,
+      ...(await replyPage(request, id)),
       likeCount: likes.rows[0]!.count,
     }
   })
@@ -253,8 +290,9 @@ export async function registerForumRoutes(app: FastifyInstance) {
     )
     if (!post.rows[0]) return reply.code(404).send({ error: '帖子不存在' })
     if (
-      Number(post.rows[0].minimum_reader_level) > readerLevel ||
-      Number(post.rows[0].category_minimum_reader_level) > readerLevel
+      post.rows[0].author_uid !== uid &&
+      (Number(post.rows[0].minimum_reader_level) > readerLevel ||
+        Number(post.rows[0].category_minimum_reader_level) > readerLevel)
     ) {
       return reply.code(403).send({ error: '此帖需要更高等级才能阅读' })
     }
@@ -263,33 +301,29 @@ export async function registerForumRoutes(app: FastifyInstance) {
       if (viewCount === null) return reply.code(404).send({ error: '帖子不存在' })
       post.rows[0].view_count = viewCount
     }
-    const [replies, likes] = await Promise.all([
-      query(
-        `SELECT r.id, r.body, r.created_at, u.uid AS author_uid, u.username, u.display_name, u.avatar_url
-         FROM replies r JOIN users u ON u.uid = r.author_uid WHERE r.post_id = $1 ORDER BY r.created_at`,
-        [id],
-      ),
-      query<{ count: number }>('SELECT COUNT(*)::int AS count FROM post_likes WHERE post_id = $1', [id]),
-    ])
+    const likes = await query<{ count: number }>(
+      'SELECT COUNT(*)::int AS count FROM post_likes WHERE post_id = $1',
+      [id],
+    )
     return {
       post: post.rows[0],
-      replies: replies.rows,
+      ...(await replyPage(request, id)),
       likeCount: likes.rows[0]?.count ?? 0,
     }
   })
 
   app.post('/api/posts', { preHandler: requirePermission('posts.create') }, async (request, reply) => {
+    const submission = await readSubmission(request)
     const parsed = z
       .object({
         categoryId: z.string().regex(/^\d+$/),
         title: z.string().trim().min(4).max(180),
-        body: z
-          .record(z.string(), z.unknown())
-          .refine((value) => Array.isArray(value.blocks) && value.blocks.length > 0),
+        body: editorBodySchema,
         minimumReaderLevel: z.number().int().min(0).default(0),
       })
-      .safeParse(request.body)
+      .safeParse(submission.payload)
     if (!parsed.success) return reply.code(400).send({ error: '请填写标题、版块和正文' })
+    await validateContent(parsed.data.body, 'post')
     if (parsed.data.minimumReaderLevel > 0) {
       const permission = await query(
         `SELECT 1 FROM group_memberships gm JOIN group_permissions gp ON gp.group_id = gm.group_id
@@ -320,24 +354,30 @@ export async function registerForumRoutes(app: FastifyInstance) {
       keys.includes('posts.require_review') ||
       (!keys.includes('posts.bypass_review') &&
         (settings.posts_require_review || category.rows[0].requires_review))
-    const result = await inTransaction(async (client) => {
-      const created = await client.query(
-        `INSERT INTO posts (category_id, author_uid, title, body, minimum_reader_level, status, author_ip)
+    const result = await withSubmission(
+      request.user.uid,
+      parsed.data.body,
+      submission.attachments,
+      uploadRoot,
+      async (client) => {
+        const created = await client.query(
+          `INSERT INTO posts (category_id, author_uid, title, body, minimum_reader_level, status, author_ip)
          VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7) RETURNING id, status`,
-        [
-          parsed.data.categoryId,
-          request.user.uid,
-          parsed.data.title,
-          JSON.stringify(parsed.data.body),
-          parsed.data.minimumReaderLevel,
-          requiresReview ? 'pending' : 'published',
-          request.ip,
-        ],
-      )
-      const experience = await awardExperience(request.user.uid, 'create_post', client)
-      await grantLevelInvitations(request.user.uid, client)
-      return { post: created.rows[0], experience }
-    })
+          [
+            parsed.data.categoryId,
+            request.user.uid,
+            parsed.data.title,
+            JSON.stringify(parsed.data.body),
+            parsed.data.minimumReaderLevel,
+            requiresReview ? 'pending' : 'published',
+            request.ip,
+          ],
+        )
+        const experience = await awardExperience(request.user.uid, 'create_post', client)
+        await grantLevelInvitations(request.user.uid, client)
+        return { post: created.rows[0], experience }
+      },
+    )
     return reply.code(201).send(result)
   })
 
@@ -345,14 +385,14 @@ export async function registerForumRoutes(app: FastifyInstance) {
     '/api/posts/:id/replies',
     { preHandler: requirePermission('replies.create') },
     async (request, reply) => {
+      const submission = await readSubmission(request)
       const parsed = z
         .object({
-          body: z
-            .record(z.string(), z.unknown())
-            .refine((value) => Array.isArray(value.blocks) && value.blocks.length > 0),
+          body: editorBodySchema,
         })
-        .safeParse(request.body)
+        .safeParse(submission.payload)
       if (!parsed.success) return reply.code(400).send({ error: '回复内容不能为空' })
+      await validateContent(parsed.data.body, 'reply')
       const { id } = request.params as { id: string }
       const post = await query<{
         minimum_reader_level: number
@@ -369,18 +409,24 @@ export async function registerForumRoutes(app: FastifyInstance) {
       ) {
         return reply.code(403).send({ error: '此帖需要更高等级才能回复' })
       }
-      const result = await inTransaction(async (client) => {
-        const created = await client.query(
-          `INSERT INTO replies (post_id, author_uid, body)
+      const result = await withSubmission(
+        request.user.uid,
+        parsed.data.body,
+        submission.attachments,
+        uploadRoot,
+        async (client) => {
+          const created = await client.query(
+            `INSERT INTO replies (post_id, author_uid, body)
          SELECT p.id, $2, $3::jsonb FROM posts p WHERE p.id = $1 AND p.status IN ('published', 'hidden') AND p.deleted_at IS NULL
          RETURNING id`,
-          [id, request.user.uid, JSON.stringify(parsed.data.body)],
-        )
-        if (!created.rows[0]) return null
-        const experience = await awardExperience(request.user.uid, 'create_reply', client)
-        await grantLevelInvitations(request.user.uid, client)
-        return { reply: created.rows[0], experience }
-      })
+            [id, request.user.uid, JSON.stringify(parsed.data.body)],
+          )
+          if (!created.rows[0]) throw mediaError('帖子不存在', 404)
+          const experience = await awardExperience(request.user.uid, 'create_reply', client)
+          await grantLevelInvitations(request.user.uid, client)
+          return { reply: created.rows[0], experience }
+        },
+      )
       if (!result) return reply.code(404).send({ error: '帖子不存在' })
       return reply.code(201).send(result)
     },

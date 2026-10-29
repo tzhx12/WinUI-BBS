@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ListView, PersonPicture, TextBox } from 'winuionweb'
+import { InfoBar, ListView, PasswordBox, PersonPicture, TextBox } from 'winuionweb'
 import { api, uploadForm } from '../api'
 import { useResource } from '../composables/useResource'
 import { useSite } from '../site'
@@ -13,9 +13,48 @@ import ResourceState from '../components/ui/ResourceState.vue'
 import WinButton from '../components/ui/WinButton.vue'
 import PostListItem from '../components/PostListItem.vue'
 import WinDialog from '../components/ui/WinDialog.vue'
+import EmailCodeInput from '../components/EmailCodeInput.vue'
 
 defineOptions({ inheritAttrs: false })
 const site = useSite()
+const passwordOpen = ref(false),
+  newPassword = ref(''),
+  confirmPassword = ref(''),
+  passwordCode = ref(''),
+  passwordMessage = ref('')
+function editPassword() {
+  newPassword.value = ''
+  confirmPassword.value = ''
+  passwordCode.value = ''
+  passwordMessage.value = ''
+  profileError.value = ''
+  passwordOpen.value = true
+}
+async function changePassword() {
+  if (newPassword.value !== confirmPassword.value) {
+    profileError.value = '两次输入的密码不一致'
+    return
+  }
+  saving.value = true
+  profileError.value = ''
+  try {
+    const result = await api<{ token: string }>('/api/me/password', {
+      method: 'POST',
+      token: site.token.value,
+      body: { password: newPassword.value, code: passwordCode.value },
+    })
+    await site.authenticate({ token: result.token, user: site.user.value! })
+    passwordOpen.value = false
+    newPassword.value = ''
+    confirmPassword.value = ''
+    passwordCode.value = ''
+    site.notify('密码已更改，其他登录凭证已失效')
+  } catch (cause) {
+    profileError.value = (cause as Error).message
+  } finally {
+    saving.value = false
+  }
+}
 const router = useRouter()
 const {
   data: posts,
@@ -30,7 +69,9 @@ const filtered = computed(() =>
     ? posts.value
     : posts.value.filter((post) => (post as PostSummary & { status?: string }).status === filter.value),
 )
-const template = itemTemplate(PostListItem, 'item', { canDelete: true, onDelete: trashPost })
+const template = computed(() =>
+  itemTemplate(PostListItem, 'item', { canDelete: !site.user.value?.isBanned, onDelete: trashPost }),
+)
 async function trashPost(post: PostSummary) {
   if (!(await site.confirm(`删除“${post.title}”？`, '帖子将移入仅自己可见的回收站。', '移入回收站'))) return
   if (
@@ -157,11 +198,21 @@ onBeforeUnmount(clearAvatar)
   <div class="page-scroll">
     <div class="page-content">
       <PageHeader title="用户后台" description="查看你的个人资料、等级和发帖记录。"
-        ><WinButton label="回收站" icon="delete" @click="router.push('/account/trash')" /><WinButton
+        ><WinButton label="我的收藏" icon="favorite" @click="router.push('/account/favorites')" /><WinButton
+          label="回收站"
+          icon="delete"
+          @click="router.push('/account/trash')" /><WinButton
           label="外观设置"
           icon="brush"
           @click="openAppearance"
       /></PageHeader>
+      <InfoBar
+        v-if="site.user.value?.isBanned"
+        :IsOpen="true"
+        Message="账号封禁期间仅可浏览，解封后恢复交互。"
+        Severity="Warning"
+        :IsClosable="false"
+      />
       <section class="user-dashboard-summary">
         <div class="surface-card dashboard-profile">
           <div class="profile-identity">
@@ -175,10 +226,14 @@ onBeforeUnmount(clearAvatar)
               <h2>{{ site.user?.value?.displayName }}</h2>
               <p class="secondary-text">@{{ site.user?.value?.username }}</p>
               <p class="secondary-text">UID {{ site.user?.value?.uid }} · {{ site.user?.value?.email }}</p>
-              <div v-if="site.user.value" class="row-actions profile-edit-actions">
+              <div
+                v-if="site.user.value && !site.user.value.isBanned"
+                class="row-actions profile-edit-actions"
+              >
                 <WinButton label="上传头像" icon="image" @click="editAvatar" />
                 <WinButton label="更改用户名" icon="edit" @click="editUsername" />
                 <WinButton label="更改昵称" icon="edit" @click="editNickname" />
+                <WinButton label="更改密码" icon="lock" @click="editPassword" />
               </div>
             </div>
           </div>
@@ -248,6 +303,39 @@ onBeforeUnmount(clearAvatar)
           180 天内仅可修改一次，管理用户组成员除外。<template v-if="usernameChangeDate"
             >下次可修改日期：{{ usernameChangeDate }}。</template
           >
+        </p>
+      </WinDialog>
+      <WinDialog
+        v-model:open="passwordOpen"
+        title="更改密码"
+        primary="更改密码"
+        :busy="saving"
+        :error="profileError"
+        @primary="changePassword"
+      >
+        <p>验证码将发送到 {{ site.user.value?.email }}。</p>
+        <EmailCodeInput
+          v-model="passwordCode"
+          purpose="password_change"
+          :token="site.token.value"
+          :disabled="saving"
+          @error="profileError = $event"
+          @sent="passwordMessage = $event"
+        />
+        <InfoBar
+          v-if="passwordMessage"
+          :IsOpen="true"
+          :Message="passwordMessage"
+          Severity="Success"
+          :IsClosable="false"
+        />
+        <PasswordBox v-model:Password="newPassword" Header="新密码" autocomplete="new-password" /><PasswordBox
+          v-model:Password="confirmPassword"
+          Header="确认新密码"
+          autocomplete="new-password"
+        />
+        <p class="field-hint">
+          密码需为 10–128 位，每 {{ site.settings.emailSecurity.passwordChangeSeconds }} 秒最多更改一次。
         </p>
       </WinDialog>
       <WinDialog

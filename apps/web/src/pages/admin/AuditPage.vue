@@ -43,6 +43,9 @@ const actionNames: Record<string, string> = {
   'site.settings.update': '更新站点设置',
   'notification.send': '发送站内通知',
   'invitation.rule.delete': '删除邀请码奖励规则',
+  'mail.settings.update': '更新发信设置',
+  'registration.settings.update': '更新注册与密码安全设置',
+  'content.settings.update': '更新发帖与回复设置',
   'group.type.normalize': '调整用户组类型',
   'group.permissions.restrict': '调整用户组权限',
 }

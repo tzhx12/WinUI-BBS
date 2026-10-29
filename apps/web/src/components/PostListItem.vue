@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PersonPicture } from 'winuionweb'
+import UserAvatar from './UserAvatar.vue'
 import type { PostSummary } from '../types'
 import { formatDate } from '../utils'
 import { previewText } from '../content'
@@ -18,12 +18,7 @@ const excerpt = computed(() =>
 </script>
 <template>
   <article class="post-list-item">
-    <PersonPicture
-      :DisplayName="item.display_name"
-      :ProfilePicture="item.avatar_url || undefined"
-      :Width="40"
-      :Height="40"
-    />
+    <UserAvatar :uid="item.author_uid" :name="item.display_name" :url="item.avatar_url" />
     <div class="post-list-copy">
       <div class="post-list-labels">
         <span class="category-label"

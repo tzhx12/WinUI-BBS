@@ -66,7 +66,7 @@ async function toggle(group: PublicGroup) {
             ><WinButton
               :label="group.joined ? '退出用户组' : '加入用户组'"
               :accent="!group.joined"
-              :disabled="saving"
+              :disabled="saving || site.user.value?.isBanned"
               @click="toggle(group)"
             />
           </div>

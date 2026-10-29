@@ -22,6 +22,7 @@ const glyphs: Record<IconName, string> = {
   emoji: String.fromCharCode(0xe76e),
   calendar: String.fromCharCode(0xe787),
   like: String.fromCharCode(0xe8e1),
+  favorite: '\ue734',
   pin: String.fromCharCode(0xe840),
   shield: String.fromCharCode(0xe72e),
   chart: String.fromCharCode(0xe9d2),

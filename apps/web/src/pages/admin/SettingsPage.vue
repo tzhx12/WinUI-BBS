@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { NumberBox, TextBox, ToggleSwitch } from 'winuionweb'
+import { NumberBox, TextBox } from 'winuionweb'
 import { api, uploadForm } from '../../api'
 import { useResource } from '../../composables/useResource'
 import { useSite } from '../../site'
 import PageHeader from '../../components/ui/PageHeader.vue'
 import ResourceState from '../../components/ui/ResourceState.vue'
 import WinButton from '../../components/ui/WinButton.vue'
-import WinSelect from '../../components/ui/WinSelect.vue'
 defineOptions({ inheritAttrs: false })
 const site = useSite()
 const { data, loading, error, saving, run } = useResource(
@@ -40,8 +39,6 @@ async function save() {
           body: {
             siteTitle: data.value.site_title,
             siteUrl: data.value.site_url,
-            registrationEnabled: data.value.registration_enabled,
-            registrationMode: data.value.registration_mode,
             trashRetentionDays: data.value.trash_retention_days,
           },
         }),
@@ -52,8 +49,6 @@ async function save() {
       title: data.value.site_title,
       icon: data.value.site_icon_url,
       url: data.value.site_url,
-      registrationEnabled: data.value.registration_enabled,
-      registrationMode: data.value.registration_mode,
     })
 }
 async function upload(event: Event) {
@@ -133,23 +128,6 @@ async function reset() {
           AutomationProperties.Name="帖子保留天数"
         />
         <p class="field-hint">更改适用于之后删除的帖子。</p>
-      </section>
-      <section v-if="!loading" class="surface-card form-stack">
-        <h2>注册</h2>
-        <ToggleSwitch
-          v-model:IsOn="data.registration_enabled"
-          Header="开放注册"
-          OnContent="开放"
-          OffContent="关闭"
-        />
-        <WinSelect
-          v-model="data.registration_mode"
-          label="注册机制"
-          :options="[
-            { value: 'open', label: '开放注册' },
-            { value: 'invite', label: '邀请注册' },
-          ]"
-        />
       </section>
     </div>
   </div>

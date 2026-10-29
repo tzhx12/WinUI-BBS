@@ -7,6 +7,7 @@ import { inTransaction, query } from '../db.js'
 import { replaceDeletedImages, mediaError, saveUpload } from '../media.js'
 import {
   mediaLimitsSchema,
+  contentLimits,
   readSettings,
   remoteEmojiSchema,
   saveSettings,
@@ -19,9 +20,11 @@ export async function registerMediaRoutes(app: FastifyInstance, uploadRoot: stri
     const asset = await saveUpload(request, uploadRoot, 'avatar')
     return reply.code(201).send({ avatarUrl: asset.url })
   })
-  app.post('/api/media', { preHandler: requirePermission('media.use') }, async (request, reply) =>
-    reply.code(201).send(await saveUpload(request, uploadRoot, 'library')),
-  )
+  app.post('/api/media', { preHandler: requirePermission('media.use') }, async (request, reply) => {
+    if (!(await contentLimits()).directLibraryUploads)
+      return reply.code(403).send({ error: '请在发帖或回复时添加图片，发布后才会上传' })
+    return reply.code(201).send(await saveUpload(request, uploadRoot, 'library'))
+  })
   app.get('/api/emoji-packs', async (request, reply) => {
     let uid: string | null = null
     if (request.headers.authorization) {
@@ -109,6 +112,8 @@ export async function registerMediaRoutes(app: FastifyInstance, uploadRoot: stri
         .safeParse(request.query)
       if (!parsed.success || (parsed.data.collection === 'emoji' && !parsed.data.packId))
         return reply.code(400).send({ error: '请选择上传位置和表情包' })
+      if (!admin && parsed.data.collection === 'library' && !(await contentLimits()).directLibraryUploads)
+        return reply.code(403).send({ error: '请在发帖或回复时添加图片，发布后才会上传' })
       return reply
         .code(201)
         .send(

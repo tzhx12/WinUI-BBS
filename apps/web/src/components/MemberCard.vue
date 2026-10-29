@@ -52,7 +52,7 @@ async function checkin() {
       <WinButton
         :label="site.user.value.checkedIn ? '今日已签到' : '每日签到'"
         icon="calendar"
-        :disabled="site.user.value.checkedIn || busy"
+        :disabled="site.user.value.isBanned || site.user.value.checkedIn || busy"
         @click="checkin"
       /><WinButton label="个人资料" subtle @click="router.push('/profile')" /> </template
     ><template v-else

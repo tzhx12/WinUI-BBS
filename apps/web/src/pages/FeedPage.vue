@@ -60,7 +60,13 @@ function compose() {
             : category?.description || '浏览社区中的新话题，参与感兴趣的讨论。'
         "
       >
-        <WinButton label="发布帖子" icon="add" accent @click="compose" />
+        <WinButton
+          label="发布帖子"
+          icon="add"
+          accent
+          :disabled="site.user.value?.isBanned"
+          @click="compose"
+        />
       </PageHeader>
       <div v-if="roots.length && !isSearch" class="category-grid">
         <Button

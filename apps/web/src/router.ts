@@ -25,6 +25,12 @@ import ReviewsPage from './pages/admin/ReviewsPage.vue'
 import ReviewSettingsPage from './pages/admin/ReviewSettingsPage.vue'
 import DeletedPostsPage from './pages/admin/DeletedPostsPage.vue'
 import AboutPage from './pages/AboutPage.vue'
+import RegistrationPage from './pages/admin/RegistrationPage.vue'
+import MailSettingsPage from './pages/admin/MailSettingsPage.vue'
+import ResetPasswordPage from './pages/ResetPasswordPage.vue'
+import ContentSettingsPage from './pages/admin/ContentSettingsPage.vue'
+import FavoritesPage from './pages/FavoritesPage.vue'
+import UserSpacePage from './pages/UserSpacePage.vue'
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -37,10 +43,15 @@ export const router = createRouter({
     { path: '/post/:id', component: PostPage },
     { path: '/compose', component: ComposePage },
     { path: '/profile', component: ProfilePage },
+    { path: '/users/:id', component: UserSpacePage },
+    { path: '/favorites/:id', component: FavoritesPage },
     { path: '/groups', component: PublicGroupsPage },
     { path: '/appearance', component: AppearancePage },
     { path: '/about', component: AboutPage },
+    { path: '/reset-password', component: ResetPasswordPage },
     { path: '/account', component: UserDashboardPage },
+    { path: '/account/favorites', component: FavoritesPage },
+    { path: '/account/favorites/:id', component: FavoritesPage },
     { path: '/account/invitations', component: MyInvitationsPage },
     { path: '/account/trash', component: TrashPage },
     { path: '/account/trash/:id', component: PostPage },
@@ -57,9 +68,12 @@ export const router = createRouter({
       ['deleted-posts', DeletedPostsPage],
       ['reviews', ReviewsPage],
       ['review-settings', ReviewSettingsPage],
+      ['content-settings', ContentSettingsPage],
       ['notifications', AdminNotificationsPage],
       ['media', MediaPage],
       ['settings', SettingsPage],
+      ['registration', RegistrationPage],
+      ['mail', MailSettingsPage],
       ['appearance', AppearancePage],
       ['audit', AuditPage],
     ].map(([section, component]) => ({

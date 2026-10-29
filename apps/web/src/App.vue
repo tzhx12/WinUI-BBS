@@ -22,7 +22,7 @@ import {
   xamlScopeKey,
 } from 'winuionweb'
 import { api } from './api'
-import { adminSections, createSite, siteKey } from './site'
+import { adminNavigationGroups, adminSections, createSite, siteKey } from './site'
 import type { Category, User } from './types'
 import HeaderSearch from './components/HeaderSearch.vue'
 import HeaderAccount from './components/HeaderAccount.vue'
@@ -75,11 +75,28 @@ function categoryItems(parent: string | null): unknown[] {
 
 const menuItems = computed(() =>
   isAdmin.value
-    ? permittedSections.value.map((item) => ({
-        Tag: `/admin/${item.id}`,
-        Content: item.label,
-        Icon: item.icon,
-      }))
+    ? [
+        ...permittedSections.value
+          .filter((item) => item.id === 'overview')
+          .map((item) => ({ Tag: `/admin/${item.id}`, Content: item.label, Icon: item.icon })),
+        ...adminNavigationGroups.flatMap((group) => {
+          const children = group.sections.flatMap((id) => {
+            const item = permittedSections.value.find((section) => section.id === id)
+            return item ? [{ Tag: `/admin/${item.id}`, Content: item.label, Icon: item.icon }] : []
+          })
+          return children.length
+            ? [
+                {
+                  Tag: `admin-group:${group.id}`,
+                  Content: group.label,
+                  Icon: group.icon,
+                  SelectsOnInvoked: false,
+                  MenuItems: children,
+                },
+              ]
+            : []
+        }),
+      ]
     : [
         { Tag: '/home', Content: '社区首页', Icon: '\ue80f' },
         { Tag: '/popular', Content: '热门讨论', Icon: '\ue8e5' },
@@ -98,7 +115,7 @@ const menuItems = computed(() =>
               },
             ]
           : []),
-        ...(site.user.value?.permissions?.includes('media.use')
+        ...(site.user.value?.isBanned || site.user.value?.permissions?.includes('media.use')
           ? [{ Tag: '/my-images', Content: '我的图片', Icon: '\ue8b9' }]
           : []),
       ],
@@ -114,6 +131,7 @@ const footerItems = computed(() => [
 ])
 
 function navigate(_sender: unknown, args: { InvokedItemContainer: { Tag: string } }) {
+  if (args.InvokedItemContainer.Tag.startsWith('admin-group:')) return
   void router.push(args.InvokedItemContainer.Tag)
 }
 
@@ -165,6 +183,12 @@ async function renderPage() {
 }
 
 watch([mode, () => route.fullPath, canAccess], renderPage, { flush: 'post' })
+watch(
+  () => route.path,
+  (path) => {
+    if (path === '/reset-password') site.authOpen.value = false
+  },
+)
 onMounted(initialize)
 const unreadTimer = setInterval(() => {
   void site.refreshUnread().catch(() => {})

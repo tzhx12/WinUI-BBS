@@ -154,8 +154,8 @@ test("ban range, active sessions, login and early unban", async () => {
     ) < 5000,
   );
   assert.equal((await member()).is_banned, true);
-  assert.equal((await me()).statusCode, 401);
-  assert.equal((await login()).statusCode, 403);
+  assert.equal((await me()).statusCode, 200);
+  assert.equal((await login()).statusCode, 200);
   assert.equal(
     (
       await app.inject({
@@ -164,7 +164,7 @@ test("ban range, active sessions, login and early unban", async () => {
         headers: auth(memberToken),
       })
     ).statusCode,
-    401,
+    403,
   );
   assert.equal(
     (
@@ -175,7 +175,7 @@ test("ban range, active sessions, login and early unban", async () => {
         payload: {},
       })
     ).statusCode,
-    401,
+    403,
   );
   assert.equal(
     (await patchUser({ level: 3, status: "active" })).statusCode,

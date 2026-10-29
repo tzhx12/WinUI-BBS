@@ -7,6 +7,7 @@ export const adminSections = [
   { id: 'overview', label: '管理概览', icon: '\ue9d2', permission: 'users.manage' },
   { id: 'users', label: '用户', icon: '\ue716', permission: 'users.manage' },
   { id: 'invitations', label: '邀请码', icon: '\ue8a7', permission: 'users.manage' },
+  { id: 'registration', label: '注册管理', icon: '\ue8d4', permission: 'settings.manage' },
   { id: 'groups', label: '用户组与权限', icon: '\ue72e', permission: 'groups.manage' },
   { id: 'levels', label: '等级与经验', icon: '\ue734', permission: 'levels.manage' },
   { id: 'categories', label: '板块结构', icon: '\ue8b7', permission: 'categories.manage' },
@@ -14,12 +15,44 @@ export const adminSections = [
   { id: 'deleted-posts', label: '删除记录', icon: '\ue74d', permission: 'posts.manage' },
   { id: 'reviews', label: '发帖审核', icon: '\ue73e', permission: 'posts.review' },
   { id: 'review-settings', label: '审核设置', icon: '\ue72e', permission: 'settings.manage' },
+  { id: 'content-settings', label: '发帖与回复设置', icon: '\ue8bd', permission: 'settings.manage' },
   { id: 'notifications', label: '公告与通知', icon: '\ue715', permission: 'settings.manage' },
   { id: 'media', label: '图床与表情', icon: '\ue8b9', permission: 'media.manage' },
   { id: 'settings', label: '站点设置', icon: '\ue713', permission: 'settings.manage' },
+  { id: 'mail', label: '发信设置', icon: '\ue715', permission: 'settings.manage' },
   { id: 'appearance', label: '外观设置', icon: '\ue771', permission: 'settings.manage' },
   { id: 'audit', label: '管理记录', icon: '\ue823', permission: 'settings.manage' },
 ] as const
+
+export const adminNavigationGroups = [
+  {
+    id: 'members',
+    label: '用户与注册',
+    icon: '\ue716',
+    sections: ['users', 'groups', 'levels', 'invitations', 'registration'],
+  },
+  {
+    id: 'content',
+    label: '内容管理',
+    icon: '\ue8bd',
+    sections: [
+      'categories',
+      'posts',
+      'reviews',
+      'deleted-posts',
+      'review-settings',
+      'content-settings',
+      'media',
+      'notifications',
+    ],
+  },
+  {
+    id: 'configuration',
+    label: '站点配置',
+    icon: '\ue713',
+    sections: ['settings', 'mail', 'appearance', 'audit'],
+  },
+]
 
 export function createSite() {
   const token = ref<string | null>(localStorage.getItem('forum-token'))
@@ -32,6 +65,23 @@ export function createSite() {
     registrationEnabled: true,
     registrationMode: 'open' as 'open' | 'invite',
     postsRequireReview: false,
+    contentLimits: {
+      postCharacters: 20000,
+      postImages: 15,
+      replyCharacters: 1000,
+      replyImages: 5,
+      repliesPerPage: 20,
+      directLibraryUploads: false,
+    },
+    emailSecurity: {
+      registrationVerification: false,
+      codeMinutes: 60,
+      resendSeconds: 60,
+      recoveryEnabled: true,
+      resetMinutes: 30,
+      recoveryDailyLimit: 1,
+      passwordChangeSeconds: 60,
+    },
   })
   const theme = ref<'light' | 'dark'>((localStorage.getItem('forum-theme') as 'light' | 'dark') || 'light')
   const compactNavigation = ref(localStorage.getItem('forum-compact-navigation') === 'true')
@@ -73,16 +123,18 @@ export function createSite() {
   }
 
   function updateSettings(value: {
-    title: string
-    icon: string
+    title?: string
+    icon?: string
     url?: string
     registrationEnabled?: boolean
     registrationMode?: 'open' | 'invite'
     postsRequireReview?: boolean
+    emailSecurity?: typeof settings.emailSecurity
+    contentLimits?: typeof settings.contentLimits
   }) {
     Object.assign(settings, value)
-    document.title = `${value.title} · 社区`
-    document.querySelector<HTMLLinkElement>('link[rel="icon"]')!.href = value.icon || '/brand-mark.png'
+    document.title = `${settings.title} · 社区`
+    document.querySelector<HTMLLinkElement>('link[rel="icon"]')!.href = settings.icon || '/brand-mark.png'
   }
 
   async function loadCategories() {
@@ -126,6 +178,8 @@ export function createSite() {
         registration_enabled: boolean
         registration_mode: 'open' | 'invite'
         posts_require_review: boolean
+        email_security: typeof settings.emailSecurity
+        content_limits: typeof settings.contentLimits
       }>('/api/site'),
       loadCategories(),
       refreshUser(),
@@ -137,6 +191,8 @@ export function createSite() {
       registrationEnabled: value.registration_enabled,
       registrationMode: value.registration_mode,
       postsRequireReview: value.posts_require_review,
+      emailSecurity: value.email_security,
+      contentLimits: value.content_limits,
     })
     loadAppearance()
   }

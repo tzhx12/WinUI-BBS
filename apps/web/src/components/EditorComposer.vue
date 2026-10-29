@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { Button, Flyout } from 'winuionweb'
 import type EditorJS from '@editorjs/editorjs'
-import { api, uploadForm } from '../api'
+import { api } from '../api'
+import { contentSize, readDraft, writeDraft } from '../drafts'
+import { useSite } from '../site'
 import type { EditorData } from '../types'
 import IconGlyph from './IconGlyph.vue'
 import EmojiPicker from './EmojiPicker.vue'
@@ -88,7 +90,30 @@ class SpoilerInlineTool {
   }
 }
 
-const props = defineProps<{ token: string; initialData?: EditorData | null }>()
+const props = defineProps<{
+  token: string
+  initialData?: EditorData | null
+  draftKey: string
+  metadata?: Record<string, unknown>
+  kind?: 'post' | 'reply'
+}>()
+const emit = defineEmits<{ restored: [metadata: Record<string, unknown>] }>()
+const site = useSite()
+const size = ref({ characters: 0, images: 0 })
+const draftStatus = ref('草稿仅保存在此浏览器')
+const assets = new Map<string, { file: Blob; name: string; url: string }>()
+let discarded = false
+let ready = false
+let timer: ReturnType<typeof setTimeout> | undefined
+let pendingWrite = Promise.resolve()
+const limits = computed(() => ({
+  characters:
+    props.kind === 'reply'
+      ? site.settings.contentLimits.replyCharacters
+      : site.settings.contentLimits.postCharacters,
+  images:
+    props.kind === 'reply' ? site.settings.contentLimits.replyImages : site.settings.contentLimits.postImages,
+}))
 const holder = ref<HTMLElement | null>(null)
 const editor = shallowRef<EditorJS | null>(null)
 const emojiPacks = ref<EmojiPack[]>([])
@@ -123,6 +148,20 @@ async function initializeEditor() {
       emojiError.value = '表情包暂不可用'
     })
   try {
+    const draft = await readDraft(props.draftKey)
+    let initialData = props.initialData ?? { blocks: [] }
+    if (draft) {
+      for (const asset of draft.assets)
+        assets.set(asset.id, { file: asset.file, name: asset.name, url: URL.createObjectURL(asset.file) })
+      initialData = structuredClone(draft.body)
+      for (const block of initialData.blocks)
+        if (block.type === 'image') {
+          const file = block.data.file as { url: string }
+          if (assets.has(file.url)) file.url = assets.get(file.url)!.url
+        }
+      emit('restored', draft.metadata)
+      draftStatus.value = '已恢复此浏览器中的草稿'
+    }
     const [
       editorModule,
       headerModule,
@@ -146,7 +185,8 @@ async function initializeEditor() {
     const EditorJSClass = editorModule.default
     editor.value = new EditorJSClass({
       holder: holder.value!,
-      data: props.initialData ?? { blocks: [] },
+      data: initialData,
+      onChange: scheduleDraft,
       placeholder: '写下值得讨论的内容…',
       i18n: editorZh,
       inlineToolbar: ['bold', 'italic', 'link', 'marker', 'inlineCode', 'spoiler'],
@@ -169,12 +209,7 @@ async function initializeEditor() {
             captionPlaceholder: '图片说明',
             uploader: {
               uploadByFile: async (file: File) => {
-                const result = await api<{ url: string }>('/api/media', {
-                  method: 'POST',
-                  token: props.token,
-                  body: uploadForm(file),
-                })
-                return { success: 1, file: { url: result.url } }
+                return { success: 1, file: { url: cacheImage(file) } }
               },
             },
           },
@@ -182,7 +217,9 @@ async function initializeEditor() {
       },
     })
     await editor.value.isReady
+    ready = true
     if (destroyed) editor.value?.destroy()
+    else size.value = contentSize(await save())
   } catch (cause) {
     editorError.value = cause instanceof Error ? cause.message : '编辑器暂不可用'
   }
@@ -190,8 +227,81 @@ async function initializeEditor() {
 
 onBeforeUnmount(() => {
   destroyed = true
-  editor.value?.destroy?.()
+  clearTimeout(timer)
+  void persistDraft().finally(() => {
+    editor.value?.destroy?.()
+    for (const asset of assets.values()) URL.revokeObjectURL(asset.url)
+  })
 })
+
+watch(() => props.metadata, scheduleDraft, { deep: true })
+function scheduleDraft() {
+  if (!ready || discarded) return
+  clearTimeout(timer)
+  timer = setTimeout(() => {
+    void persistDraft()
+  }, 250)
+}
+function cacheImage(file: File) {
+  if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type))
+    throw new Error('仅支持 PNG、JPEG、WebP 和 GIF 图片')
+  const id = `draft:${crypto.randomUUID()}`
+  const url = URL.createObjectURL(file)
+  assets.set(id, { file, name: file.name, url })
+  return url
+}
+function serialize(body: EditorData) {
+  const result = structuredClone(body)
+  const used = new Set<string>()
+  for (const block of result.blocks)
+    if (block.type === 'image') {
+      const file = block.data.file as { url: string }
+      for (const [id, asset] of assets)
+        if (file.url === asset.url) {
+          file.url = id
+          used.add(id)
+        }
+    }
+  return {
+    body: result,
+    assets: [...used].map((id) => ({ id, file: assets.get(id)!.file, name: assets.get(id)!.name })),
+  }
+}
+async function persistDraft() {
+  if (!ready || discarded) return
+  try {
+    const body = await save()
+    if (discarded) return
+    size.value = contentSize(body)
+    const value = { ...serialize(body), metadata: { ...props.metadata } }
+    pendingWrite = pendingWrite.catch(() => {}).then(() => writeDraft(props.draftKey, value))
+    await pendingWrite
+    draftStatus.value = '草稿已保存在此浏览器'
+  } catch (cause) {
+    uploadError.value = (cause as Error).message
+  }
+}
+async function submission(extra: Record<string, unknown> = {}) {
+  const current = await save()
+  size.value = contentSize(current)
+  if (size.value.characters > limits.value.characters)
+    throw new Error(`正文最多 ${limits.value.characters} 字`)
+  if (size.value.images > limits.value.images)
+    throw new Error(`正文最多 ${limits.value.images} 张图片（含表情）`)
+  const value = serialize(current)
+  const payload = { ...extra, body: value.body }
+  if (!value.assets.length) return payload
+  const form = new FormData()
+  form.append('payload', JSON.stringify(payload))
+  for (const asset of value.assets) form.append(asset.id, asset.file, asset.name)
+  return form
+}
+async function clearDraft() {
+  discarded = true
+  clearTimeout(timer)
+  await pendingWrite.catch(() => {})
+  await writeDraft(props.draftKey)
+}
 
 async function save() {
   if (!editor.value) throw new Error('编辑器尚未就绪')
@@ -211,12 +321,9 @@ async function uploadImage(event: Event) {
   uploadBusy.value = true
   uploadError.value = ''
   try {
-    const result = await api<{ url: string }>('/api/media', {
-      method: 'POST',
-      token: props.token,
-      body: uploadForm(file),
-    })
-    editor.value.blocks.insert('image', { file: { url: result.url }, caption: file.name })
+    const url = cacheImage(file)
+    editor.value.blocks.insert('image', { file: { url }, caption: file.name })
+    scheduleDraft()
   } catch (cause) {
     uploadError.value = cause instanceof Error ? cause.message : '无法上传图片'
   } finally {
@@ -225,7 +332,7 @@ async function uploadImage(event: Event) {
   }
 }
 
-defineExpose({ save })
+defineExpose({ save, submission, clearDraft })
 </script>
 
 <template>
@@ -234,7 +341,7 @@ defineExpose({ save })
     <div class="editor-actions">
       <div class="editor-tools">
         <WinButton
-          :label="uploadBusy ? '上传中' : '图片'"
+          :label="uploadBusy ? '添加中' : '图片'"
           icon="image"
           subtle
           :disabled="uploadBusy"
@@ -255,5 +362,9 @@ defineExpose({ save })
         editorError || uploadError
       }}</span>
     </div>
+    <p class="editor-draft-status" aria-live="polite">
+      {{ size.characters }} / {{ limits.characters }} 字 · {{ size.images }} / {{ limits.images }} 张图片 ·
+      {{ draftStatus }}
+    </p>
   </div>
 </template>

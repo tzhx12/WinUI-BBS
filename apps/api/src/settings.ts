@@ -2,6 +2,20 @@ import { z } from 'zod'
 import type { Pool, PoolClient } from 'pg'
 import { pool } from './db.js'
 
+export const contentLimitsSchema = z.object({
+  postCharacters: z.number().int().min(1).max(100000),
+  postImages: z.number().int().min(0).max(50),
+  replyCharacters: z.number().int().min(1).max(10000),
+  replyImages: z.number().int().min(0).max(20),
+  repliesPerPage: z.number().int().min(1).max(100),
+  directLibraryUploads: z.boolean(),
+})
+export type ContentLimits = z.infer<typeof contentLimitsSchema>
+
+export async function contentLimits() {
+  return (await readSettings(['content_limits'])).content_limits as ContentLimits
+}
+
 export const mediaLimitsSchema = z.object({
   storageBytes: z
     .number()

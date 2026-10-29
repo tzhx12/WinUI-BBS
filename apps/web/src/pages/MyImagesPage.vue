@@ -61,6 +61,7 @@ async function previewPack(pack: EmojiPack) {
 }
 const uploadPacks = computed(() => data.value.packs.filter((pack) => !pack.remote_source))
 function showUpload() {
+  target.value = site.settings.contentLimits.directLibraryUploads ? 'library' : 'emoji'
   error.value = ''
   fileNames.value = ''
   uploadOpen.value = true
@@ -164,13 +165,21 @@ async function copy(image: MediaAsset) {
   <div class="page-scroll">
     <div class="page-content">
       <PageHeader title="我的图片"
-        ><WinButton label="新建表情包" icon="emoji" @click="packOpen = true" /><WinButton
-          label="上传图片"
+        ><WinButton
+          v-if="!site.user.value?.isBanned"
+          label="新建表情包"
+          icon="emoji"
+          @click="packOpen = true" /><WinButton
+          v-if="!site.user.value?.isBanned"
+          :label="site.settings.contentLimits.directLibraryUploads ? '上传图片' : '上传表情'"
           icon="upload"
           accent
           @click="showUpload"
       /></PageHeader>
       <ResourceState :loading="loading" :error="uploadOpen || packOpen || assetOpen ? '' : error" />
+      <p v-if="!site.settings.contentLimits.directLibraryUploads" class="secondary-text">
+        正文图片在发帖或回复时添加，成功发布后会出现在这里。
+      </p>
       <section v-if="data.usage" class="surface-card storage-summary">
         <div class="section-toolbar">
           <h2>图床容量</h2>
@@ -193,7 +202,7 @@ async function copy(image: MediaAsset) {
             subtle
             @click="tab = 'packs'"
           /><WinButton
-            v-if="data.usage?.remoteEmoji.enabled"
+            v-if="data.usage?.remoteEmoji.enabled && !site.user.value?.isBanned"
             label="远端表情包"
             :accent="tab === 'remote'"
             subtle
@@ -221,6 +230,7 @@ async function copy(image: MediaAsset) {
               >
               <div class="row-actions">
                 <WinButton label="复制链接" icon="copy" subtle @click="copy(image)" /><WinButton
+                  v-if="!site.user.value?.isBanned"
                   label="删除"
                   icon="delete"
                   subtle
@@ -245,6 +255,7 @@ async function copy(image: MediaAsset) {
             </div>
             <div class="row-actions">
               <WinButton label="查看表情" icon="emoji" @click="previewPack(pack)" /><WinButton
+                v-if="!site.user.value?.isBanned"
                 label="移除"
                 icon="delete"
                 subtle
@@ -266,7 +277,9 @@ async function copy(image: MediaAsset) {
           v-model="target"
           label="上传到"
           :options="[
-            { value: 'library', label: '图床' },
+            ...(site.settings.contentLimits.directLibraryUploads
+              ? [{ value: 'library', label: '图床' }]
+              : []),
             { value: 'emoji', label: '表情包' },
           ]"
         /><WinSelect
@@ -296,13 +309,14 @@ async function copy(image: MediaAsset) {
       <WinDialog
         v-model:open="assetOpen"
         title="图片详情"
-        primary="保存说明"
+        :primary="site.user.value?.isBanned ? '' : '保存说明'"
         :busy="saving"
         :error="error"
         @primary="saveAsset"
         ><template v-if="asset"
           ><img class="asset-detail-preview" :src="asset.url" :alt="asset.alt_text" /><TextBox
             v-model:Text="alt"
+            :IsReadOnly="site.user.value?.isBanned"
             Header="图片说明"
             aria-label="图片说明"
             :MaxLength="160" /><WinButton label="复制链接" icon="copy" @click="copy(asset)" /></template

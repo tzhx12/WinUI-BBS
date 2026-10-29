@@ -25,6 +25,16 @@ const allowedCategories = computed(() =>
 const category = ref(props.Parameter.query.category || allowedCategories.value[0]?.id || '')
 const canPost = computed(() => site.user.value?.permissions?.includes('posts.create'))
 const canSetReaderLevel = computed(() => site.user.value?.permissions?.includes('posts.set_reader_level'))
+const metadata = computed(() => ({
+  title: title.value,
+  category: category.value,
+  readerLevel: readerLevel.value,
+}))
+function restoreDraft(value: Record<string, unknown>) {
+  title.value = String(value.title || '')
+  if (allowedCategories.value.some((c) => c.id === value.category)) category.value = String(value.category)
+  readerLevel.value = Number(value.readerLevel || 0)
+}
 const requiresReview = computed(() => {
   const permissions = site.user.value?.permissions || []
   return (
@@ -44,13 +54,13 @@ async function publish() {
     const result = await api<{ post: { id: string; status: string } }>('/api/posts', {
       method: 'POST',
       token: site.token.value,
-      body: {
+      body: await editor.value!.submission({
         categoryId: category.value,
         title: title.value,
-        body,
         ...(canSetReaderLevel.value ? { minimumReaderLevel: readerLevel.value } : {}),
-      },
+      }),
     })
+    await editor.value!.clearDraft()
     await Promise.all([site.refreshUser(), site.loadCategories()])
     site.notify(result.post.status === 'pending' ? '帖子已提交，等待审核' : '帖子已发布')
     void router.replace(`/post/${result.post.id}`)
@@ -106,7 +116,16 @@ async function publish() {
             AutomationProperties.Name="最低阅读等级"
           />
         </div>
-        <section class="editor-surface"><EditorComposer ref="editor" :token="site.token.value!" /></section>
+        <section class="editor-surface">
+          <EditorComposer
+            :key="site.user.value!.uid"
+            ref="editor"
+            :token="site.token.value!"
+            :draft-key="`post:${site.user.value!.uid}`"
+            :metadata="metadata"
+            @restored="restoreDraft"
+          />
+        </section>
         <p v-if="requiresReview" class="field-hint">此帖需审核，通过后会向社区公开。</p>
         <InfoBar :IsOpen="true" v-if="error" :Message="error" Severity="Error" :IsClosable="false" />
         <div class="form-actions">

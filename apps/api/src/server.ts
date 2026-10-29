@@ -16,6 +16,8 @@ import { registerMediaRoutes } from './routes/media.js'
 import { registerInvitationRoutes } from './routes/invitations.js'
 import { registerNotificationRoutes } from './routes/notifications.js'
 import { registerReviewRoutes } from './routes/reviews.js'
+import { registerEmailRoutes } from './routes/email.js'
+import { registerFavoriteRoutes } from './routes/favorites.js'
 
 const app = Fastify({ logger: true, bodyLimit: 1_500_000 })
 const uploadRoot = resolve(process.cwd(), 'data/uploads')
@@ -39,11 +41,13 @@ async function start() {
   }))
   await registerSetupRoutes(app)
   await registerAuthRoutes(app)
-  await registerForumRoutes(app)
+  await registerForumRoutes(app, uploadRoot)
   await registerAdminRoutes(app)
   await registerInvitationRoutes(app)
   await registerNotificationRoutes(app)
   await registerReviewRoutes(app)
+  await registerEmailRoutes(app)
+  await registerFavoriteRoutes(app)
   await registerMediaRoutes(app, uploadRoot)
 
   const port = Number(process.env.PORT ?? 4000)

@@ -94,6 +94,7 @@ const setLimits = async (limits, remoteConfig) => {
 before(async () => {
   await control.query(`CREATE SCHEMA ${schema}`);
   await runMigrations();
+  await query("UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'");
   uploadRoot = await mkdtemp(join(tmpdir(), "forum-media-"));
   await app.register(jwt, { secret: randomUUID() });
   await app.register(multipart, {
@@ -102,7 +103,7 @@ before(async () => {
   await registerSetupRoutes(app);
   await registerAuthRoutes(app);
   await registerAdminRoutes(app);
-  await registerForumRoutes(app);
+  await registerForumRoutes(app, uploadRoot);
   await registerInvitationRoutes(app);
   await registerMediaRoutes(app, uploadRoot);
   admin = (
@@ -938,6 +939,7 @@ test("revoking media permission survives restart migrations and blocks upload en
     permissions: ["posts.create", "replies.create"],
   });
   await runMigrations();
+  await query("UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'");
   assert.equal(
     (await request("GET", "/api/me/media", undefined, other)).statusCode,
     403,

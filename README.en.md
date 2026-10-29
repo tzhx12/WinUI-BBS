@@ -29,7 +29,10 @@ An open-source discussion forum with a **WinUI-style interface**, built with Vue
 - **Categories and permissions:** category trees, reader and author levels, multiple groups, expiring memberships and separate management permissions.
 - **Post review:** site-wide and category review settings, group exemptions or mandatory review, approval, rejection and account bans.
 - **Community tools:** invitation codes and level rewards, daily check-ins, experience and titles, announcements, personal recycle bins and administrator deletion records.
+- **Email and account security:** SMTP delivery, registration verification codes, limited password recovery, email-verified password changes and IMAP connection checks.
 - **Images and emoji:** personal upload quotas, emoji-pack management, and remote browsing and imports through a Bmoji-compatible API.
+
+Unsent text and images stay in browser drafts until publication. Configurable content limits, paginated replies, public/private favorite folders and public user spaces support longer discussions. Temporarily banned accounts retain read-only access.
 
 ## Quick start
 

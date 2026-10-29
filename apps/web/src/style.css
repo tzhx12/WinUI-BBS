@@ -1593,6 +1593,42 @@ small {
   color: var(--text-secondary);
   margin-top: 4px;
 }
+.user-avatar-link {
+  flex-shrink: 0;
+}
+.user-avatar-link > button {
+  padding: 2px;
+  min-width: 0;
+}
+.editor-draft-status {
+  color: var(--text-secondary);
+  font-size: 13px;
+  padding: 0 16px 12px;
+  line-height: 1.6;
+}
+.reply-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 0;
+  flex-wrap: wrap;
+}
+.favorite-post {
+  padding: 0;
+  cursor: pointer;
+}
+.favorite-post > .row-actions {
+  justify-content: flex-end;
+  padding: 0 16px 16px;
+}
+.surface-card.setting-row {
+  padding: 20px 24px;
+  flex-wrap: wrap;
+}
+.settings-form > h2 {
+  margin-bottom: 16px;
+}
 .dashboard-filters {
   display: flex;
   gap: 4px;

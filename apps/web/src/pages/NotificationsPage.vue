@@ -30,6 +30,7 @@ const {
 }, [])
 watch(site.token, reload)
 async function markRead(notice: SiteNotification) {
+  if (site.user.value?.isBanned) return
   if (
     await run(() =>
       api(`/api/me/notifications/${notice.id}/read`, { method: 'POST', token: site.token.value }),
@@ -73,7 +74,7 @@ async function more() {
       >
         <WinButton v-if="site.user.value" label="刷新" icon="refresh" :disabled="loading" @click="reload" />
         <WinButton
-          v-if="site.unreadCount.value"
+          v-if="site.unreadCount.value && !site.user.value?.isBanned"
           label="全部标为已读"
           icon="check"
           :disabled="saving"
@@ -103,7 +104,7 @@ async function more() {
             <div class="row-actions">
               <WinButton v-if="notice.post_id" label="查看帖子" icon="eye" subtle @click="openPost(notice)" />
               <WinButton
-                v-if="!notice.read_at"
+                v-if="!notice.read_at && !site.user.value?.isBanned"
                 label="标为已读"
                 icon="check"
                 :disabled="saving"
