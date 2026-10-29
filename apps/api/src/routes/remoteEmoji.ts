@@ -45,7 +45,7 @@ async function fetchRemote(url: string) {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(30000),
     headers: {
-      'User-Agent': 'WinUI-BBS/0.1.0',
+      'User-Agent': 'WinUI-BBS/0.2.0',
       Referer: 'https://www.bilibili.com/',
     },
   })

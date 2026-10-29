@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [English](configuration.en.md)
 
-**当前版本：0.1.0** · **开源许可：GPL-3.0-only**
+**当前版本：0.2.0** · **开源许可：GPL-3.0-only**
 
 WinUI-BBS 是一个采用 WinUI 风格的开源论坛系统，使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL 构建。它提供可视化管理后台、用户组权限、分级板块、图文发帖、内容审核、站内通知与个人图床。
 
@@ -133,8 +133,6 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 “我的图片”支持已上传图片的说明编辑、链接复制、个人表情包及远端表情包收藏。个人表情包仅出现在作者的编辑器选择器中。删除自有图片时，现有帖子和回复中的对应图片位置会替换为阿卡林占位图，其他图片和说明保持原样；删除个人上传的表情包也会替换对应引用。当前头像与站点图标受到删除保护。
 
-占位图位于 `apps/web/public/deleted-image.png`，根据提供的参考图使用 CCTQ 生成。
-
 在“我的图片 → 我的表情包”查看分组预览，用“上移 / 下移”保存个人分组顺序。编辑器选择器使用 PipsPager 切换分组，指针在面板内滚动滚轮可切组。超过 20 张的组先在组内滚动，到顶或到底后继续同向滚动一段距离才切换至上一组或下一组，切组后会抑制惯性连续跳组。悬停或聚焦表情时显示名称。
 
 远端表情插入在当前光标处，与文字同行，高度为当前字号的两倍（正文默认约 30px）。可连续插入、逐个退格或 Delete 删除，支持撤销和草稿恢复；个人上传表情继续作为 80px 独立块显示。行内表情同样计入正文图片限额，服务端校验缓存图片身份。已有远端表情块由迁移 014 标识，展示时接在前一段文字后；已有个人上传表情保持原样。
@@ -147,7 +145,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 ## 关于与开源致谢
 
-导航底部的“关于”位于“外观设置”或“管理后台”上方，游客和登录用户均可访问。页面展示 WinUI-BBS 项目介绍、当前版本 0.1.0，以及相关开源项目的超链接按钮。版本号读取根目录 `package.json`，站点名称可在后台独立配置。
+导航底部的“关于”位于“外观设置”或“管理后台”上方，游客和登录用户均可访问。页面展示 WinUI-BBS 项目介绍、当前版本 0.2.0，以及相关开源项目的超链接按钮。版本号读取根目录 `package.json`，站点名称可在后台独立配置。
 
 主要项目包括 [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb)、[Vue](https://vuejs.org/)、[Vue Router](https://router.vuejs.org/)、[Editor.js](https://github.com/codex-team/editor.js)、[DOMPurify](https://github.com/cure53/DOMPurify)、[Fastify](https://fastify.dev/)、[PostgreSQL](https://www.postgresql.org/)、[Vite](https://vite.dev/) 和 [TypeScript](https://www.typescriptlang.org/)。更多依赖及其用途见应用内“关于”页。
 

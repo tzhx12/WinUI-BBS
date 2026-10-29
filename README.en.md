@@ -2,10 +2,10 @@
 
 [简体中文](README.md) | English
 
-[![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-0078D4)](package.json)
+[![Version 0.2.0](https://img.shields.io/badge/version-0.2.0-0078D4)](package.json)
 [![GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-2d7d46)](LICENSE)
 
-An open-source discussion forum with a **WinUI-style interface**, built with Vue 3, WinUIonWeb, Fastify and PostgreSQL. It brings rich posts, permission groups, content review and a visual administration panel together. The interface is currently in Simplified Chinese.
+An open-source discussion forum with a **WinUI-style interface**, built with Vue 3, WinUIonWeb, Fastify and PostgreSQL. It combines rich posts, nested discussions, favorites and public user spaces with permission groups, content review and a visual administration panel. The interface is currently in Simplified Chinese.
 
 [GitHub](https://github.com/tzhx12/WinUI-BBS) · [Report an issue](https://github.com/tzhx12/WinUI-BBS/issues) · [Configuration guide](docs/configuration.en.md)
 
@@ -16,23 +16,39 @@ An open-source discussion forum with a **WinUI-style interface**, built with Vue
 ![WinUI-BBS community home with isolated demo data](docs/images/community-light.png)
 
 <details>
-<summary>Show post review and the dark theme</summary>
+<summary>Show nested replies, emoji packs and dark administration</summary>
+
+**Discussion · inline emoji, likes, favorites and nested replies**
+
+![Post details with inline emoji and nested replies](docs/images/discussion-light.png)
+
+**Editor · PipsPager emoji groups**
+
+![The editor with its grouped emoji picker](docs/images/emoji-picker-light.png)
+
+**My emoji packs · previews and personal ordering**
+
+![Pinned community emoji and sortable personal pack previews](docs/images/emoji-packs-light.png)
+
+**Post review · dark theme**
 
 ![WinUI-BBS post review with isolated demo data](docs/images/moderation-dark.png)
 
 </details>
 
+Screenshots show an isolated 0.2.0 demo instance, without real user data.
+
 ## Features
 
 - **WinUI interface:** light and dark themes, accent colors, compact navigation, text scaling and responsive layouts.
-- **Rich discussions:** a Chinese Editor.js block editor with images, quotes, lists, code, spoilers and emoji packs.
+- **Rich posts and nested replies:** a Chinese Editor.js block editor, inline spoilers, local text and image drafts, configurable content limits and independent pagination for main replies and child replies. Deleted replies do not renumber later floors.
+- **Likes, favorites and user spaces:** persistent like states, split-button save and removal, a default favorite folder, public/private collections and public user profiles.
 - **Categories and permissions:** category trees, reader and author levels, multiple groups, expiring memberships and separate management permissions.
 - **Post review:** site-wide and category review settings, group exemptions or mandatory review, approval, rejection and account bans.
-- **Community tools:** invitation codes and level rewards, daily check-ins, experience and titles, announcements, personal recycle bins and administrator deletion records.
+- **Community tools:** invitation codes and level rewards, daily check-ins, experience and titles, announcements, personal recycle bins and administrator deletion records. Temporary bans retain read-only access; administrator reply deletions notify affected authors.
 - **Email and account security:** SMTP delivery, registration verification codes, limited password recovery, email-verified password changes and IMAP connection checks.
-- **Images and emoji:** personal upload quotas, emoji-pack management, and remote browsing and imports through a Bmoji-compatible API.
-
-Unsent text and images stay in browser drafts until publication. Configurable content limits, paginated replies, public/private favorite folders and public user spaces support longer discussions. Temporarily banned accounts retain read-only access.
+- **Grouped emoji:** PipsPager and wheel navigation, hover names, pack previews and personal ordering. Remote emoji sit inline with text; uploaded emoji retain their normal size. A pinned community pack is available in the corresponding editor to users with posting or reply permission, without image-library permission.
+- **Media management:** personal storage and upload limits, Bmoji-compatible remote search and imports, remote packs exempt from the 150-image upload limit, and a configurable pack-quota switch. Administrators can search, filter and paginate images, with 50 per page by default.
 
 ## Quick start
 
@@ -64,6 +80,14 @@ npm run dev
 ```
 
 Open <http://127.0.0.1:5173/>. The first visit to an empty database creates the site administrator. The API listens on <http://127.0.0.1:4000/> by default.
+
+## Upgrading from 0.1.x
+
+1. Back up PostgreSQL, `apps/api/data/uploads/` and deployment configuration. If mail is configured, retain the existing `MAIL_ENCRYPTION_KEY` so saved credentials remain readable.
+2. Update to the 0.2.0 code on `main`, then run `npm ci`, `npm run check` and `npm run build`.
+3. Restart the API and frontend services. The API applies outstanding migrations in order (this release includes 010–014); do not reinitialize the database.
+
+Downloaded remote packs now count toward personal pack quotas by default. Existing packs are retained. Administrators can change this switch under **图床与表情 → 上传与远端设置**.
 
 ## Development
 

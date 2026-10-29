@@ -2,7 +2,7 @@
 
 [Project home](../README.en.md) · [简体中文](configuration.md)
 
-**Version 0.1.0** · GPL-3.0-only
+**Version 0.2.0** · GPL-3.0-only
 
 WinUI-BBS is an open-source discussion forum with a Vue 3 frontend, WinUIonWeb controls, a Fastify API and PostgreSQL.
 
@@ -115,7 +115,7 @@ Administrators with `settings.manage` use **公告与通知** to send announceme
 
 In **图床与表情 → 上传与远端设置**, configure default storage and upload limits. Defaults are 1 GiB per user, 20 MiB per image, 20 personal emoji packs, 150 images per uploaded pack and 3 MiB per emoji image. Group settings can override individual limits; when several active groups specify a limit, the largest configured value applies. Unchecked overrides inherit the site default. The `media.use` permission controls personal image management and uploads; ordinary members receive it by default.
 
-**我的图片** manages a user's uploads, personal emoji packs and downloaded remote packs. Private packs appear only in their owner's editor picker. Deleting an owned image replaces its existing post and reply references with the Akari placeholder at `apps/web/public/deleted-image.png`; other images and captions remain intact. This also applies when deleting an uploaded personal emoji pack. Active avatars and the site icon remain protected. The placeholder was generated with CCTQ using the supplied reference image.
+**我的图片** manages a user's uploads, personal emoji packs and downloaded remote packs. Private packs appear only in their owner's editor picker. Deleting an owned image replaces its existing post and reply references with the Akari placeholder at `apps/web/public/deleted-image.png`; other images and captions remain intact. This also applies when deleting an uploaded personal emoji pack. Active avatars and the site icon remain protected.
 
 In **我的图片 → 我的表情包**, preview packs and use **上移 / 下移** to save their personal order. The editor picker uses PipsPager. For packs with more than 20 images, wheel scrolling moves within the pack first; continuing in the same direction beyond the top or bottom switches groups after a longer scroll. Momentum is suppressed after switching. Hovering or focusing an emoji shows its name.
 
@@ -129,7 +129,7 @@ Image management searches filenames, descriptions and pack names, combines searc
 
 ## About and open-source credits
 
-Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 0.1.0 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
+Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 0.2.0 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
 
 The project version comes from the root `package.json`. Site administrators can configure their own community name independently.
 

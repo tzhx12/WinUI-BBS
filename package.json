@@ -1,7 +1,7 @@
 {
   "name": "winui-bbs",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A WinUI-style discussion forum built with Vue, Fastify and PostgreSQL.",
   "license": "GPL-3.0-only",
   "homepage": "https://github.com/tzhx12/WinUI-BBS#readme",
