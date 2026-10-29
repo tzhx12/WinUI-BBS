@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { EditorData } from '../types'
-import { inlineHtml as html, type ListItem } from '../content'
+import { inlineHtml as html, inlineRemoteEmojiBlocks, type ListItem } from '../content'
 import RichList from './RichList.vue'
 
 const props = defineProps<{ data: EditorData | null | undefined }>()
-const blocks = computed(() => props.data?.blocks ?? [])
+const blocks = computed(() => inlineRemoteEmojiBlocks(props.data ?? { blocks: [] }).blocks)
 
 function revealSpoiler(event: MouseEvent | KeyboardEvent) {
   if (event instanceof KeyboardEvent && !['Enter', ' '].includes(event.key)) return

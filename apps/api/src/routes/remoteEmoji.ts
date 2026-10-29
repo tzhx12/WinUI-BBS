@@ -7,6 +7,7 @@ import { adminPermissions, requirePermission } from '../auth.js'
 import { inTransaction } from '../db.js'
 import { imageTypes, mediaError } from '../media.js'
 import { readSettings, type RemoteEmojiSettings } from '../settings.js'
+import { checkEmojiPackLimit, setCommunityEmojiPack } from '../emoji.js'
 
 const remotePackage = z.object({
   id: z.number(),
@@ -29,6 +30,7 @@ const detailSchema = z.object({
 const importSchema = z.object({
   remoteId: z.number().int().positive(),
   variant: z.enum(['static', 'animated']),
+  community: z.boolean().default(false),
 })
 function endpoint(remote: RemoteEmojiSettings, path: string) {
   return `${remote.apiUrl.replace(/\/$/, '')}/${path}`
@@ -123,19 +125,34 @@ export async function registerRemoteEmojiRoutes(app: FastifyInstance, uploadRoot
   const importRemote = async (request: FastifyRequest, reply: FastifyReply) => {
     const parsed = importSchema.safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '远端表情包参数无效' })
+    const admin = request.url.startsWith('/api/admin/')
+    if (parsed.data.community && !admin) return reply.code(403).send({ error: '仅管理员可设置社区表情包' })
     const remote = await remoteSettings()
     const source = remote.apiUrl.replace(/\/$/, '')
     const files: string[] = []
     try {
       const pack = await inTransaction(async (client) => {
+        await client.query('SELECT uid FROM users WHERE uid=$1 FOR UPDATE', [request.user.uid])
         // Serialize downloads for this source, pack and variant across all users.
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
           `${source}:${parsed.data.remoteId}:${parsed.data.variant}`,
         ])
-        const existing = await client.query<{ id: string }>(
-          'SELECT id FROM emoji_packs WHERE remote_source=$1 AND remote_id=$2 AND variant=$3',
-          [source, String(parsed.data.remoteId), parsed.data.variant],
+        const existing = await client.query<{
+          id: string
+          is_community: boolean
+          subscribed: boolean
+        }>(
+          `SELECT id,is_community,EXISTS(SELECT 1 FROM user_emoji_packs WHERE pack_id=p.id AND user_uid=$4) AS subscribed
+           FROM emoji_packs p WHERE remote_source=$1 AND remote_id=$2 AND variant=$3`,
+          [source, String(parsed.data.remoteId), parsed.data.variant, request.user.uid],
         )
+        if (
+          !parsed.data.community &&
+          !existing.rows[0]?.is_community &&
+          !existing.rows[0]?.subscribed &&
+          remote.countTowardPackLimit
+        )
+          await checkEmojiPackLimit(request.user.uid, client)
         let packId: string
         if (existing.rows[0]) packId = existing.rows[0].id
         else {
@@ -146,7 +163,6 @@ export async function registerRemoteEmojiRoutes(app: FastifyInstance, uploadRoot
             (item) => item.type !== 4 && (parsed.data.variant === 'static' || Boolean(item.gif_url)),
           )
           if (!emotes.length) throw mediaError('此表情包没有可用的所选版本', 409)
-          if (emotes.length > 150) throw mediaError('远端表情包超过每组 150 张的限制', 409)
           packId = (
             await client.query(
               'INSERT INTO emoji_packs(name,remote_source,remote_id,variant) VALUES($1,$2,$3,$4) RETURNING id',
@@ -154,7 +170,9 @@ export async function registerRemoteEmojiRoutes(app: FastifyInstance, uploadRoot
             )
           ).rows[0].id
           for (const item of emotes) {
-            const asset = await downloadImage(imageUrl(parsed.data.variant === 'animated' ? item.gif_url : item.url))
+            const asset = await downloadImage(
+              imageUrl(parsed.data.variant === 'animated' ? item.gif_url : item.url),
+            )
             const storageKey = `${randomUUID()}${asset.extension}`
             await writeFile(resolve(uploadRoot, storageKey), asset.buffer, {
               flag: 'wx',
@@ -163,14 +181,23 @@ export async function registerRemoteEmojiRoutes(app: FastifyInstance, uploadRoot
             await client.query(
               `INSERT INTO media_assets(storage_key,original_name,mime_type,byte_size,alt_text,collection,emoji_pack_id,remote_cached)
               VALUES($1,$2,$3,$4,$5,'emoji',$6,TRUE)`,
-              [storageKey, `${item.text}${asset.extension}`, asset.type, asset.buffer.byteLength, item.text, packId],
+              [
+                storageKey,
+                `${item.text}${asset.extension}`,
+                asset.type,
+                asset.buffer.byteLength,
+                item.text,
+                packId,
+              ],
             )
           }
         }
-        await client.query('INSERT INTO user_emoji_packs(user_uid,pack_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [
-          request.user.uid,
-          packId,
-        ])
+        if (parsed.data.community) await setCommunityEmojiPack(packId, client)
+        else if (!existing.rows[0]?.is_community)
+          await client.query(
+            'INSERT INTO user_emoji_packs(user_uid,pack_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+            [request.user.uid, packId],
+          )
         return { id: packId }
       })
       return reply.code(201).send(pack)

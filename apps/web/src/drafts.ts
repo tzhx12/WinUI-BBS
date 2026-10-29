@@ -41,12 +41,14 @@ export async function writeDraft(key: string, value?: Draft) {
 }
 
 export function contentSize(body: EditorData) {
+  let inlineImages = 0
   function count(value: unknown, key = ''): number {
     if (typeof value === 'string') {
       if (!['text', 'content', 'caption', 'code', ''].includes(key)) return 0
       if (key === 'code') return Array.from(value).length
       const element = document.createElement('div')
       element.innerHTML = value
+      inlineImages += element.querySelectorAll('img').length
       return Array.from(element.textContent || '').length
     }
     if (Array.isArray(value)) return value.reduce((sum, item) => sum + count(item), 0)
@@ -56,6 +58,6 @@ export function contentSize(body: EditorData) {
   }
   return {
     characters: body.blocks.reduce((sum, b) => sum + count(b.data), 0),
-    images: body.blocks.filter((b) => ['image', 'emoji'].includes(b.type)).length,
+    images: body.blocks.filter((b) => ['image', 'emoji'].includes(b.type)).length + inlineImages,
   }
 }

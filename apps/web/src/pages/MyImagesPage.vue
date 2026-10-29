@@ -59,7 +59,29 @@ async function previewPack(pack: EmojiPack) {
     previewOpen.value = true
   }
 }
-const uploadPacks = computed(() => data.value.packs.filter((pack) => !pack.remote_source))
+const uploadPacks = computed(() =>
+  data.value.packs.filter((pack) => !pack.remote_source && !pack.is_community),
+)
+const personalPacks = computed(() => data.value.packs.filter((pack) => !pack.is_community))
+async function movePack(pack: EmojiPack, direction: number) {
+  const ids = personalPacks.value.map((item) => item.id)
+  const index = ids.indexOf(pack.id)
+  const next = index + direction
+  if (next < 0 || next >= ids.length) return
+  ;[ids[index], ids[next]] = [ids[next]!, ids[index]!]
+  if (
+    await run(
+      () =>
+        api('/api/me/emoji-pack-order', {
+          method: 'PUT',
+          token: site.token.value,
+          body: { packIds: ids },
+        }),
+      '表情包顺序已保存',
+    )
+  )
+    await reload()
+}
 function showUpload() {
   target.value = site.settings.contentLimits.directLibraryUploads ? 'library' : 'emoji'
   error.value = ''
@@ -190,8 +212,9 @@ async function copy(image: MediaAsset) {
         <ProgressBar :Value="data.usage.usedBytes" :Maximum="data.usage.limits.storageBytes" />
         <p class="secondary-text">
           单图 {{ formatBytes(data.usage.limits.imageBytes) }} · 表情包 {{ data.usage.uploadedPacks }} /
-          {{ data.usage.limits.emojiPackCount }} 组 · 每组 {{ data.usage.limits.emojiImagesPerPack }} 张 ·
-          单张表情 {{ formatBytes(data.usage.limits.emojiImageBytes) }}
+          {{ data.usage.limits.emojiPackCount }} 组 · 个人上传每组
+          {{ data.usage.limits.emojiImagesPerPack }} 张 · 单张表情
+          {{ formatBytes(data.usage.limits.emojiImageBytes) }}
         </p>
       </section>
       <div class="section-toolbar">
@@ -242,20 +265,57 @@ async function copy(image: MediaAsset) {
       ></template>
       <template v-else-if="tab === 'packs'"
         ><EmptyState v-if="!data.packs.length" title="还没有个人表情包" icon="emoji" />
-        <section v-for="pack in data.packs" :key="pack.id" class="surface-card">
+        <section v-for="pack in data.packs" :key="pack.id" class="surface-card personal-emoji-pack">
           <div class="setting-row">
-            <div>
-              <h2>{{ pack.name }}</h2>
-              <small
-                >{{ pack.emoji_count }} 张 ·
-                {{
-                  pack.remote_source ? (pack.variant === 'animated' ? '远端动态' : '远端静态') : '个人上传'
-                }}</small
+            <div class="pack-summary">
+              <button
+                class="pack-cover"
+                type="button"
+                :aria-label="`预览 ${pack.name}`"
+                @click="previewPack(pack)"
               >
+                <img
+                  v-for="(url, index) in pack.preview_urls || []"
+                  :key="url"
+                  :src="url"
+                  :alt="`${pack.name} 预览 ${index + 1}`"
+                  loading="lazy"
+                />
+                <span v-if="!pack.preview_urls?.length" class="secondary-text">暂无表情</span>
+              </button>
+              <div>
+                <h2>{{ pack.name }}</h2>
+                <small
+                  >{{ pack.emoji_count }} 张 ·
+                  {{
+                    pack.is_community
+                      ? '社区表情 · 固定置顶'
+                      : pack.remote_source
+                        ? pack.variant === 'animated'
+                          ? '远端动态'
+                          : '远端静态'
+                        : '个人上传'
+                  }}</small
+                >
+              </div>
             </div>
             <div class="row-actions">
+              <template v-if="!pack.is_community && !site.user.value?.isBanned">
+                <WinButton
+                  label="上移"
+                  subtle
+                  :disabled="saving || personalPacks[0]?.id === pack.id"
+                  @click="movePack(pack, -1)"
+                />
+                <WinButton
+                  label="下移"
+                  subtle
+                  :disabled="saving || personalPacks[personalPacks.length - 1]?.id === pack.id"
+                  @click="movePack(pack, 1)"
+                />
+              </template>
               <WinButton label="查看表情" icon="emoji" @click="previewPack(pack)" /><WinButton
-                v-if="!site.user.value?.isBanned"
+                v-if="!pack.is_community && !site.user.value?.isBanned"
                 label="移除"
                 icon="delete"
                 subtle

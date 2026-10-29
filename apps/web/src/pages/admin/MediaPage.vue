@@ -19,28 +19,72 @@ const site = useSite(),
   collection = ref('all'),
   packFilter = ref('all')
 const view = ref('library')
+interface MediaPage {
+  items: MediaAsset[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+const page = ref(1),
+  search = ref(''),
+  searchQuery = ref(''),
+  communityTarget = ref<string | number>('')
+const mediaUrl = computed(() => {
+  const params = new URLSearchParams({ page: String(page.value), q: searchQuery.value })
+  if (collection.value !== 'all') params.set('collection', collection.value)
+  if (packFilter.value !== 'all') params.set('packId', packFilter.value)
+  return `/api/admin/media/search?${params}`
+})
 const { data, loading, error, saving, reload, run } = useResource(
   async () => {
     const [media, packs] = await Promise.all([
-      api<MediaAsset[]>(
-        `/api/admin/media${collection.value === 'all' ? '' : `?collection=${collection.value}`}`,
-        { token: site.token.value },
-      ),
+      api<MediaPage>(mediaUrl.value, { token: site.token.value }),
       api<EmojiPack[]>('/api/admin/emoji-packs', { token: site.token.value }),
     ])
     return { media, packs }
   },
-  { media: [] as MediaAsset[], packs: [] as EmojiPack[] },
+  {
+    media: { items: [], total: 0, page: 1, pageSize: 50, totalPages: 1 } as MediaPage,
+    packs: [] as EmojiPack[],
+  },
 )
 watch(collection, () => {
   packFilter.value = 'all'
+})
+watch([collection, packFilter, searchQuery], () => {
+  page.value = 1
+})
+watch(mediaUrl, () => {
   void reload()
 })
-const visibleMedia = computed(() =>
-  packFilter.value === 'all'
-    ? data.value.media
-    : data.value.media.filter((asset) => asset.emoji_pack_id === packFilter.value),
+watch(
+  () => data.value.packs,
+  (packs) => {
+    communityTarget.value = packs.find((p) => p.is_community)?.id || ''
+  },
 )
+const visibleMedia = computed(() => data.value.media.items)
+async function saveCommunity() {
+  if (
+    await run(
+      () =>
+        api('/api/admin/community-emoji-pack', {
+          method: 'PUT',
+          token: site.token.value,
+          body: { packId: communityTarget.value || null },
+        }),
+      '社区表情包已更新',
+    )
+  )
+    await reload()
+}
+function findImages() {
+  if (searchQuery.value === search.value.trim()) {
+    page.value = 1
+    void reload()
+  } else searchQuery.value = search.value.trim()
+}
 const uploadOpen = ref(false),
   uploadInput = ref<HTMLInputElement | null>(null),
   fileNames = ref('')
@@ -194,6 +238,23 @@ async function removePack(pack: EmojiPack) {
           />
         </div>
       </div>
+      <section class="surface-card form-stack">
+        <h2>社区表情包</h2>
+        <p class="secondary-text">
+          固定显示在选择器第一组。有发帖或回复权限即可在对应编辑器中使用，不占个人组数限额。
+        </p>
+        <div class="row-actions">
+          <WinSelect
+            v-model="communityTarget"
+            label="共享分组"
+            :options="[
+              { value: '', label: '不设置社区表情包' },
+              ...data.packs.filter((p) => p.created_by === null).map((p) => ({ value: p.id, label: p.name })),
+            ]"
+          />
+          <WinButton label="保存社区分组" :disabled="saving" @click="saveCommunity" />
+        </div>
+      </section>
       <MediaSettingsPanel v-if="view === 'settings'" @added="reload" />
       <template v-else>
         <div class="section-toolbar">
@@ -217,14 +278,26 @@ async function removePack(pack: EmojiPack) {
               ]"
             />
           </div>
-          <span class="secondary-text">{{ visibleMedia.length }} 张图片</span>
+          <form class="toolbar-search" @submit.prevent="findImages">
+            <TextBox
+              v-model:Text="search"
+              PlaceholderText="文件名、图片说明或表情包名称"
+              AutomationProperties.Name="搜索图片"
+              :MaxLength="160"
+            />
+            <WinButton label="搜索图片" icon="search" :disabled="loading" @click="findImages" />
+          </form>
+          <span class="secondary-text">{{ data.media.total }} 张图片</span>
         </div>
         <ResourceState :loading="loading" :error="uploadOpen || assetOpen || packOpen ? '' : error" />
         <section v-if="collection === 'emoji' && data.packs.length" class="surface-card pack-management">
           <div v-for="pack in data.packs" :key="pack.id" class="setting-row">
             <div>
               <strong>{{ pack.name }}</strong
-              ><small>{{ pack.emoji_count }} 个表情 · 排序 {{ pack.sort_order }}</small>
+              ><small
+                >{{ pack.emoji_count }} 个表情 ·
+                {{ pack.is_community ? '社区表情 · 固定置顶' : `排序 ${pack.sort_order}` }}</small
+              >
             </div>
             <div class="row-actions">
               <WinButton
@@ -273,6 +346,22 @@ async function removePack(pack: EmojiPack) {
             </div>
           </article>
         </div>
+        <nav v-if="data.media.totalPages > 1" class="reply-pagination" aria-label="图片翻页">
+          <WinButton
+            label="上一页"
+            :disabled="loading || data.media.page <= 1"
+            @click="page = data.media.page - 1"
+          />
+          <span
+            >第 {{ data.media.page }} / {{ data.media.totalPages }} 页 · 每页
+            {{ data.media.pageSize }} 张</span
+          >
+          <WinButton
+            label="下一页"
+            :disabled="loading || data.media.page >= data.media.totalPages"
+            @click="page = data.media.page + 1"
+          />
+        </nav>
       </template>
       <WinDialog
         v-model:open="uploadOpen"

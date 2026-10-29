@@ -33,6 +33,12 @@ async function save() {
       <MediaLimitsFields v-model="data.media_limits" />
       <h2>远端表情包</h2>
       <ToggleSwitch
+        v-model:IsOn="data.remote_emoji.countTowardPackLimit"
+        Header="用户下载的远端表情包计入个人组数限额"
+        OnContent="计入"
+        OffContent="不计入"
+      />
+      <ToggleSwitch
         v-model:IsOn="data.remote_emoji.enabled"
         Header="允许远端下载"
         OnContent="开启"
@@ -46,6 +52,6 @@ async function save() {
         <WinButton label="保存媒体设置" accent :disabled="saving" @click="save" />
       </div>
     </section>
-    <RemoteEmojiBrowser v-if="data.remote_emoji.enabled" admin @added="emit('added')"
+    <RemoteEmojiBrowser v-if="data.remote_emoji.enabled" admin community @added="emit('added')"
   /></template>
 </template>

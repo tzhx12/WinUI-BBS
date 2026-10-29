@@ -5,7 +5,8 @@ import type { FastifyRequest } from 'fastify'
 import type { PoolClient } from 'pg'
 import { decodeHTML } from 'entities'
 import { z } from 'zod'
-import { inTransaction } from './db.js'
+import { parseFragment, type DefaultTreeAdapterTypes } from 'parse5'
+import { inTransaction, query } from './db.js'
 import { contentLimits, userMediaLimits } from './settings.js'
 import { imageTypes, mediaError } from './media.js'
 
@@ -49,15 +50,52 @@ function textLength(value: unknown, key = ''): number {
   return 0
 }
 
+function inlineEmojiImages(value: unknown, key = ''): Array<{ id: string; url: string }> {
+  if (typeof value === 'string') {
+    if (!['text', 'content', 'caption', ''].includes(key) || !value.includes('<')) return []
+    const images: Array<{ id: string; url: string }> = []
+    function visit(node: DefaultTreeAdapterTypes.Node) {
+      if ('tagName' in node && node.tagName === 'img') {
+        const attrs = Object.fromEntries(node.attrs.map((attr) => [attr.name, attr.value]))
+        images.push({
+          id: attrs['data-remote-emoji'] || '',
+          url: attrs.src || '',
+        })
+      }
+      if ('childNodes' in node) node.childNodes.forEach(visit)
+    }
+    visit(parseFragment(value))
+    return images
+  }
+  if (Array.isArray(value)) return value.flatMap((item) => inlineEmojiImages(item))
+  if (value && typeof value === 'object')
+    return Object.entries(value).flatMap(([k, v]) => inlineEmojiImages(v, k))
+  return []
+}
+
 export async function validateContent(body: Body, kind: 'post' | 'reply') {
   const limits = await contentLimits()
   const chars = body.blocks.reduce((sum, block) => sum + textLength(block.data), 0)
-  const images = body.blocks.filter((block) => ['image', 'emoji'].includes(block.type)).length
+  const inline = body.blocks
+    .filter((block) => block.type !== 'code')
+    .flatMap((block) => inlineEmojiImages(block.data))
+  const images = body.blocks.filter((block) => ['image', 'emoji'].includes(block.type)).length + inline.length
   const maxChars = kind === 'post' ? limits.postCharacters : limits.replyCharacters
   const maxImages = kind === 'post' ? limits.postImages : limits.replyImages
   if (chars > maxChars) throw mediaError(`正文最多 ${maxChars} 字，当前 ${chars} 字`)
   if (images > maxImages) throw mediaError(`正文最多 ${maxImages} 张图片（含表情），当前 ${images} 张`)
   if (!chars && !images) throw mediaError('正文不能为空')
+  if (inline.length) {
+    if (inline.some((image) => !z.uuid().safeParse(image.id).success))
+      throw mediaError('行内表情无效，请从选择器重新添加')
+    const assets = await query<{ id: string; url: string }>(
+      "SELECT id,'/uploads/' || storage_key AS url FROM media_assets WHERE remote_cached AND id=ANY($1::uuid[])",
+      [inline.map((image) => image.id)],
+    )
+    const urls = new Map(assets.rows.map((asset) => [asset.id, asset.url]))
+    if (inline.some((image) => urls.get(image.id) !== image.url))
+      throw mediaError('行内表情仅支持已下载的远端表情，请重新选择')
+  }
   for (const block of body.blocks) {
     if (!['image', 'emoji'].includes(block.type)) continue
     const url = block.type === 'image' ? (block.data.file as { url?: unknown })?.url : block.data.url
@@ -78,7 +116,13 @@ export async function readSubmission(request: FastifyRequest) {
   let payload: unknown
   let bytes = 0
   for await (const part of request.parts({
-    limits: { files: 50, fields: 1, parts: 51, fileSize: limits.imageBytes, fieldSize: 1500000 },
+    limits: {
+      files: 50,
+      fields: 1,
+      parts: 51,
+      fileSize: limits.imageBytes,
+      fieldSize: 1500000,
+    },
   })) {
     if (part.type === 'field') {
       if (part.fieldname !== 'payload' || payload !== undefined || part.valueTruncated)
@@ -96,7 +140,12 @@ export async function readSubmission(request: FastifyRequest) {
       bytes += buffer.length
       if (bytes > Math.min(limits.storageBytes, 100 * 1024 ** 2))
         throw mediaError('单次发布图片总大小不能超过个人容量或 100 MiB', 413)
-      attachments.push({ id: part.fieldname, name: part.filename, mime: part.mimetype, buffer })
+      attachments.push({
+        id: part.fieldname,
+        name: part.filename,
+        mime: part.mimetype,
+        buffer,
+      })
     }
   }
   return { payload, attachments }

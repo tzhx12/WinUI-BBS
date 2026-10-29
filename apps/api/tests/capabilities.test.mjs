@@ -453,7 +453,7 @@ test("default limits, group overrides, upload ownership and atomic capacity enfo
     `/api/admin/groups/${group.id}/memberships/${member.user.uid}`,
   );
 });
-test("remote static and animated downloads share cached files and use no personal quota", async () => {
+test("remote static and animated downloads share cached files without consuming personal storage", async () => {
   assert.equal(
     (await request("GET", "/api/me/remote-emoji/packages", undefined, member))
       .statusCode,

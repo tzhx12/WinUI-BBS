@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { Button, Flyout } from 'winuionweb'
 import type EditorJS from '@editorjs/editorjs'
 import { api } from '../api'
@@ -10,11 +10,13 @@ import IconGlyph from './IconGlyph.vue'
 import EmojiPicker from './EmojiPicker.vue'
 import WinButton from './ui/WinButton.vue'
 import { editorZh } from '../editorZh'
+import { inlineRemoteEmojiBlocks } from '../content'
 
 interface Emoji {
   id: string
   url: string
   name: string
+  remote: boolean
 }
 
 interface EmojiPack {
@@ -39,6 +41,27 @@ class EmojiBlockTool {
   }
   save() {
     return this.data
+  }
+}
+
+class EmojiInlineTool {
+  static isInline = true
+  static title = '表情'
+  static sanitize = { img: { src: true, alt: true, title: true, 'data-remote-emoji': true } }
+  render() {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'ce-inline-tool'
+    button.textContent = '表情'
+    button.setAttribute('aria-label', '插入表情')
+    return button
+  }
+  surround(range: Range | null) {
+    if (range) savedEmojiRange = range.cloneRange()
+    emojiTrigger.value?.closest('button')?.click()
+  }
+  checkState() {
+    return false
   }
 }
 
@@ -115,16 +138,31 @@ const limits = computed(() => ({
     props.kind === 'reply' ? site.settings.contentLimits.replyImages : site.settings.contentLimits.postImages,
 }))
 const holder = ref<HTMLElement | null>(null)
+const emojiTrigger = ref<HTMLElement | null>(null)
+let savedEmojiRange: Range | null = null
 const editor = shallowRef<EditorJS | null>(null)
 const emojiPacks = ref<EmojiPack[]>([])
 const emojiFlyoutControl = ref<InstanceType<typeof Flyout> | null>(null)
+const emojiPickerControl = ref<InstanceType<typeof EmojiPicker> | null>(null)
 const emojiFlyout = computed(() =>
   h(
     Flyout,
-    { ref: emojiFlyoutControl, Placement: 'Top' },
+    {
+      ref: emojiFlyoutControl,
+      Placement: 'Top',
+      onOpened: () => emojiPickerControl.value?.attachWheel(),
+      onClosed: () => {
+        void nextTick(restoreEmojiSelection)
+      },
+    },
     {
       default: () =>
-        h(EmojiPicker, { packs: emojiPacks.value, error: emojiError.value, onSelect: insertEmoji }),
+        h(EmojiPicker, {
+          ref: emojiPickerControl,
+          packs: emojiPacks.value,
+          error: emojiError.value,
+          onSelect: insertEmoji,
+        }),
     },
   ),
 )
@@ -183,13 +221,14 @@ async function initializeEditor() {
     ])
     if (destroyed) return
     const EditorJSClass = editorModule.default
+    initialData = inlineRemoteEmojiBlocks(initialData)
     editor.value = new EditorJSClass({
       holder: holder.value!,
       data: initialData,
       onChange: scheduleDraft,
       placeholder: '写下值得讨论的内容…',
       i18n: editorZh,
-      inlineToolbar: ['bold', 'italic', 'link', 'marker', 'inlineCode', 'spoiler'],
+      inlineToolbar: ['bold', 'italic', 'link', 'marker', 'inlineCode', 'spoiler', 'emojiInline'],
       tools: {
         header: {
           class: headerModule.default,
@@ -203,6 +242,7 @@ async function initializeEditor() {
         inlineCode: codeModule.default,
         spoiler: SpoilerInlineTool,
         emoji: EmojiBlockTool,
+        emojiInline: EmojiInlineTool,
         image: {
           class: imageModule.default,
           config: {
@@ -309,9 +349,87 @@ async function save() {
   return (await editor.value.save()) as EditorData
 }
 
+function rememberSelection() {
+  const selection = window.getSelection()
+  if (selection?.rangeCount && holder.value?.contains(selection.getRangeAt(0).commonAncestorContainer))
+    savedEmojiRange = selection.getRangeAt(0).cloneRange()
+}
+function protectInlineEmojiDeletion(event: KeyboardEvent) {
+  if (event.isComposing || !['Backspace', 'Delete'].includes(event.key)) return
+  const selection = window.getSelection()
+  if (!selection?.rangeCount) return
+  const range = selection.getRangeAt(0)
+  const start =
+    range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement
+  const editable = start?.closest<HTMLElement>('[contenteditable="true"]')
+  if (!editable || !holder.value?.contains(editable) || !editable.contains(range.endContainer)) return
+  const affected = document.createRange()
+  affected.selectNodeContents(editable)
+  if (range.collapsed) {
+    if (event.key === 'Backspace') affected.setEnd(range.startContainer, range.startOffset)
+    else affected.setStart(range.endContainer, range.endOffset)
+  }
+  if (!affected.cloneContents().querySelector('img[data-remote-emoji]')) return
+  // Editor.js checks textContent at block boundaries and treats an emoji-only run as empty.
+  event.stopPropagation()
+}
+function preserveEmojiParagraph(event: KeyboardEvent) {
+  const editable = (event.target as HTMLElement).closest('[contenteditable="true"]')
+  // The built-in paragraph tool clears innerHTML on keyup when textContent is empty.
+  if (
+    ['Backspace', 'Delete'].includes(event.key) &&
+    editable?.querySelector('img[data-remote-emoji]') &&
+    !editable.textContent
+  )
+    event.stopPropagation()
+  rememberSelection()
+}
+function restoreEmojiSelection() {
+  if (!savedEmojiRange || !holder.value?.contains(savedEmojiRange.commonAncestorContainer)) return
+  const node = savedEmojiRange.startContainer
+  const element = node instanceof HTMLElement ? node : node.parentElement
+  element?.closest<HTMLElement>('[contenteditable="true"]')?.focus()
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(savedEmojiRange)
+}
 function insertEmoji(emoji: Emoji) {
-  editor.value?.blocks.insert('emoji', { url: emoji.url, name: emoji.name })
+  if (!editor.value || !holder.value) return
   emojiFlyoutControl.value?.Hide()
+  if (!emoji.remote) {
+    savedEmojiRange = null
+    editor.value.blocks.insert('emoji', { url: emoji.url, name: emoji.name })
+    return
+  }
+  if (!savedEmojiRange || !holder.value.contains(savedEmojiRange.commonAncestorContainer)) {
+    let index = editor.value.blocks.getCurrentBlockIndex()
+    let editable = editor.value.blocks
+      .getBlockByIndex(index)
+      ?.holder.querySelector<HTMLElement>('[contenteditable="true"]')
+    if (!editable) {
+      editor.value.blocks.insert('paragraph', { text: '' }, undefined, index + 1)
+      index = editor.value.blocks.getCurrentBlockIndex()
+      editable = editor.value.blocks
+        .getBlockByIndex(index)
+        ?.holder.querySelector<HTMLElement>('[contenteditable="true"]')
+    }
+    if (!editable) return
+    savedEmojiRange = document.createRange()
+    savedEmojiRange.selectNodeContents(editable)
+    savedEmojiRange.collapse(false)
+  }
+  const image = document.createElement('img')
+  image.src = emoji.url
+  image.alt = emoji.name
+  image.title = emoji.name
+  image.dataset.remoteEmoji = emoji.id
+  savedEmojiRange.deleteContents()
+  savedEmojiRange.insertNode(image)
+  savedEmojiRange.setStartAfter(image)
+  savedEmojiRange.collapse(true)
+  restoreEmojiSelection()
+  image.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }))
+  scheduleDraft()
 }
 
 async function uploadImage(event: Event) {
@@ -337,9 +455,15 @@ defineExpose({ save, submission, clearDraft })
 
 <template>
   <div class="editor-composer">
-    <div ref="holder" class="editor-holder" />
+    <div
+      ref="holder"
+      class="editor-holder"
+      @keydown.capture="protectInlineEmojiDeletion"
+      @keyup.capture="preserveEmojiParagraph"
+      @pointerup="rememberSelection"
+    />
     <div class="editor-actions">
-      <div class="editor-tools">
+      <div class="editor-tools" @pointerdown.capture="rememberSelection" @keydown.capture="rememberSelection">
         <WinButton
           :label="uploadBusy ? '添加中' : '图片'"
           icon="image"
@@ -348,7 +472,9 @@ defineExpose({ save, submission, clearDraft })
           @click="uploadInput?.click()"
         />
         <Button :Flyout="emojiFlyout" Style="{StaticResource SubtleButtonStyle}" aria-label="插入表情包"
-          ><span class="button-content"><IconGlyph name="emoji" :size="16" /><span>表情</span></span></Button
+          ><span ref="emojiTrigger" class="button-content"
+            ><IconGlyph name="emoji" :size="16" /><span>表情</span></span
+          ></Button
         >
       </div>
       <input

@@ -34,6 +34,8 @@ The application has an About page with links to these projects and their roles:
 
 Dependency versions are recorded in `package-lock.json`. Package-specific license files and notices remain with the installed dependencies.
 
+[parse5](https://github.com/inikulin/parse5), licensed under MIT, parses rich-text fragments on the server to validate inline remote emoji and count them toward image limits. Its installed dependency includes the license text.
+
 ## Email libraries
 
 [entities](https://github.com/fb55/entities) decodes HTML entities when counting visible body characters. It is licensed under BSD-2-Clause.

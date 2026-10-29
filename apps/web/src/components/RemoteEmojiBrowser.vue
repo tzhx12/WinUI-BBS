@@ -7,7 +7,7 @@ import WinButton from './ui/WinButton.vue'
 import WinDialog from './ui/WinDialog.vue'
 import WinSelect from './ui/WinSelect.vue'
 import ResourceState from './ui/ResourceState.vue'
-const props = defineProps<{ admin?: boolean }>()
+const props = defineProps<{ admin?: boolean; community?: boolean }>()
 const emit = defineEmits<{ added: [] }>()
 const site = useSite(),
   prefix = computed(() => (props.admin ? '/api/admin' : '/api/me'))
@@ -69,10 +69,10 @@ async function add() {
     await api(`${prefix.value}/remote-emoji/import`, {
       method: 'POST',
       token: site.token.value,
-      body: { remoteId: detail.value!.id, variant: variant.value },
+      body: { remoteId: detail.value!.id, variant: variant.value, community: !!props.community },
     })
     preview.value = false
-    site.notify('表情包已添加')
+    site.notify(props.community ? '社区表情包已设置' : '表情包已添加')
     emit('added')
   } catch (cause) {
     error.value = (cause as Error).message
@@ -83,7 +83,7 @@ async function add() {
 </script>
 <template>
   <section class="surface-card">
-    <h2>远端表情包</h2>
+    <h2>{{ community ? '从远端添加社区表情包' : '远端表情包' }}</h2>
     <form class="toolbar-search" @submit.prevent="load()">
       <TextBox
         v-model:Text="search"
@@ -93,7 +93,14 @@ async function add() {
     </form>
     <ResourceState :loading="loading" :error="preview ? '' : error" />
     <div class="remote-pack-grid">
-      <button v-for="pack in items" :key="pack.id" class="remote-pack" type="button" @click="show(pack)">
+      <button
+        v-for="pack in items"
+        :key="pack.id"
+        class="remote-pack"
+        type="button"
+        :aria-label="pack.name"
+        @click="show(pack)"
+      >
         <img :src="pack.thumbnail" :alt="pack.name" loading="lazy" referrerpolicy="no-referrer" /><strong>{{
           pack.name
         }}</strong>
@@ -105,7 +112,7 @@ async function add() {
     <WinDialog
       v-model:open="preview"
       :title="detail?.name || '表情包预览'"
-      primary="添加表情包"
+      :primary="community ? '设为社区表情包' : '添加表情包'"
       :busy="busy"
       :error="error"
       @primary="add"

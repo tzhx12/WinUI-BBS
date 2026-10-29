@@ -39,6 +39,7 @@ export type MediaLimits = z.infer<typeof mediaLimitsSchema>
 export const httpUrl = z.url({ protocol: /^https?$/ })
 export const remoteEmojiSchema = z.object({
   enabled: z.boolean(),
+  countTowardPackLimit: z.boolean().default(true),
   sourceUrl: httpUrl,
   apiUrl: httpUrl,
 })

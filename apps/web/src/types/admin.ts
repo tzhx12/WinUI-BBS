@@ -65,6 +65,8 @@ export interface AdminPost {
   reply_count: number
 }
 export interface EmojiPack {
+  is_community: boolean
+  preview_urls: string[] | null
   created_by: string | null
   remote_source: string | null
   variant: 'static' | 'animated' | null
@@ -82,6 +84,7 @@ export interface MediaLimits {
 }
 export interface RemoteEmojiSettings {
   enabled: boolean
+  countTowardPackLimit: boolean
   sourceUrl: string
   apiUrl: string
 }
