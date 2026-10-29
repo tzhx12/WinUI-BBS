@@ -85,7 +85,7 @@ Open <http://127.0.0.1:5173/>. The first visit to an empty database creates the 
 
 1. Back up PostgreSQL, `apps/api/data/uploads/` and deployment configuration. If mail is configured, retain the existing `MAIL_ENCRYPTION_KEY` so saved credentials remain readable.
 2. Update to the 0.2.0 code on `main`, then run `npm ci`, `npm run check` and `npm run build`.
-3. Restart the API and frontend services. The API applies outstanding migrations in order (this release includes 010–014); do not reinitialize the database.
+3. Restart the API and frontend services. The API applies outstanding migrations in order (this release includes 009–014); do not reinitialize the database.
 
 Downloaded remote packs now count toward personal pack quotas by default. Existing packs are retained. Administrators can change this switch under **图床与表情 → 上传与远端设置**.
 
