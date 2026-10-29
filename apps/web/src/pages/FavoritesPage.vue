@@ -19,6 +19,7 @@ interface Folder {
   user_uid: string
   name: string
   is_public: boolean
+  is_default: boolean
   post_count: number
 }
 const props = defineProps<{ Parameter: PageParameter }>()
@@ -51,6 +52,7 @@ const canEdit = computed(
 const open = ref(false),
   name = ref(''),
   isPublic = ref(false),
+  isDefault = ref(false),
   editing = ref<Folder | null>(null)
 const moving = ref<PostSummary | null>(null),
   moveOpen = ref(false),
@@ -59,6 +61,7 @@ function edit(folder: Folder | null) {
   editing.value = folder
   name.value = folder?.name || ''
   isPublic.value = folder?.is_public || false
+  isDefault.value = folder?.is_default ?? !data.value.folders.some((f) => f.is_default)
   error.value = ''
   open.value = true
 }
@@ -69,7 +72,7 @@ async function save() {
         api(`/api/me/favorite-folders${editing.value ? `/${editing.value.id}` : ''}`, {
           method: editing.value ? 'PATCH' : 'POST',
           token: site.token.value,
-          body: { name: name.value, isPublic: isPublic.value },
+          body: { name: name.value, isPublic: isPublic.value, isDefault: isDefault.value },
         }),
       '收藏夹已保存',
     )
@@ -77,6 +80,20 @@ async function save() {
     open.value = false
     await reload()
   }
+}
+async function makeDefault(folder: Folder) {
+  if (
+    await run(
+      () =>
+        api(`/api/me/favorite-folders/${folder.id}`, {
+          method: 'PATCH',
+          token: site.token.value,
+          body: { name: folder.name, isPublic: folder.is_public, isDefault: true },
+        }),
+      '默认收藏夹已设置',
+    )
+  )
+    await reload()
 }
 async function remove(folder: Folder) {
   if (await site.confirm(`删除“${folder.name}”？`, '此收藏夹中的收藏记录将被移除，帖子仍会保留。', '删除'))
@@ -161,12 +178,18 @@ async function move() {
       <template v-if="!folderId"
         ><section v-for="folder in data.folders" :key="folder.id" class="surface-card setting-row">
           <div>
-            <h2>{{ folder.name }}</h2>
+            <h2>{{ folder.name }} <span v-if="folder.is_default" class="tag">默认收藏夹</span></h2>
             <p class="secondary-text">
               {{ folder.post_count }} 篇收藏 · {{ folder.is_public ? '公开' : '仅自己可见' }}
             </p>
           </div>
           <div class="row-actions">
+            <WinButton
+              v-if="canEdit && !folder.is_default"
+              label="设为默认"
+              :disabled="saving"
+              @click="makeDefault(folder)"
+            />
             <WinButton label="打开收藏夹" @click="router.push(`/account/favorites/${folder.id}`)" /><WinButton
               v-if="canEdit"
               label="编辑"
@@ -177,6 +200,12 @@ async function move() {
       ></template>
       <template v-if="data.detail"
         ><p class="secondary-text">{{ data.detail.folder.is_public ? '公开收藏夹' : '仅自己可见' }}</p>
+        <WinButton
+          v-if="canEdit && !data.folders.find((f) => f.id === folderId)?.is_default"
+          label="设为默认收藏夹"
+          :disabled="saving"
+          @click="makeDefault(data.detail.folder)"
+        />
         <EmptyState
           v-if="!loading && !data.detail.posts.length"
           title="暂无可显示的收藏"
@@ -203,7 +232,7 @@ async function move() {
         @primary="save"
         ><TextBox v-model:Text="name" Header="名称" :MaxLength="64" /><ToggleSwitch
           v-model:IsOn="isPublic"
-          Header="在用户空间公开此收藏夹"
+          Header="在用户空间公开此收藏夹" /><ToggleSwitch v-model:IsOn="isDefault" Header="设为默认收藏夹"
       /></WinDialog>
       <WinDialog
         v-model:open="moveOpen"

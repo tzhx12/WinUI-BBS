@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { InfoBar, ProgressRing } from 'winuionweb'
+import { InfoBar, ProgressRing, ToggleButton } from 'winuionweb'
 import { api } from '../api'
 import { useResource } from '../composables/useResource'
 import { useSite } from '../site'
@@ -12,7 +12,7 @@ import PostBody from '../components/PostBody.vue'
 import IconGlyph from '../components/IconGlyph.vue'
 import WinButton from '../components/ui/WinButton.vue'
 import UserAvatar from '../components/UserAvatar.vue'
-import FavoritePicker from '../components/FavoritePicker.vue'
+import FavoriteButton from '../components/FavoriteButton.vue'
 defineOptions({ inheritAttrs: false })
 interface Detail {
   post: PostSummary
@@ -25,6 +25,7 @@ interface Detail {
     created_at: string
   }>
   likeCount: number
+  liked: boolean
   totalReplyCount: number
   page: number
   pageSize: number
@@ -34,8 +35,8 @@ const props = defineProps<{ Parameter: PageParameter }>()
 const site = useSite(),
   router = useRouter()
 const isTrash = props.Parameter.path.startsWith('/account/trash/')
-const page = ref(1),
-  favoriteOpen = ref(false)
+const page = ref(1)
+const likeButton = ref<InstanceType<typeof ToggleButton> | null>(null)
 const { data, loading, error, saving, reload, run } = useResource<Detail | null>(
   () =>
     api(`${isTrash ? '/api/me/trash' : '/api/posts'}/${props.Parameter.id}?page=${page.value}`, {
@@ -54,19 +55,18 @@ async function goPage(value: number) {
   page.value = value
   await reload()
 }
-function favorite() {
-  if (!site.user.value) site.authOpen.value = true
-  else favoriteOpen.value = true
-}
 async function like() {
   if (!site.user.value) {
     site.authOpen.value = true
+    if (likeButton.value) likeButton.value.IsChecked = false
     return
   }
   if (
     await run(() => api(`/api/posts/${props.Parameter.id}/like`, { method: 'POST', token: site.token.value }))
   )
     await reload()
+  await nextTick()
+  if (likeButton.value) likeButton.value.IsChecked = data.value?.liked ?? false
 }
 async function restore() {
   if (
@@ -156,18 +156,20 @@ async function reply() {
             审核原因：{{ data.post.review_reason }}
           </p>
           <div class="post-actions">
-            <WinButton
+            <ToggleButton
+              ref="likeButton"
               v-if="!isTrash && isPublic"
-              :label="`${data.likeCount} 喜欢`"
-              icon="like"
-              :disabled="saving || site.user.value?.isBanned"
-              @click="like"
-            /><WinButton
+              :IsChecked="data.liked"
+              :IsEnabled="!saving && !site.user.value?.isBanned"
+              :aria-label="`${data.likeCount} 喜欢`"
+              :Click="like"
+              ><span class="button-content"
+                ><IconGlyph name="like" :size="16" /><span>{{ data.likeCount }} 喜欢</span></span
+              ></ToggleButton
+            ><FavoriteButton
               v-if="!isTrash && isPublic"
-              label="收藏"
-              icon="favorite"
+              :post-id="props.Parameter.id!"
               :disabled="site.user.value?.isBanned"
-              @click="favorite"
             /><span><IconGlyph name="eye" :size="16" />{{ data.post.view_count }} 次浏览</span
             ><span><IconGlyph name="chat" :size="16" />{{ data.totalReplyCount }} 条回复</span>
           </div>
@@ -234,10 +236,5 @@ async function reply() {
         </section></template
       >
     </div>
-    <FavoritePicker
-      v-if="site.user.value && !site.user.value.isBanned"
-      v-model:open="favoriteOpen"
-      :post-id="props.Parameter.id!"
-    />
   </div>
 </template>

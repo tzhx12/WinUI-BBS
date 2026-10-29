@@ -18,7 +18,7 @@ The API listens on `http://127.0.0.1:4000`. It applies SQL migrations in filenam
 
 ## Email verification and passwords
 
-The administration navigation groups pages under **用户与注册** (users and registration), **内容管理** (content), and **站点配置** (site configuration). Parent items expand their subtrees; only a child item navigates to a page. Groups and children are filtered by effective permissions.
+The administration navigation groups pages under **用户与注册** (users and registration), **内容管理** (content), and **站点配置** (site configuration). Parent items expand their subtrees; only a child item navigates to a page. Groups and children are filtered by effective permissions. The pane toggle is on the left of the TitleBar: it expands or collapses the desktop navigation and opens or closes the drawer on narrow screens.
 
 Configure SMTP delivery and optional IMAP connection checks in **站点配置 → 发信设置**. SMTP sends mail; IMAP checks the receiving connection. SMTP supports direct TLS and STARTTLS. Save the configuration before sending a test message. Saved passwords are encrypted and are never returned to the frontend; an empty password field retains the existing secret.
 
@@ -72,7 +72,9 @@ Direct library uploads from **我的图片** start disabled. Administrators can 
 
 ## Favorites and public user spaces
 
-Open **我的收藏** from the user dashboard to create, rename or delete folders, choose public visibility, move saved posts or remove favorites. Each user can have up to 100 folders with names of 1–64 characters. The **收藏** button on a post can save it to an existing folder or create one.
+Open **我的收藏** from the user dashboard to create, rename or delete folders, choose public visibility, move saved posts or remove favorites. Each user can have up to 100 folders with names of 1–64 characters.
+
+Choose **设为默认** in the folder list, or enable the default option while creating or editing a folder. Each user can have one default folder; deleting it clears the selection. When a post is unsaved, the left side of its favorite split button saves to the default folder or opens the folder menu if no default is set. When saved, clicking the left side removes the post from all of your folders. The dropdown manages individual folders or creates a folder. The button uses the accent color when the post is in any folder and returns to its ordinary appearance when all saves are removed. Likes use a toggle button with an accent color while selected; the state persists after refresh.
 
 Avatars on post lists, post bylines and replies open `/users/:uid`. Public spaces show published posts readable by the visitor and public folders. Hidden, deleted, pending and rejected posts are excluded from public spaces and public favorites. Private folders are owner-only. Public folder contents and counts respect the visitor's reader level.
 

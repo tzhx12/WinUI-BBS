@@ -301,14 +301,15 @@ export async function registerForumRoutes(
       if (viewCount === null) return reply.code(404).send({ error: '帖子不存在' })
       post.rows[0].view_count = viewCount
     }
-    const likes = await query<{ count: number }>(
-      'SELECT COUNT(*)::int AS count FROM post_likes WHERE post_id = $1',
-      [id],
+    const likes = await query<{ count: number; liked: boolean }>(
+      'SELECT COUNT(*)::int AS count, COALESCE(bool_or(user_uid=$2::bigint),FALSE) AS liked FROM post_likes WHERE post_id = $1',
+      [id, uid],
     )
     return {
       post: post.rows[0],
       ...(await replyPage(request, id)),
       likeCount: likes.rows[0]?.count ?? 0,
+      liked: likes.rows[0]?.liked ?? false,
     }
   })
 

@@ -7,6 +7,7 @@ import { mediaError } from '../media.js'
 const folderSchema = z.object({
   name: z.string().trim().min(1).max(64),
   isPublic: z.boolean().default(false),
+  isDefault: z.boolean().optional(),
 })
 const id = z.string().regex(/^\d+$/)
 const postColumns = `p.id,p.title,p.body,p.minimum_reader_level,p.is_pinned,p.view_count,p.created_at,p.status,
@@ -21,6 +22,16 @@ async function viewer(request: FastifyRequest, reply: FastifyReply) {
 }
 
 export async function registerFavoriteRoutes(app: FastifyInstance) {
+  app.delete('/api/me/favorites/:postId', { preHandler: authenticate }, async (request, reply) => {
+    const parsed = z.object({ postId: z.uuid() }).safeParse(request.params)
+    if (!parsed.success) return reply.code(400).send({ error: '帖子编号无效' })
+    await query(
+      `DELETE FROM favorites v USING favorite_folders f
+      WHERE v.folder_id=f.id AND f.user_uid=$1 AND v.post_id=$2`,
+      [request.user.uid, parsed.data.postId],
+    )
+    return { removed: true }
+  })
   app.get('/api/me/favorite-folders', { preHandler: authenticate }, async (request) => {
     const parsed = z.object({ postId: z.uuid().optional() }).safeParse(request.query)
     if (!parsed.success) throw mediaError('帖子编号无效')
@@ -44,26 +55,50 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
         [request.user.uid],
       )
       if (count.rows[0]!.count >= 100) throw mediaError('最多创建 100 个收藏夹')
-      return (
+      if (parsed.data.isDefault)
+        await client.query('UPDATE favorite_folders SET is_default=false WHERE user_uid=$1 AND is_default', [
+          request.user.uid,
+        ])
+      const created = (
         await client.query(
-          'INSERT INTO favorite_folders(user_uid,name,is_public) VALUES($1,$2,$3) ON CONFLICT(user_uid,name) DO NOTHING RETURNING *',
-          [request.user.uid, parsed.data.name, parsed.data.isPublic],
+          'INSERT INTO favorite_folders(user_uid,name,is_public,is_default) VALUES($1,$2,$3,$4) ON CONFLICT(user_uid,name) DO NOTHING RETURNING *',
+          [request.user.uid, parsed.data.name, parsed.data.isPublic, parsed.data.isDefault ?? false],
         )
       ).rows[0]
+      if (!created) throw mediaError('已有同名收藏夹', 409)
+      return created
     })
-    if (!folder) return reply.code(409).send({ error: '已有同名收藏夹' })
     return reply.code(201).send(folder)
   })
   app.patch('/api/me/favorite-folders/:id', { preHandler: authenticate }, async (request, reply) => {
     const parsed = folderSchema.safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '收藏夹名称需为 1–64 字' })
     try {
-      const result = await query(
-        'UPDATE favorite_folders SET name=$3,is_public=$4 WHERE id=$1 AND user_uid=$2 RETURNING *',
-        [(request.params as { id: string }).id, request.user.uid, parsed.data.name, parsed.data.isPublic],
-      )
-      if (!result.rowCount) return reply.code(404).send({ error: '收藏夹不存在' })
-      return result.rows[0]
+      return await inTransaction(async (client) => {
+        await client.query('SELECT uid FROM users WHERE uid=$1 FOR UPDATE', [request.user.uid])
+        const folder = await client.query('SELECT id FROM favorite_folders WHERE id=$1 AND user_uid=$2', [
+          (request.params as { id: string }).id,
+          request.user.uid,
+        ])
+        if (!folder.rowCount) throw mediaError('收藏夹不存在', 404)
+        if (parsed.data.isDefault)
+          await client.query(
+            'UPDATE favorite_folders SET is_default=false WHERE user_uid=$1 AND is_default',
+            [request.user.uid],
+          )
+        return (
+          await client.query(
+            'UPDATE favorite_folders SET name=$3,is_public=$4,is_default=COALESCE($5,is_default) WHERE id=$1 AND user_uid=$2 RETURNING *',
+            [
+              (request.params as { id: string }).id,
+              request.user.uid,
+              parsed.data.name,
+              parsed.data.isPublic,
+              parsed.data.isDefault ?? null,
+            ],
+          )
+        ).rows[0]
+      })
     } catch (error) {
       if ((error as { code?: string }).code === '23505')
         return reply.code(409).send({ error: '已有同名收藏夹' })

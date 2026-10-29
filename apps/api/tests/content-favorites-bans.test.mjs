@@ -426,6 +426,202 @@ test("favorites are owner-managed and private folders cannot be read by other us
     true,
   );
 });
+test("quick cancellation removes a post from every owned folder and preserves other users and posts", async () => {
+  const post = (await create()).json().post;
+  const another = (await create()).json().post;
+  const first = await folder("快速取消一"),
+    second = await folder("快速取消二"),
+    stranger = await folder("其他用户收藏", false, other);
+  for (const [target, user] of [
+    [first, member],
+    [second, member],
+    [stranger, other],
+  ]) {
+    assert.equal(
+      (
+        await f.request(
+          "POST",
+          `/api/me/favorite-folders/${target.id}/posts/${post.id}`,
+          undefined,
+          user,
+        )
+      ).statusCode,
+      200,
+    );
+  }
+  await f.request(
+    "POST",
+    `/api/me/favorite-folders/${first.id}/posts/${another.id}`,
+    undefined,
+    member,
+  );
+  assert.equal(
+    (await f.request("DELETE", `/api/me/favorites/${post.id}`)).statusCode,
+    401,
+  );
+  assert.equal(
+    (
+      await f.request(
+        "DELETE",
+        "/api/me/favorites/not-a-uuid",
+        undefined,
+        member,
+      )
+    ).statusCode,
+    400,
+  );
+  for (let i = 0; i < 2; i++)
+    assert.equal(
+      (
+        await f.request(
+          "DELETE",
+          `/api/me/favorites/${post.id}`,
+          undefined,
+          member,
+        )
+      ).statusCode,
+      200,
+    );
+  const owned = (
+    await f.request(
+      "GET",
+      `/api/me/favorite-folders?postId=${post.id}`,
+      undefined,
+      member,
+    )
+  ).json();
+  assert.ok(owned.every((folder) => !folder.contains_post));
+  assert.equal(
+    (
+      await f.request(
+        "GET",
+        `/api/me/favorite-folders?postId=${post.id}`,
+        undefined,
+        other,
+      )
+    )
+      .json()
+      .find((folder) => folder.id === stranger.id).contains_post,
+    true,
+  );
+  assert.equal(
+    (
+      await f.request(
+        "GET",
+        `/api/me/favorite-folders?postId=${another.id}`,
+        undefined,
+        member,
+      )
+    )
+      .json()
+      .find((folder) => folder.id === first.id).contains_post,
+    true,
+  );
+});
+
+test("default folders are unique per user, ownership checked, and rollback preserves the previous default", async () => {
+  const created = await f.request(
+    "POST",
+    "/api/me/favorite-folders",
+    { name: "快速收藏", isDefault: true },
+    member,
+  );
+  assert.equal(created.statusCode, 201, created.body);
+  const first = created.json(),
+    second = await folder("另一个默认候选");
+  const select = (value, user = member) =>
+    f.request(
+      "PATCH",
+      `/api/me/favorite-folders/${value.id}`,
+      { name: value.name, isPublic: value.is_public, isDefault: true },
+      user,
+    );
+  assert.equal((await select(first, other)).statusCode, 404);
+  const results = await Promise.all([select(first), select(second)]);
+  assert.ok(results.every((r) => r.statusCode === 200));
+  let folders = (
+    await f.request("GET", "/api/me/favorite-folders", undefined, member)
+  ).json();
+  assert.equal(folders.filter((f) => f.is_default).length, 1);
+  const selected = folders.find((f) => f.is_default);
+  const duplicate = await f.request(
+    "POST",
+    "/api/me/favorite-folders",
+    { name: selected.name, isDefault: true },
+    member,
+  );
+  assert.equal(duplicate.statusCode, 409);
+  folders = (
+    await f.request("GET", "/api/me/favorite-folders", undefined, member)
+  ).json();
+  assert.equal(folders.find((f) => f.is_default).id, selected.id);
+  const stranger = await folder("另一个用户默认", false, other);
+  assert.equal((await select(stranger, other)).statusCode, 200);
+  const post = (await create()).json().post;
+  for (let i = 0; i < 2; i++)
+    assert.equal(
+      (
+        await f.request(
+          "POST",
+          `/api/me/favorite-folders/${selected.id}/posts/${post.id}`,
+          undefined,
+          member,
+        )
+      ).statusCode,
+      200,
+    );
+  const saved = (
+    await f.request(
+      "GET",
+      `/api/me/favorite-folders?postId=${post.id}`,
+      undefined,
+      member,
+    )
+  ).json();
+  assert.equal(saved.find((f) => f.id === selected.id).contains_post, true);
+  assert.equal(saved.find((f) => f.id === selected.id).post_count, 1);
+  await f.request(
+    "DELETE",
+    `/api/me/favorite-folders/${selected.id}`,
+    undefined,
+    member,
+  );
+  assert.equal(
+    (await f.request("GET", "/api/me/favorite-folders", undefined, member))
+      .json()
+      .filter((f) => f.is_default).length,
+    0,
+  );
+});
+
+test("post detail returns the current viewer like state across refreshes without sharing it with others", async () => {
+  const post = (await create()).json().post;
+  const detail = (user) =>
+    f.request("GET", `/api/posts/${post.id}`, undefined, user);
+  assert.equal((await detail(member)).json().liked, false);
+  assert.equal(
+    (
+      await f.request("POST", `/api/posts/${post.id}/like`, undefined, member)
+    ).json().liked,
+    true,
+  );
+  for (let i = 0; i < 2; i++) {
+    const result = (await detail(member)).json();
+    assert.equal(result.liked, true);
+    assert.equal(result.likeCount, 1);
+  }
+  assert.equal((await detail(other)).json().liked, false);
+  assert.equal((await detail()).json().liked, false);
+  assert.equal(
+    (
+      await f.request("POST", `/api/posts/${post.id}/like`, undefined, member)
+    ).json().liked,
+    false,
+  );
+  assert.equal((await detail(member)).json().likeCount, 0);
+  assert.equal((await detail(member)).json().liked, false);
+});
+
 test("public spaces and favorites exclude hidden, deleted, pending, rejected and unreadable posts", async () => {
   const collection = await folder("状态过滤", true);
   const ids = [];
@@ -539,6 +735,7 @@ test("temporary bans permit login and own reads at baseline level but block all 
     ["POST", `/api/posts/${owned.id}/replies`],
     ["POST", `/api/posts/${owned.id}/like`],
     ["POST", "/api/me/favorite-folders"],
+    ["DELETE", `/api/me/favorites/${owned.id}`],
     ["POST", "/api/media"],
     ["POST", "/api/me/avatar"],
     ["POST", "/api/me/emoji-packs"],

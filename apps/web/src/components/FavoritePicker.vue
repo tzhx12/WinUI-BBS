@@ -6,11 +6,14 @@ import { useSite } from '../site'
 import WinDialog from './ui/WinDialog.vue'
 import WinButton from './ui/WinButton.vue'
 const props = defineProps<{ open: boolean; postId: string }>()
-const emit = defineEmits<{ 'update:open': [value: boolean] }>()
+const emit = defineEmits<{ 'update:open': [value: boolean]; changed: [] }>()
 const site = useSite()
-const folders = ref<Array<{ id: string; name: string; is_public: boolean; contains_post: boolean }>>([])
+const folders = ref<
+  Array<{ id: string; name: string; is_public: boolean; is_default: boolean; contains_post: boolean }>
+>([])
 const name = ref(''),
   isPublic = ref(false),
+  isDefault = ref(false),
   busy = ref(false),
   error = ref('')
 watch(
@@ -24,6 +27,7 @@ watch(
       folders.value = await api(`/api/me/favorite-folders?postId=${props.postId}`, {
         token: site.token.value,
       })
+      isDefault.value = !folders.value.some((folder) => folder.is_default)
     } catch (cause) {
       error.value = (cause as Error).message
     }
@@ -38,6 +42,7 @@ async function toggle(folder: (typeof folders.value)[number]) {
       token: site.token.value,
     })
     folder.contains_post = !folder.contains_post
+    emit('changed')
     site.notify(folder.contains_post ? '已加入收藏夹' : '已取消收藏')
   } catch (cause) {
     error.value = (cause as Error).message
@@ -52,9 +57,13 @@ async function create() {
     const folder = await api<(typeof folders.value)[number]>('/api/me/favorite-folders', {
       method: 'POST',
       token: site.token.value,
-      body: { name: name.value, isPublic: isPublic.value },
+      body: { name: name.value, isPublic: isPublic.value, isDefault: isDefault.value },
     })
     folders.value.push({ ...folder, contains_post: false })
+    if (folder.is_default)
+      folders.value.forEach((item) => {
+        item.is_default = item.id === folder.id
+      })
     name.value = ''
     await toggle(folders.value.at(-1)!)
   } catch (cause) {
@@ -74,7 +83,7 @@ async function create() {
   >
     <div v-for="folder in folders" :key="folder.id" class="setting-row">
       <div>
-        <strong>{{ folder.name }}</strong>
+        <strong>{{ folder.name }}{{ folder.is_default ? '（默认）' : '' }}</strong>
         <p class="secondary-text">{{ folder.is_public ? '公开' : '仅自己可见' }}</p>
       </div>
       <WinButton
@@ -87,6 +96,7 @@ async function create() {
     <p v-if="!folders.length" class="secondary-text">创建第一个收藏夹，收好值得重读的讨论。</p>
     <TextBox v-model:Text="name" Header="新收藏夹名称" :MaxLength="64" />
     <ToggleSwitch v-model:IsOn="isPublic" Header="在用户空间公开此收藏夹" />
+    <ToggleSwitch v-model:IsOn="isDefault" Header="设为默认收藏夹" />
     <WinButton label="创建并收藏" :disabled="busy || !name.trim()" @click="create" />
   </WinDialog>
 </template>

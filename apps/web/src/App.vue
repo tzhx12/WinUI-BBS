@@ -44,6 +44,10 @@ const route = useRoute()
 const mode = ref<'loading' | 'ready' | 'setup' | 'error'>('loading')
 const error = ref('')
 const frame = ref<InstanceType<typeof Frame> | null>(null)
+const navigation = ref<{ IsPaneOpen: boolean } | null>(null)
+function togglePane() {
+  if (navigation.value) navigation.value.IsPaneOpen = !navigation.value.IsPaneOpen
+}
 const isAdmin = computed(() => route.path.startsWith('/admin/'))
 const permittedSections = computed(() =>
   adminSections.filter((item) => site.user.value?.permissions?.includes(item.permission)),
@@ -198,7 +202,13 @@ onBeforeUnmount(() => clearInterval(unreadTimer))
 
 <template>
   <div id="forum-root" class="forum-app">
-    <TitleBar class="app-titlebar" :Title="site.settings.title" :Subtitle="isAdmin ? '管理后台' : '社区'">
+    <TitleBar
+      class="app-titlebar"
+      :Title="site.settings.title"
+      :Subtitle="isAdmin ? '管理后台' : '社区'"
+      :IsPaneToggleButtonVisible="mode === 'ready'"
+      :PaneToggleRequested="togglePane"
+    >
       <TitleBarLeftHeader
         ><img :src="site.settings.icon || '/brand-mark.png'" class="site-mark" alt=""
       /></TitleBarLeftHeader>
@@ -219,7 +229,9 @@ onBeforeUnmount(() => clearInterval(unreadTimer))
 
     <NavigationView
       v-else
+      ref="navigation"
       class="app-navigation"
+      :IsPaneToggleButtonVisible="false"
       :PaneDisplayMode="site.compactNavigation.value ? 'LeftCompact' : 'Auto'"
       :OpenPaneLength="248"
       :ExpandedModeThresholdWidth="1080"
