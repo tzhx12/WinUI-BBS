@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { requirePermission, authenticate, readerLevel } from '../auth.js'
 import { awardExperience, inTransaction, query } from '../db.js'
@@ -8,33 +8,15 @@ import { editorBodySchema, readSubmission, validateContent, withSubmission } fro
 import { mediaError } from '../media.js'
 import { grantLevelInvitations } from '../invitations.js'
 import { purgeExpiredPosts, recordPostView } from '../posts.js'
+import { replyPage } from '../replies.js'
+import { registerReplyRoutes } from './replies.js'
 
 const currentLevel = readerLevel
-async function replyPage(request: FastifyRequest, id: string) {
-  const parsed = z
-    .object({ page: z.coerce.number().int().min(1).max(1000000).default(1) })
-    .safeParse(request.query)
-  if (!parsed.success) throw mediaError('回复页码无效')
-  const pageSize = (await contentLimits()).repliesPerPage
-  const count = await query<{ count: number }>(
-    'SELECT COUNT(*)::int AS count FROM replies WHERE post_id=$1',
-    [id],
-  )
-  const totalReplyCount = count.rows[0]!.count
-  const totalPages = Math.max(1, Math.ceil(totalReplyCount / pageSize))
-  const page = Math.min(parsed.data.page, totalPages)
-  const replies = await query(
-    `SELECT r.id,r.body,r.created_at,u.uid AS author_uid,u.username,u.display_name,u.avatar_url
-    FROM replies r JOIN users u ON u.uid=r.author_uid WHERE r.post_id=$1 ORDER BY r.created_at,r.id LIMIT $2 OFFSET $3`,
-    [id, pageSize, (page - 1) * pageSize],
-  )
-  return { replies: replies.rows, page, pageSize, totalReplyCount, totalPages }
-}
-
 export async function registerForumRoutes(
   app: FastifyInstance,
   uploadRoot = resolve(process.cwd(), 'data/uploads'),
 ) {
+  await registerReplyRoutes(app, uploadRoot)
   let cleanupTimer: ReturnType<typeof setInterval> | undefined
   app.addHook('onReady', async () => {
     await purgeExpiredPosts()
@@ -184,14 +166,14 @@ export async function registerForumRoutes(
       `SELECT p.id, p.title, p.body, p.minimum_reader_level, p.is_pinned, p.view_count, p.created_at,
               c.id AS category_id, c.name AS category_name, c.accent_color AS category_color,
               u.uid AS author_uid, u.username, u.display_name, u.avatar_url, u.experience, u.level_offset,
-              (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id)::int AS reply_count,
+              (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL)::int AS reply_count,
               (SELECT COUNT(*) FROM post_likes l WHERE l.post_id = p.id)::int AS like_count
        FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
        WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.minimum_reader_level <= $1
          AND c.minimum_reader_level <= $1
          AND ($2::bigint IS NULL OR c.id = $2)
          AND ($3::text IS NULL OR p.title ILIKE '%' || $3 || '%' OR p.body::text ILIKE '%' || $3 || '%')
-       ORDER BY p.is_pinned DESC, ${sort === 'popular' ? '(SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id) DESC,' : ''} p.created_at DESC
+       ORDER BY p.is_pinned DESC, ${sort === 'popular' ? '(SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL) DESC,' : ''} p.created_at DESC
        LIMIT 60`,
       [readerLevel, category ?? null, q ?? null],
     )
@@ -203,7 +185,7 @@ export async function registerForumRoutes(
       `SELECT p.id, p.title, p.body, p.minimum_reader_level, p.is_pinned, p.view_count, p.status, p.created_at,
               c.id AS category_id, c.name AS category_name, c.accent_color AS category_color,
               u.uid AS author_uid, u.username, u.display_name, u.avatar_url, u.experience, u.level_offset,
-              (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id)::int AS reply_count,
+              (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL)::int AS reply_count,
               (SELECT COUNT(*) FROM post_likes l WHERE l.post_id = p.id)::int AS like_count
        FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
        WHERE p.author_uid = $1 AND p.deleted_at IS NULL ORDER BY p.created_at DESC LIMIT 100`,
@@ -381,57 +363,6 @@ export async function registerForumRoutes(
     )
     return reply.code(201).send(result)
   })
-
-  app.post(
-    '/api/posts/:id/replies',
-    { preHandler: requirePermission('replies.create') },
-    async (request, reply) => {
-      const submission = await readSubmission(request)
-      const parsed = z
-        .object({
-          body: editorBodySchema,
-        })
-        .safeParse(submission.payload)
-      if (!parsed.success) return reply.code(400).send({ error: '回复内容不能为空' })
-      await validateContent(parsed.data.body, 'reply')
-      const { id } = request.params as { id: string }
-      const post = await query<{
-        minimum_reader_level: number
-        category_minimum_reader_level: number
-      }>(
-        `SELECT p.minimum_reader_level, c.minimum_reader_level AS category_minimum_reader_level
-       FROM posts p JOIN categories c ON c.id = p.category_id WHERE p.id = $1 AND p.status IN ('published', 'hidden') AND p.deleted_at IS NULL`,
-        [id],
-      )
-      if (!post.rows[0]) return reply.code(404).send({ error: '帖子不存在' })
-      const readerLevel = await currentLevel(request.user.uid)
-      if (
-        Math.max(post.rows[0].minimum_reader_level, post.rows[0].category_minimum_reader_level) > readerLevel
-      ) {
-        return reply.code(403).send({ error: '此帖需要更高等级才能回复' })
-      }
-      const result = await withSubmission(
-        request.user.uid,
-        parsed.data.body,
-        submission.attachments,
-        uploadRoot,
-        async (client) => {
-          const created = await client.query(
-            `INSERT INTO replies (post_id, author_uid, body)
-         SELECT p.id, $2, $3::jsonb FROM posts p WHERE p.id = $1 AND p.status IN ('published', 'hidden') AND p.deleted_at IS NULL
-         RETURNING id`,
-            [id, request.user.uid, JSON.stringify(parsed.data.body)],
-          )
-          if (!created.rows[0]) throw mediaError('帖子不存在', 404)
-          const experience = await awardExperience(request.user.uid, 'create_reply', client)
-          await grantLevelInvitations(request.user.uid, client)
-          return { reply: created.rows[0], experience }
-        },
-      )
-      if (!result) return reply.code(404).send({ error: '帖子不存在' })
-      return reply.code(201).send(result)
-    },
-  )
 
   app.post('/api/posts/:id/like', { preHandler: authenticate }, async (request) => {
     const { id } = request.params as { id: string }

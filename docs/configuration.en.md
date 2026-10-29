@@ -70,6 +70,12 @@ Unsent bodies, titles, categories and selected image blobs stay in the current b
 
 Direct library uploads from **我的图片** start disabled. Administrators can enable them in the same settings page. Avatar and emoji-pack uploads keep their dedicated entry points.
 
+## Replies, nested replies and deletion
+
+Select **回复** below a reply to open its nested-reply composer. Replying to a nested reply includes its author's name. Each thread shows five nested replies per page, with previous/next controls and direct page-number navigation; changing a nested page does not change the post's main reply page. Main and nested replies receive monotonic floor numbers such as `第 12 楼` and `第 12 楼-3 层`. Deleted replies hide their floor label, but the number is never reused and existing numbers are never renumbered.
+
+Ordinary users see a delete action only on their own replies and can delete only content they wrote. Users with `posts.manage` can delete any reply. Reply deletion is permanent and does not use the recycle bin. When deleting a main reply that has nested replies, an administrator can keep those replies and show **该回复已被管理员删除**, or permanently delete the entire thread. Administrator deletions notify affected authors and are recorded in the moderation audit log; author deletions do not generate moderator notices or audit events. Removing the last nested reply also removes an otherwise empty deleted-reply placeholder.
+
 ## Favorites and public user spaces
 
 Open **我的收藏** from the user dashboard to create, rename or delete folders, choose public visibility, move saved posts or remove favorites. Each user can have up to 100 folders with names of 1–64 characters.

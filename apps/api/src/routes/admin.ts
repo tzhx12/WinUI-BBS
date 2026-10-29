@@ -34,7 +34,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       `SELECT
         (SELECT COUNT(*) FROM users)::text AS users,
         (SELECT COUNT(*) FROM posts WHERE status = 'published' AND deleted_at IS NULL)::text AS posts,
-        (SELECT COUNT(*) FROM replies)::text AS replies,
+        (SELECT COUNT(*) FROM replies WHERE deleted_at IS NULL)::text AS replies,
         (SELECT COUNT(*) FROM daily_checkins WHERE checkin_date = CURRENT_DATE)::text AS checkins,
         (SELECT COUNT(*) FROM posts WHERE status = 'pending' AND deleted_at IS NULL)::text AS pending,
         (SELECT COUNT(*) FROM media_assets)::text AS media`,
@@ -663,7 +663,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     const result = await query(
       `SELECT p.id, p.title, p.status, p.is_pinned, p.minimum_reader_level, p.created_at,
               c.name AS category_name, u.uid AS author_uid, u.display_name,
-              (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id)::int AS reply_count
+              (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL)::int AS reply_count
        FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
        WHERE p.deleted_at IS NULL AND ($1::text IS NULL OR p.status = $1) ORDER BY p.created_at DESC LIMIT 200`,
       [status],

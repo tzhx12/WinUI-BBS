@@ -4,6 +4,32 @@ export interface EditorData {
   blocks: Array<{ id?: string; type: string; data: Record<string, unknown> }>
 }
 
+export interface ReplyEntry {
+  id: string
+  body: EditorData
+  author_uid: string | null
+  display_name: string | null
+  avatar_url: string | null
+  created_at: string
+  floor_number: number
+  child_number: number | null
+  parent_reply_id: string | null
+  deleted_at: string | null
+  deletion_source: 'author' | 'admin' | null
+  reply_to_uid: string | null
+  reply_to_name: string | null
+}
+export interface ChildReplyPage {
+  replies: ReplyEntry[]
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+}
+export interface ReplyThread extends ReplyEntry {
+  children: ChildReplyPage
+}
+
 export interface PageParameter {
   path: string
   id?: string
@@ -75,7 +101,7 @@ export interface SiteNotification {
   id: string
   title: string
   body: string
-  kind: 'announcement' | 'review'
+  kind: 'announcement' | 'review' | 'moderation'
   post_id: string | null
   created_at: string
   read_at: string | null

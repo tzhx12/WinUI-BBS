@@ -5,7 +5,7 @@ import { InfoBar, ProgressRing, ToggleButton } from 'winuionweb'
 import { api } from '../api'
 import { useResource } from '../composables/useResource'
 import { useSite } from '../site'
-import type { EditorData, PageParameter, PostSummary } from '../types'
+import type { PageParameter, PostSummary, ReplyThread as Thread } from '../types'
 import { formatDate, formatDateTime } from '../utils'
 import EditorComposer from '../components/EditorComposer.vue'
 import PostBody from '../components/PostBody.vue'
@@ -13,17 +13,12 @@ import IconGlyph from '../components/IconGlyph.vue'
 import WinButton from '../components/ui/WinButton.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import FavoriteButton from '../components/FavoriteButton.vue'
+import ReplyThread from '../components/ReplyThread.vue'
 defineOptions({ inheritAttrs: false })
 interface Detail {
   post: PostSummary
-  replies: Array<{
-    id: string
-    body: EditorData
-    display_name: string
-    author_uid: string
-    avatar_url: string | null
-    created_at: string
-  }>
+  replies: Thread[]
+  totalThreadCount: number
   likeCount: number
   liked: boolean
   totalReplyCount: number
@@ -94,7 +89,7 @@ async function reply() {
     }, '回复已发送')
   ) {
     editorVersion.value++
-    page.value = Math.ceil(((data.value?.totalReplyCount || 0) + 1) / (data.value?.pageSize || 20))
+    page.value = Math.ceil(((data.value?.totalThreadCount || 0) + 1) / (data.value?.pageSize || 20))
     await reload()
   }
 }
@@ -181,22 +176,17 @@ async function reply() {
           <p v-if="!data.replies.length" class="secondary-text">
             {{ isTrash ? '还没有回复。' : '还没有回复，分享你的看法。' }}
           </p>
-          <article v-for="entry in data.replies" :key="entry.id" class="reply-item">
-            <UserAvatar
-              :uid="entry.author_uid"
-              :name="entry.display_name"
-              :url="entry.avatar_url"
-              :size="32"
-            />
-            <div class="reply-content">
-              <header>
-                <strong>{{ entry.display_name }}</strong
-                ><span>UID {{ entry.author_uid }}</span
-                ><time>{{ formatDate(entry.created_at) }}</time>
-              </header>
-              <PostBody :data="entry.body" />
-            </div>
-          </article>
+          <ReplyThread
+            v-for="entry in data.replies"
+            :key="`${site.user.value?.uid || 'guest'}:${entry.id}`"
+            :post-id="props.Parameter.id!"
+            :entry="entry"
+            :trash="isTrash"
+            :read-only="isTrash || !isPublic"
+            :can-reply="!!canReply"
+            @removed="reload"
+            @changed="data.totalReplyCount += $event"
+          />
           <nav v-if="data.totalPages > 1" class="reply-pagination" aria-label="回复翻页">
             <WinButton
               label="上一页"

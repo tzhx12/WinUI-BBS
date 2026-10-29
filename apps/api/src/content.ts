@@ -120,13 +120,14 @@ export async function withSubmission<T>(
     throw mediaError('待发图片不完整，请重新选择图片')
   try {
     return await inTransaction(async (client) => {
+      // Keep one lock order for replies with and without attachments: author, then post.
+      await client.query('SELECT uid FROM users WHERE uid=$1 FOR NO KEY UPDATE', [uid])
       if (attachments.length) {
         const permission = await client.query(
           `SELECT 1 FROM group_memberships gm JOIN group_permissions gp ON gp.group_id=gm.group_id WHERE gm.user_uid=$1 AND gp.permission_key='media.use' AND (gm.expires_at IS NULL OR gm.expires_at>NOW()) LIMIT 1`,
           [uid],
         )
         if (!permission.rowCount) throw mediaError('当前用户组没有图片上传权限', 403)
-        await client.query('SELECT uid FROM users WHERE uid=$1 FOR UPDATE', [uid])
         const limits = await userMediaLimits(uid, client)
         const usage = await client.query<{ bytes: string }>(
           "SELECT COALESCE(SUM(byte_size),0)::text AS bytes FROM media_assets WHERE created_by=$1 AND NOT remote_cached AND collection<>'site_icon'",

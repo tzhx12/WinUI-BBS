@@ -93,7 +93,9 @@ async function more() {
           :class="['surface-card', 'inbox-notice', { unread: !notice.read_at }]"
         >
           <div class="section-toolbar">
-            <span class="tag">{{ notice.kind === 'review' ? '发帖审核' : '社区公告' }}</span
+            <span class="tag">{{
+              notice.kind === 'review' ? '发帖审核' : notice.kind === 'moderation' ? '回复管理' : '社区公告'
+            }}</span
             ><span v-if="!notice.read_at" class="status-tag warning">未读</span
             ><time class="secondary-text">{{ formatDateTime(notice.created_at) }}</time>
           </div>
