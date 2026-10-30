@@ -825,9 +825,6 @@ small {
   font-size: 14px;
   color: var(--text-primary);
 }
-.reply-content > header time {
-  margin-left: auto;
-}
 .reply-footer {
   display: flex;
   align-items: center;
@@ -840,7 +837,8 @@ small {
 .reply-delete {
   margin-left: auto;
 }
-.reply-floor {
+.reply-floor,
+.reply-footer time {
   white-space: nowrap;
 }
 .deleted-reply-avatar {

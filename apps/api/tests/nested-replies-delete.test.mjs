@@ -10,7 +10,11 @@ async function createPost(user = alice) {
   const result = await request(
     'POST',
     '/api/posts',
-    { title: '楼层与楼中楼测试', categoryId: category.id, body: body('主帖正文') },
+    {
+      title: '楼层与楼中楼测试',
+      categoryId: category.id,
+      body: body('主帖正文'),
+    },
     user,
   )
   assert.equal(result.statusCode, 201, result.body)
@@ -127,7 +131,10 @@ test('root floors remain monotonic and child replies paginate independently with
   const child = (
     await request('GET', `/api/posts/${post.id}/replies/${first.id}/children?page=1`, undefined, bob)
   ).json().replies[1]
-  const continued = await createReply(post.id, bob, { parentReplyId: first.id, replyToId: child.id })
+  const continued = await createReply(post.id, bob, {
+    parentReplyId: first.id,
+    replyToId: child.id,
+  })
   assert.equal(continued.child_number, 13)
   const nextRoot = await createReply(post.id, alice)
   assert.equal(nextRoot.floor_number, 3)
@@ -187,9 +194,16 @@ test('users can permanently delete their own replies; deleting the final child p
 
 test('admin can retain a deleted main reply and children or permanently cascade the entire thread', async () => {
   const post = await createPost()
-  const root = await createReply(post.id, alice)
-  const childAlice = await createReply(post.id, alice, { parentReplyId: root.id })
-  const childBob = await createReply(post.id, bob, { parentReplyId: root.id, replyToId: childAlice.id })
+  const root = await createReply(post.id, alice, {
+    body: body('一二三四五六七八九十后续内容'),
+  })
+  const childAlice = await createReply(post.id, alice, {
+    parentReplyId: root.id,
+  })
+  const childBob = await createReply(post.id, bob, {
+    parentReplyId: root.id,
+    replyToId: childAlice.id,
+  })
 
   const keep = await request(
     'DELETE',
@@ -209,16 +223,30 @@ test('admin can retain a deleted main reply and children or permanently cascade 
   )
   const notices = await request('GET', '/api/me/notifications', undefined, alice)
   assert.ok(
-    notices.json().some((notice) => notice.kind === 'moderation' && notice.body.includes('第1楼回复')),
+    notices
+      .json()
+      .some(
+        (notice) =>
+          notice.kind === 'moderation' &&
+          notice.body.includes('第1楼回复') &&
+          notice.body.includes('删除内容摘要：\n第1楼：一二三四五六七八九十…'),
+      ),
   )
+  assert.deepEqual(detail.replies.find((reply) => reply.id === root.id).body, {
+    blocks: [],
+  })
   assert.ok(
     (await f.query("SELECT 1 FROM audit_events WHERE action_key='reply.delete' AND target_id=$1", [root.id]))
       .rowCount,
   )
 
   const cascadeRoot = await createReply(post.id, alice)
-  const cascadeAlice = await createReply(post.id, alice, { parentReplyId: cascadeRoot.id })
-  const cascadeBob = await createReply(post.id, bob, { parentReplyId: cascadeRoot.id })
+  const cascadeAlice = await createReply(post.id, alice, {
+    parentReplyId: cascadeRoot.id,
+  })
+  const cascadeBob = await createReply(post.id, bob, {
+    parentReplyId: cascadeRoot.id,
+  })
   const cascade = await request(
     'DELETE',
     `/api/posts/${post.id}/replies/${cascadeRoot.id}?scope=thread`,
@@ -269,6 +297,134 @@ test('admin can retain a deleted main reply and children or permanently cascade 
       )
     ).statusCode,
     404,
+  )
+})
+
+test('admin deletion notices capture ten visible Unicode characters from rich and media replies', async () => {
+  const post = await createPost()
+  const samples = [
+    [body('<b>一二</b>&amp;😀三四五六七八九十'), '一二&😀三四五六七八…'],
+    [body('一二三四五六七八九十'), '一二三四五六七八九十'],
+    [body('  简短<br>内容  '), '简短 内容'],
+    [
+      {
+        blocks: [
+          { type: 'quote', data: { text: '<b>引用正文</b>', caption: '引用作者' } },
+          { type: 'paragraph', data: { text: '下一段' } },
+        ],
+      },
+      '引用正文 引用作者 …',
+    ],
+    [{ blocks: [{ type: 'list', data: { items: [null, {}, '简短列表'] } }] }, '简短列表'],
+    [
+      {
+        blocks: [
+          {
+            type: 'list',
+            data: {
+              style: 'unordered',
+              items: [
+                {
+                  content: '<b>一二三</b>',
+                  items: [{ content: '四五六七八九十后续', items: [] }],
+                },
+              ],
+            },
+          },
+        ],
+      },
+      '一二三 四五六七八九…',
+    ],
+    [{ blocks: [{ type: 'code', data: { code: '<tag>&code后续' } }] }, '<tag>&code…'],
+    [
+      {
+        blocks: [
+          {
+            type: 'image',
+            data: {
+              file: { url: '/deleted-image.png' },
+              caption: '<b>图片说明</b>',
+            },
+          },
+        ],
+      },
+      '图片说明',
+    ],
+    [
+      {
+        blocks: [
+          {
+            type: 'image',
+            data: { file: { url: '/deleted-image.png' }, caption: '' },
+          },
+        ],
+      },
+      '[图片]',
+    ],
+    [
+      {
+        blocks: [
+          {
+            type: 'emoji',
+            data: { url: '/deleted-image.png', name: '自定义表情' },
+          },
+        ],
+      },
+      '[表情]',
+    ],
+  ]
+  for (const [value, expected] of samples) {
+    const entry = await createReply(post.id, alice, { body: value })
+    const deleted = await request('DELETE', `/api/posts/${post.id}/replies/${entry.id}`, undefined, manager)
+    assert.equal(deleted.statusCode, 200, deleted.body)
+    assert.equal((await f.query('SELECT 1 FROM replies WHERE id=$1', [entry.id])).rowCount, 0)
+    const notice = (await request('GET', '/api/me/notifications', undefined, alice)).json()[0]
+    assert.equal(notice.post_id, post.id)
+    assert.equal(notice.body.split('删除内容摘要：\n')[1], `第${entry.floor_number}楼：${expected}`)
+    assert.ok(!notice.body.includes('后续'))
+  }
+})
+
+test('cascade notices include each recipient own reply excerpts without other authors content', async () => {
+  const post = await createPost()
+  const root = await createReply(post.id, alice, {
+    body: body('甲方主楼一二三四五六七八九十'),
+  })
+  await createReply(post.id, alice, {
+    parentReplyId: root.id,
+    body: body('甲方子楼一二三四五六七八九十'),
+  })
+  await createReply(post.id, bob, {
+    parentReplyId: root.id,
+    body: body('乙方私有内容一二三四五六七八九十'),
+  })
+  await createReply(post.id, manager, {
+    parentReplyId: root.id,
+    body: body('管理员自己的回复内容'),
+  })
+  assert.equal(
+    (await request('DELETE', `/api/posts/${post.id}/replies/${root.id}?scope=thread`, undefined, manager))
+      .statusCode,
+    200,
+  )
+  const aliceNotice = (await request('GET', '/api/me/notifications', undefined, alice)).json()[0]
+  const bobNotice = (await request('GET', '/api/me/notifications', undefined, bob)).json()[0]
+  assert.equal(
+    aliceNotice.body.split('删除内容摘要：\n')[1],
+    '第1楼：甲方主楼一二三四五六…\n第1楼-1层：甲方子楼一二三四五六…',
+  )
+  assert.equal(bobNotice.body.split('删除内容摘要：\n')[1], '第1楼-2层：乙方私有内容一二三四…')
+  assert.ok(!aliceNotice.body.includes('乙方'))
+  assert.ok(!bobNotice.body.includes('甲方'))
+  assert.ok(!aliceNotice.body.includes('管理员自己的'))
+  assert.equal(
+    (
+      await f.query(
+        `SELECT 1 FROM notification_recipients r JOIN notifications n ON n.id=r.notification_id WHERE n.post_id=$1 AND r.user_uid=$2`,
+        [post.id, manager.user.uid],
+      )
+    ).rowCount,
+    0,
   )
 })
 

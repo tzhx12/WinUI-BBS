@@ -166,15 +166,15 @@ async function reply() {
               :post-id="props.Parameter.id!"
               :disabled="site.user.value?.isBanned"
             /><span><IconGlyph name="eye" :size="16" />{{ data.post.view_count }} 次浏览</span
-            ><span><IconGlyph name="chat" :size="16" />{{ data.totalReplyCount }} 条回复</span>
+            ><span><IconGlyph name="chat" :size="16" />{{ data.totalReplyCount }} 条评论</span>
           </div>
         </article>
         <section class="replies-section">
           <h2>
-            回复 <span class="count">{{ data.totalReplyCount }}</span>
+            评论 <span class="count">{{ data.totalReplyCount }}</span>
           </h2>
           <p v-if="!data.replies.length" class="secondary-text">
-            {{ isTrash ? '还没有回复。' : '还没有回复，分享你的看法。' }}
+            {{ isTrash ? '还没有评论。' : '还没有评论，分享你的看法。' }}
           </p>
           <ReplyThread
             v-for="entry in data.replies"
@@ -187,7 +187,7 @@ async function reply() {
             @removed="reload"
             @changed="data.totalReplyCount += $event"
           />
-          <nav v-if="data.totalPages > 1" class="reply-pagination" aria-label="回复翻页">
+          <nav v-if="data.totalPages > 1" class="reply-pagination" aria-label="评论翻页">
             <WinButton
               label="上一页"
               :disabled="loading || data.page <= 1"

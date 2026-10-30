@@ -3,7 +3,13 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate, readerLevel, requirePermission } from '../auth.js'
 import { awardExperience, inTransaction, query } from '../db.js'
-import { editorBodySchema, readSubmission, validateContent, withSubmission } from '../content.js'
+import {
+  editorBodySchema,
+  readSubmission,
+  replyExcerpt,
+  validateContent,
+  withSubmission,
+} from '../content.js'
 import { grantLevelInvitations } from '../invitations.js'
 import { mediaError } from '../media.js'
 import { childReplyPage, pageSchema } from '../replies.js'
@@ -162,7 +168,7 @@ export async function registerReplyRoutes(
           ).rows[0]!.count
       const removed = (
         await client.query(
-          `SELECT id,author_uid,floor_number,child_number FROM replies WHERE deleted_at IS NULL AND (id=$1 OR ($2 AND parent_reply_id=$1))`,
+          `SELECT id,author_uid,floor_number,child_number,body FROM replies WHERE deleted_at IS NULL AND (id=$1 OR ($2 AND parent_reply_id=$1)) ORDER BY floor_number,child_number NULLS FIRST`,
           [entry.id, options.data.scope === 'thread'],
         )
       ).rows
@@ -178,16 +184,17 @@ export async function registerReplyRoutes(
           [entry.parent_reply_id],
         )
       if (manager) {
+        const floor = (row: (typeof removed)[number]) =>
+          `第${row.floor_number}楼${row.child_number ? `-${row.child_number}层` : ''}`
         for (const author of new Set(removed.map((row) => row.author_uid))) {
           if (!author || author === request.user.uid) continue
-          const floors = removed
-            .filter((row) => row.author_uid === author)
-            .map((row) => `第${row.floor_number}楼${row.child_number ? `-${row.child_number}层` : ''}`)
-            .join('、')
+          const replies = removed.filter((row) => row.author_uid === author)
+          const floors = replies.map(floor).join('、')
+          const excerpts = replies.map((row) => `${floor(row)}：${replyExcerpt(row.body)}`).join('\n')
           const notice = await client.query<{ id: string }>(
             `INSERT INTO notifications(title,body,kind,sender_uid,post_id) VALUES('回复已被管理员删除',$1,'moderation',$2,$3) RETURNING id`,
             [
-              `你在《${post.title}》中的${floors}回复已被管理员删除，无法恢复。`,
+              `你在《${post.title}》中的${floors}回复已被管理员删除，无法恢复。\n删除内容摘要：\n${excerpts}`,
               request.user.uid,
               params.data.postId,
             ],

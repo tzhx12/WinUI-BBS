@@ -38,6 +38,49 @@ type Body = z.infer<typeof editorBodySchema>
 type Attachment = { id: string; name: string; mime: string; buffer: Buffer }
 const emojiLimit = 1000
 
+export function replyExcerpt(body: Body): string {
+  function plainText(value: unknown): string {
+    if (typeof value !== 'string') return ''
+    function text(node: DefaultTreeAdapterTypes.Node): string {
+      if (node.nodeName === '#text') return (node as DefaultTreeAdapterTypes.TextNode).value
+      if ('tagName' in node) {
+        if (['script', 'style', 'template'].includes(node.tagName)) return ''
+        if (node.tagName === 'img') return '[表情]'
+        if (node.tagName === 'br') return ' '
+      }
+      return 'childNodes' in node ? node.childNodes.map(text).join('') : ''
+    }
+    return text(parseFragment(value))
+  }
+  function listText(items: unknown): string {
+    if (!Array.isArray(items)) return ''
+    return items
+      .map((item) => {
+        if (typeof item === 'string') return plainText(item)
+        if (!item || typeof item !== 'object') return ''
+        return [plainText(item.content ?? item.text), listText(item.items)].filter(Boolean).join(' ')
+      })
+      .filter(Boolean)
+      .join(' ')
+  }
+  const text = body.blocks
+    .map(({ type, data }) => {
+      if (type === 'list') return listText(data.items)
+      if (type === 'image') return plainText(data.caption).trim() || '[图片]'
+      if (type === 'emoji') return '[表情]'
+      if (type === 'delimiter') return ''
+      if (type === 'code') return typeof data.code === 'string' ? data.code : ''
+      if (type === 'spoiler') return typeof data.text === 'string' ? data.text : ''
+      return [plainText(data.text), plainText(data.caption)].filter(Boolean).join(' ')
+    })
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const characters = Array.from(text)
+  return characters.slice(0, 10).join('') + (characters.length > 10 ? '…' : '')
+}
+
 function textLength(value: unknown, key = ''): number {
   if (typeof value === 'string') {
     // Count visible text, including nested lists and captions, never URLs/formatting metadata.

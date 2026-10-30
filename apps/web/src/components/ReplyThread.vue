@@ -80,7 +80,7 @@ async function send() {
     emit('changed', 1)
     await loadPage(Math.ceil((children.value.total + 1) / 5))
     await site.refreshUser()
-    site.notify('楼中楼回复已发送')
+    site.notify('回复已发送')
   } catch (cause) {
     error.value = (cause as Error).message
   } finally {
@@ -110,8 +110,7 @@ async function childDeleted(result: { removedCount: number }) {
       <template v-if="!entry.deleted_at"
         ><header>
           <strong>{{ entry.display_name }}</strong
-          ><span>UID {{ entry.author_uid }}</span
-          ><time>{{ formatDateTime(entry.created_at) }}</time>
+          ><span>UID {{ entry.author_uid }}</span>
         </header>
         <PostBody :data="entry.body"
       /></template>
@@ -120,6 +119,9 @@ async function childDeleted(result: { removedCount: number }) {
       </p>
       <footer class="reply-footer">
         <span v-if="!entry.deleted_at" class="reply-floor">第{{ entry.floor_number }}楼</span
+        ><time v-if="!entry.deleted_at" :datetime="entry.created_at">{{
+          formatDateTime(entry.created_at)
+        }}</time
         ><WinButton
           v-if="!readOnly && !entry.deleted_at && (canReply || !site.user.value)"
           label="回复"
@@ -168,7 +170,7 @@ async function childDeleted(result: { removedCount: number }) {
             <PostBody :data="child.body" />
             <footer class="reply-footer">
               <span class="reply-floor">第{{ child.floor_number }}楼-{{ child.child_number }}层</span
-              ><time>{{ formatDateTime(child.created_at) }}</time
+              ><time :datetime="child.created_at">{{ formatDateTime(child.created_at) }}</time
               ><WinButton
                 v-if="!readOnly && (canReply || !site.user.value)"
                 label="回复"
@@ -233,7 +235,7 @@ async function childDeleted(result: { removedCount: number }) {
           />
         </div>
         <div class="form-actions">
-          <WinButton label="发送楼中楼回复" accent :disabled="busy" @click="send" />
+          <WinButton label="发送回复" accent :disabled="busy" @click="send" />
         </div>
       </div>
       <p v-if="error" class="editor-error" role="alert">{{ error }}</p>
