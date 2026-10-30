@@ -1568,8 +1568,12 @@ small {
     justify-self: stretch !important;
   }
   .header-account > button {
+    display: grid;
     min-width: 40px;
     min-height: 40px;
+  }
+  .header-account > button > .win-button-content-presenter {
+    padding-block: 6px !important;
   }
   .account-signin .button-content > span:last-child {
     display: none;
