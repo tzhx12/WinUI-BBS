@@ -100,7 +100,11 @@ jobs:
         run: node scripts/smoke-installed.mjs
       - name: Service diagnostics
         if: failure()
-        run: sudo journalctl -u winui-bbs -u winui-bbs-update.service -n 80 --no-pager
+        run: |
+          sudo journalctl -u winui-bbs-update.service --no-pager
+          sudo journalctl -u winui-bbs -n 40 --no-pager
+          sudo systemctl status winui-bbs-update.path winui-bbs-update.service --no-pager || true
+          sudo ls -l /opt/winui-bbs/shared/update/
 
   publish:
     if: ${{ !cancelled() && needs.install.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}

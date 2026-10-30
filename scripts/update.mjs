@@ -11,6 +11,7 @@ import {
   rm,
   chmod,
   lstat,
+  realpath,
 } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -69,6 +70,12 @@ export function validateArchive(list) {
     if (path.startsWith('/') || path.split('/').includes('..'))
       throw new Error('Invalid archive path')
   }
+}
+export async function isMainModule(moduleUrl, argument) {
+  return (
+    !!argument &&
+    moduleUrl === pathToFileURL(await realpath(resolve(argument))).href
+  )
 }
 export async function backupDatabase(file, connectionString, run = command) {
   const connection = new URL(connectionString)
@@ -199,8 +206,4 @@ async function update() {
     if (archive) await rm(archive, { force: true })
   }
 }
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
-)
-  await update()
+if (await isMainModule(import.meta.url, process.argv[1])) await update()

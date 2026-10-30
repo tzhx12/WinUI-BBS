@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtemp, mkdir, readlink, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdtemp,
+  mkdir,
+  readlink,
+  rm,
+  writeFile,
+  symlink,
+} from 'node:fs/promises'
+import { pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -8,7 +16,25 @@ import {
   switchRelease,
   validateArchive,
   backupDatabase,
+  isMainModule,
 } from '../update.mjs'
+
+test(
+  'systemd symlink entrypoint runs as the main module',
+  { skip: process.platform === 'win32' },
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), 'forum-entrypoint-'))
+    try {
+      const script = join(root, 'real.mjs'),
+        link = join(root, 'current.mjs')
+      await writeFile(script, '')
+      await symlink(script, link)
+      assert.equal(await isMainModule(pathToFileURL(script).href, link), true)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  },
+)
 
 test('backup supplies libpq connection explicitly and keeps password out of command arguments', async () => {
   const root = await mkdtemp(join(tmpdir(), 'forum-backup-'))
