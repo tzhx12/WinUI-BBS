@@ -282,6 +282,7 @@ onBeforeUnmount(clearAvatar)
           :ItemTemplate="template"
           SelectionMode="None"
           :IsItemClickEnabled="true"
+          :ItemContainerStyle="{ Padding: '0', HorizontalContentAlignment: 'Stretch' }"
           class="post-list"
           @ItemClick="openPost"
         />

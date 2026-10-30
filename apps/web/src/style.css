@@ -1895,9 +1895,32 @@ small {
 }
 .dashboard-filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 @media (max-width: 640px) {
+  .dashboard-posts .post-list-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .dashboard-posts .post-list-item > .user-avatar-link {
+    display: none;
+  }
+  .dashboard-posts .post-list-copy {
+    grid-column: 1 / -1;
+    overflow-wrap: anywhere;
+  }
+  .dashboard-posts .post-list-meta time {
+    white-space: nowrap;
+  }
+  .dashboard-posts .post-list-stats {
+    flex-direction: row;
+    padding-top: 0;
+  }
+  .dashboard-posts .post-list-actions {
+    justify-self: end;
+  }
   .dashboard-profile {
     align-items: flex-start;
     flex-wrap: wrap;

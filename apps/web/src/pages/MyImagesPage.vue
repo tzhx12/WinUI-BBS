@@ -153,7 +153,7 @@ async function saveAsset() {
 }
 async function removeImage(image: MediaAsset) {
   assetOpen.value = false
-  if (await site.confirm('删除图片？', '正文中使用此图的位置会显示阿卡林占位图，原图片地址将失效。', '删除'))
+  if (await site.confirm('删除图片？', '正文中使用此图的位置会显示占位图，原图片地址将失效。', '删除'))
     if (
       await run(
         () => api(`/api/me/media/${image.id}`, { method: 'DELETE', token: site.token.value }),
