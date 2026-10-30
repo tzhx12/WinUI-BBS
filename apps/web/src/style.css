@@ -661,6 +661,86 @@ small {
   align-items: center;
   gap: 12px;
   margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+.post-author > button {
+  margin-left: 8px;
+}
+.following-list {
+  display: grid;
+  gap: 12px;
+}
+.following-user {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.following-identity {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.following-identity > a {
+  font-weight: 600;
+}
+.user-space-profile {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.user-space-profile .profile-identity {
+  flex: 1;
+  min-width: 220px;
+}
+.user-space-profile .profile-identity > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.user-space-followers {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+.user-space-followers strong {
+  font-weight: 600;
+  margin-right: 4px;
+}
+.following-identity p {
+  margin: 4px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+.following-identity p span {
+  white-space: nowrap;
+}
+.editor-composer [data-content-lock],
+.lock-selection-preview {
+  background: var(--subtle-secondary);
+  border-bottom: 1px dashed var(--text-secondary);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+.lock-selection-preview {
+  padding: 12px;
+  max-width: 400px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.post-body .forum-content-locked {
+  display: inline-block;
+  color: var(--accent);
+  background: var(--subtle-secondary);
+  border: 1px dashed var(--text-secondary);
+  border-radius: 4px;
+  padding: 4px 12px;
+  margin: 4px 0;
+  cursor: pointer;
+  font-size: 14px;
+}
+.post-body .forum-content-locked:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .post-author small {
   display: block;
@@ -1476,6 +1556,24 @@ small {
   }
 }
 @media (max-width: 640px) {
+  .app-titlebar {
+    --TitleBarMinDragRegionWidth: 0px !important;
+  }
+  .app-titlebar .win-titlebar-title,
+  .app-titlebar .win-titlebar-subtitle {
+    display: none;
+  }
+  .app-titlebar .win-titlebar-content-presenter {
+    width: 100%;
+    justify-self: stretch !important;
+  }
+  .header-account > button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .account-signin .button-content > span:last-child {
+    display: none;
+  }
   h1 {
     font-size: 25px;
   }
@@ -1543,7 +1641,8 @@ small {
     display: none;
   }
   .header-search {
-    width: min(180px, 100%);
+    width: 100%;
+    padding-inline: 6px;
   }
   .details-list > div {
     flex-direction: column;

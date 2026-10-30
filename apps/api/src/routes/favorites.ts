@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { authenticate, readerLevel } from '../auth.js'
 import { inTransaction, query } from '../db.js'
 import { mediaError } from '../media.js'
+import { visibleBody } from '../lockedContent.js'
 
 const folderSchema = z.object({
   name: z.string().trim().min(1).max(64),
@@ -133,7 +134,7 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
         [folder.id, level],
       )
     ).rows
-    return { folder, posts }
+    return { folder, posts: posts.map((post) => ({ ...post, body: visibleBody(post.body) })) }
   })
   app.post(
     '/api/me/favorite-folders/:id/posts/:postId',
@@ -202,7 +203,13 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
     if (reply.sent) return
     const target = (request.params as { id: string }).id
     const user = (
-      await query('SELECT uid,username,display_name,avatar_url,created_at FROM users WHERE uid=$1', [target])
+      await query(
+        `SELECT uid,username,display_name,avatar_url,created_at,
+         EXISTS(SELECT 1 FROM user_follows WHERE follower_uid=$2 AND followed_uid=users.uid) AS following,
+         (SELECT COUNT(*)::int FROM user_follows WHERE followed_uid=users.uid) AS follower_count
+         FROM users WHERE uid=$1`,
+        [target, uid],
+      )
     ).rows[0]
     if (!user) return reply.code(404).send({ error: '用户不存在' })
     const level = uid ? await readerLevel(uid) : 0
@@ -221,6 +228,6 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
         [target, level],
       )
     ).rows
-    return { user, posts, folders }
+    return { user, posts: posts.map((post) => ({ ...post, body: visibleBody(post.body) })), folders }
   })
 }

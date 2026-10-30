@@ -13,6 +13,7 @@ import {
 import { grantLevelInvitations } from '../invitations.js'
 import { mediaError } from '../media.js'
 import { childReplyPage, pageSchema } from '../replies.js'
+import { validateContentLocks } from '../lockedContent.js'
 
 export async function registerReplyRoutes(
   app: FastifyInstance,
@@ -70,6 +71,7 @@ export async function registerReplyRoutes(
       const postId = z.uuid().safeParse((request.params as { id: string }).id)
       if (!parsed.success || !postId.success) return reply.code(400).send({ error: '回复内容或目标无效' })
       await validateContent(parsed.data.body, 'reply')
+      await validateContentLocks(parsed.data.body, request.user.uid, 'reply')
       const level = await readerLevel(request.user.uid)
       const result = await withSubmission(
         request.user.uid,

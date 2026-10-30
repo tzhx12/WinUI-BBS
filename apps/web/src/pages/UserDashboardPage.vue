@@ -198,7 +198,10 @@ onBeforeUnmount(clearAvatar)
   <div class="page-scroll">
     <div class="page-content">
       <PageHeader title="用户后台" description="查看你的个人资料、等级和发帖记录。"
-        ><WinButton label="我的收藏" icon="favorite" @click="router.push('/account/favorites')" /><WinButton
+        ><WinButton label="我的关注" icon="person" @click="router.push('/account/following')" /><WinButton
+          label="我的收藏"
+          icon="favorite"
+          @click="router.push('/account/favorites')" /><WinButton
           label="回收站"
           icon="delete"
           @click="router.push('/account/trash')" /><WinButton

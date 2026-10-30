@@ -90,6 +90,24 @@ after(async () => {
   if (f) await f.close();
 });
 
+test("search rejects empty and whitespace keywords while ordinary feeds remain available", async () => {
+  for (const keyword of ["", " ", "\t\n", "　", " "]) {
+    const result = await f.request(
+      "GET",
+      `/api/posts?q=${encodeURIComponent(keyword)}`,
+    );
+    assert.equal(result.statusCode, 400, result.body);
+    assert.match(result.json().error, /搜索关键词不能为空/);
+  }
+  assert.equal((await f.request("GET", "/api/posts")).statusCode, 200);
+  const result = await f.request(
+    "GET",
+    `/api/posts?q=${encodeURIComponent("  社区首页  ")}`,
+  );
+  assert.equal(result.statusCode, 200, result.body);
+  assert.ok(result.json().some((post) => post.title.includes("社区首页")));
+});
+
 test("content defaults, finite bounds and settings permission isolation", async () => {
   assert.deepEqual(defaults, {
     postCharacters: 20000,

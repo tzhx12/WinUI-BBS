@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { PersonPicture } from 'winuionweb'
 import { api } from '../api'
@@ -11,20 +11,33 @@ import ResourceState from '../components/ui/ResourceState.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import WinButton from '../components/ui/WinButton.vue'
 import PostListItem from '../components/PostListItem.vue'
+import FollowButton from '../components/FollowButton.vue'
 defineOptions({ inheritAttrs: false })
 const props = defineProps<{ Parameter: PageParameter }>()
 const router = useRouter(),
   site = useSite(),
   tab = ref('posts')
-const { data, loading, error } = useResource(
+const { data, loading, error, reload } = useResource(
   () =>
     api<{
-      user: { uid: string; username: string; display_name: string; avatar_url: string | null }
+      user: {
+        uid: string
+        username: string
+        display_name: string
+        avatar_url: string | null
+        following: boolean
+        follower_count: number
+      }
       posts: PostSummary[]
       folders: Array<{ id: string; name: string; post_count: number }>
     }>(`/api/users/${props.Parameter.id}`, { token: site.token.value }),
   null,
 )
+watch(site.token, reload)
+async function followChanged(following: boolean) {
+  if (data.value) data.value.user.following = following
+  await reload()
+}
 </script>
 <template>
   <div class="page-scroll">
@@ -34,17 +47,29 @@ const { data, loading, error } = useResource(
       /></PageHeader>
       <ResourceState :loading="loading" :error="error" />
       <template v-if="data"
-        ><section class="surface-card profile-identity">
-          <PersonPicture
-            :DisplayName="data.user.display_name"
-            :ProfilePicture="data.user.avatar_url || undefined"
-            :Width="64"
-            :Height="64"
-          />
-          <div>
-            <h1>{{ data.user.display_name }}</h1>
-            <p class="secondary-text">@{{ data.user.username }} · UID {{ data.user.uid }}</p>
+        ><section class="surface-card user-space-profile">
+          <div class="profile-identity">
+            <PersonPicture
+              :DisplayName="data.user.display_name"
+              :ProfilePicture="data.user.avatar_url || undefined"
+              :Width="64"
+              :Height="64"
+            />
+            <div>
+              <h1>{{ data.user.display_name }}</h1>
+              <p class="secondary-text">@{{ data.user.username }} · UID {{ data.user.uid }}</p>
+              <p class="user-space-followers" aria-live="polite">
+                <strong>{{ data.user.follower_count.toLocaleString() }}</strong>
+                <span class="secondary-text">粉丝</span>
+              </p>
+            </div>
           </div>
+          <FollowButton
+            :uid="data.user.uid"
+            :following="data.user.following"
+            @changed="followChanged"
+            @error="error = $event"
+          />
         </section>
         <div class="section-toolbar">
           <div class="row-actions">

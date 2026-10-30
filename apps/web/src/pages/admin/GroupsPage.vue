@@ -66,7 +66,7 @@ function edit(group?: Group) {
     groupType: group?.group_type || 'normal',
     description: group?.description || '',
     isJoinable: group?.is_joinable || false,
-    permissions: [...(group?.permissions || [])],
+    permissions: [...(group?.permissions || ['posts.hide_content'])],
     mediaLimits: { ...(group?.media_limits || {}) },
   })
   error.value = ''

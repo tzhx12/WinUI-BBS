@@ -40,6 +40,8 @@ Code expiry, mail interval, recovery availability, link expiry, daily request li
 
 ## Main features
 
+On phones, the title bar hides the site name and subtitle while keeping the logo, navigation, search, theme and account controls visible. Search requires a nonblank keyword of 1–120 characters. Press Enter to search on mobile; blank submissions do not navigate, blank search URLs show a prompt, and the API rejects blank keywords.
+
 - User IDs start at 1 and are paired with generated UUIDs.
 - Users can belong to multiple permission groups. Temporary membership can expire.
 - Ordinary and public groups cannot hold management permissions. Management groups retain posting, replying and personal-media access, and must have at least one management permission. These rules apply to group creation, permission edits and type changes, with database constraints protecting the stored configuration. Special and temporary group policies remain configurable.
@@ -77,6 +79,18 @@ Direct library uploads from **我的图片** start disabled. Administrators can 
 Select **回复** below a reply to open its nested-reply composer. Replying to a nested reply includes its author's name. Each thread shows five nested replies per page, with previous/next controls and direct page-number navigation; changing a nested page does not change the post's main reply page. Main and nested replies receive monotonic floor numbers such as `第 12 楼` and `第 12 楼-3 层`. Deleted replies hide their floor label, but the number is never reused and existing numbers are never renumbered.
 
 Ordinary users see a delete action only on their own replies and can delete only content they wrote. Users with `posts.manage` can delete any reply. Reply deletion is permanent and does not use the recycle bin. When deleting a main reply that has nested replies, an administrator can keep those replies and show **该回复已被管理员删除**, or permanently delete the entire thread. Administrator deletions notify affected authors and are recorded in the moderation audit log; author deletions do not generate moderator notices or audit events. Removing the last nested reply also removes an otherwise empty deleted-reply placeholder.
+
+## Following and locked content
+
+Choose **关注** beside a post's author or on the right of a public user space's profile card to follow them. **用户后台 → 我的关注** (`/account/following`) lists followed users, links to their public spaces and lets you unfollow. Home keeps pinned posts first, then prioritizes unread posts from followed authors. Opening a post while signed in marks it as read; it returns to the selected order, while later posts from that author remain eligible. Categories, search and popular discussions keep their own ordering.
+
+Public user space profile cards show the user's current follower count, including for guests. Following or unfollowing refreshes the count.
+
+While composing a post, select text and choose **内容锁定…** from the context menu. Choose one condition for each selection: reply, like or follow the author. Selections can span paragraphs. Select locked text again to change its condition or remove the lock. Drafts preserve the text and condition. Reply editors do not offer content locking.
+
+The `posts.hide_content` permission controls this feature. Normal groups receive it by default; administrators can change it in group permissions. Both the editor and API check active group grants. Authors can read their own content. Other readers unlock a segment through an undeleted reply (including a nested reply), a current like or a current follow of the author. Removing the like, follow or last qualifying reply locks the relevant segment again. Guests must sign in. Click-to-reveal spoiler formatting remains a separate feature.
+
+The API removes protected text, links and attributes from locked responses. Feed previews, search results, public spaces and folder lists always redact these segments; eligible readers open the post detail to read them. Migration `015_follows_and_content_locks.sql` creates follow relationships and grants hidden-content permission to existing normal and management groups. The API applies it automatically at startup.
 
 ## Favorites and public user spaces
 

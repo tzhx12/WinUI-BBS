@@ -57,6 +57,8 @@ Screenshots show an isolated 0.2.0 demo instance, without real user data.
 - **Grouped emoji:** PipsPager and wheel navigation, hover names, pack previews and personal ordering. Remote emoji sit inline with text; uploaded emoji retain their normal size. A pinned community pack is available in the corresponding editor to users with posting or reply permission, without image-library permission.
 - **Media management:** personal storage and upload limits, Bmoji-compatible remote search and imports, remote packs exempt from the 150-image upload limit, and a configurable pack-quota switch. Administrators can search, filter and paginate images, with 50 per page by default.
 
+The current development branch also supports following authors, unread-followed-post priority on home, and selected text that unlocks after a reply, like or follow. Normal groups receive the hidden-content permission by default. Migration 015 is applied automatically at API startup; see [Following and locked content](docs/configuration.en.md#following-and-locked-content).
+
 ## Quick start
 
 Install **Node.js 22.12+** and **PostgreSQL 17+**, then create a database and account for the application.

@@ -64,6 +64,8 @@ function inlineFragment(value: unknown) {
       'alt',
       'title',
       'data-remote-emoji',
+      'data-content-lock',
+      'data-lock-state',
     ],
     RETURN_DOM_FRAGMENT: true,
   })
@@ -89,6 +91,11 @@ export function inlineHtml(value: unknown) {
     element.setAttribute('aria-label', '显示剧透文字')
     element.setAttribute('aria-expanded', 'false')
   })
+  fragment.querySelectorAll('[data-lock-state="locked"]').forEach((element) => {
+    element.setAttribute('tabindex', '0')
+    element.setAttribute('role', 'button')
+    element.setAttribute('aria-label', element.textContent || '内容已锁定')
+  })
   const container = document.createElement('div')
   container.append(fragment)
   return container.innerHTML
@@ -100,5 +107,6 @@ export function previewText(value: unknown) {
     .querySelectorAll('img[data-remote-emoji]')
     .forEach((image) => image.replaceWith(`[${image.getAttribute('alt') || '表情'}]`))
   fragment.querySelectorAll('[data-spoiler]').forEach((element) => element.replaceWith('[剧透]'))
+  fragment.querySelectorAll('[data-content-lock]').forEach((element) => element.replaceWith('[隐藏内容]'))
   return fragment.textContent || ''
 }

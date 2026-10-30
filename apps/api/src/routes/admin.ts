@@ -179,12 +179,14 @@ export async function registerAdminRoutes(app: FastifyInstance) {
         groupType: z.enum(groupTypes),
         description: z.string().max(500).default(''),
         isJoinable: z.boolean().default(false),
-        permissions: z.array(z.enum(permissionKeys)).default([]),
+        permissions: z.array(z.enum(permissionKeys)).optional(),
         mediaLimits: mediaLimitsSchema.partial().default({}),
       })
       .safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '用户组资料无效' })
-    const permissionError = groupPermissionError(parsed.data.groupType, parsed.data.permissions)
+    const permissions =
+      parsed.data.permissions ?? (parsed.data.groupType === 'normal' ? ['posts.hide_content'] : [])
+    const permissionError = groupPermissionError(parsed.data.groupType, permissions)
     if (permissionError) return reply.code(400).send({ error: permissionError })
     try {
       const created = await inTransaction(async (client) => {
@@ -198,7 +200,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
             JSON.stringify(parsed.data.mediaLimits),
           ],
         )
-        for (const permission of parsed.data.permissions) {
+        for (const permission of permissions) {
           await client.query('INSERT INTO group_permissions (group_id, permission_key) VALUES ($1, $2)', [
             group.rows[0].id,
             permission,
@@ -206,7 +208,10 @@ export async function registerAdminRoutes(app: FastifyInstance) {
         }
         return group.rows[0]
       })
-      await audit(request.user.uid, 'group.create', 'group', String(created.id), parsed.data)
+      await audit(request.user.uid, 'group.create', 'group', String(created.id), {
+        ...parsed.data,
+        permissions,
+      })
       return reply.code(201).send(created)
     } catch (error) {
       if ((error as { code?: string }).code === '23505')

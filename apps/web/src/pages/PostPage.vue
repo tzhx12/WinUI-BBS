@@ -14,6 +14,7 @@ import WinButton from '../components/ui/WinButton.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import FavoriteButton from '../components/FavoriteButton.vue'
 import ReplyThread from '../components/ReplyThread.vue'
+import FollowButton from '../components/FollowButton.vue'
 defineOptions({ inheritAttrs: false })
 interface Detail {
   post: PostSummary
@@ -21,6 +22,7 @@ interface Detail {
   totalThreadCount: number
   likeCount: number
   liked: boolean
+  following: boolean
   totalReplyCount: number
   page: number
   pageSize: number
@@ -49,6 +51,54 @@ watch(site.token, reload)
 async function goPage(value: number) {
   page.value = value
   await reload()
+}
+async function followChanged(following: boolean) {
+  if (data.value) data.value.following = following
+  await reload()
+}
+async function replyChanged(delta: number) {
+  if (!data.value) return
+  data.value.totalReplyCount += delta
+  try {
+    const detail = await api<Detail>(`/api/posts/${props.Parameter.id}?page=${page.value}`, {
+      token: site.token.value,
+    })
+    // Refresh unlocks without replacing the independent child reply pages.
+    if (data.value) {
+      data.value.post = detail.post
+      data.value.totalReplyCount = detail.totalReplyCount
+    }
+  } catch (cause) {
+    error.value = (cause as Error).message
+  }
+}
+async function unlock(condition: string) {
+  if (!site.user.value) {
+    site.authOpen.value = true
+    return
+  }
+  if (site.user.value.isBanned) {
+    error.value = '账号封禁期间仅可浏览'
+    return
+  }
+  if (condition === 'like') await like()
+  else if (condition === 'follow') {
+    if (
+      await run(() =>
+        api(`/api/users/${data.value!.post.author_uid}/follow`, { method: 'PUT', token: site.token.value }),
+      )
+    )
+      await reload()
+  } else {
+    if (!canReply.value) {
+      error.value = '当前用户组没有回复权限'
+      return
+    }
+    document.querySelector('.reply-compose')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    document
+      .querySelector<HTMLElement>('.reply-compose [contenteditable="true"]')
+      ?.focus({ preventScroll: true })
+  }
 }
 async function like() {
   if (!site.user.value) {
@@ -145,8 +195,15 @@ async function reply() {
               <strong>{{ data.post.display_name }}</strong
               ><small>UID {{ data.post.author_uid }} · {{ formatDate(data.post.created_at) }}</small>
             </div>
+            <FollowButton
+              v-if="!isTrash"
+              :uid="data.post.author_uid"
+              :following="data.following"
+              @changed="followChanged"
+              @error="error = $event"
+            />
           </div>
-          <PostBody :data="data.post.body" />
+          <PostBody :data="data.post.body" @unlock="unlock" />
           <p v-if="data.post.status === 'rejected' && data.post.review_reason" class="notification-body">
             审核原因：{{ data.post.review_reason }}
           </p>
@@ -185,7 +242,7 @@ async function reply() {
             :read-only="isTrash || !isPublic"
             :can-reply="!!canReply"
             @removed="reload"
-            @changed="data.totalReplyCount += $event"
+            @changed="replyChanged"
           />
           <nav v-if="data.totalPages > 1" class="reply-pagination" aria-label="评论翻页">
             <WinButton

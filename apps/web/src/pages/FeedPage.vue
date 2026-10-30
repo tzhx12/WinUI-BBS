@@ -21,6 +21,7 @@ const site = useSite()
 const router = useRouter()
 const category = computed(() => site.categories.value.find((item) => item.id === props.Parameter.id))
 const isSearch = props.Parameter.path === '/search'
+const searchTerm = (props.Parameter.query.q || '').trim()
 const isPopular = props.Parameter.path === '/popular'
 const sort = ref(isPopular ? 'popular' : 'latest')
 const title = computed(() =>
@@ -35,9 +36,11 @@ const {
   error,
   reload,
 } = useResource(async () => {
+  if (isSearch && !searchTerm) return []
   const params = new URLSearchParams({ sort: sort.value })
+  if (props.Parameter.path !== '/home') params.set('followingFirst', 'false')
   if (props.Parameter.id) params.set('category', props.Parameter.id)
-  if (isSearch && props.Parameter.query.q) params.set('q', props.Parameter.query.q)
+  if (isSearch) params.set('q', searchTerm)
   return api<PostSummary[]>(`/api/posts?${params}`, { token: site.token.value })
 }, [])
 watch([sort, site.token], reload)
@@ -57,7 +60,9 @@ function compose() {
         :title="title"
         :description="
           isSearch
-            ? `“${Parameter.query.q || ''}” 的搜索结果`
+            ? searchTerm
+              ? `“${searchTerm}” 的搜索结果`
+              : '输入关键词查找社区帖子。'
             : category?.description || '浏览社区中的新话题，参与感兴趣的讨论。'
         "
       >
@@ -116,8 +121,16 @@ function compose() {
           </div>
           <EmptyState
             v-else-if="!posts.length"
-            :title="isSearch ? '没有找到相关帖子' : '还没有帖子'"
-            :description="isSearch ? '试试其他关键词。' : isPopular ? '' : '发布第一个帖子，开始讨论。'"
+            :title="isSearch ? (searchTerm ? '没有找到相关帖子' : '请输入搜索关键词') : '还没有帖子'"
+            :description="
+              isSearch
+                ? searchTerm
+                  ? '试试其他关键词。'
+                  : '在标题栏输入想查找的帖子。'
+                : isPopular
+                  ? ''
+                  : '发布第一个帖子，开始讨论。'
+            "
             ><WinButton v-if="!isSearch && !isPopular" label="发布帖子" icon="add" @click="compose"
           /></EmptyState>
           <ListView

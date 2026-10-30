@@ -48,7 +48,13 @@ const flyout = computed(() =>
       subtle
       @click="site.toggleTheme"
     />
-    <Button v-if="site.user.value" :Flyout="flyout" Style="{StaticResource SubtleButtonStyle}">
+    <Button
+      v-if="site.user.value"
+      :Flyout="flyout"
+      Style="{StaticResource SubtleButtonStyle}"
+      :aria-label="`${site.user.value.displayName}，账户菜单`"
+      :title="site.user.value.displayName"
+    >
       <span class="account-content"
         ><PersonPicture
           :DisplayName="site.user.value.displayName"
@@ -58,6 +64,13 @@ const flyout = computed(() =>
         /><span>{{ site.user.value.displayName }}</span></span
       >
     </Button>
-    <WinButton v-else label="登录 / 注册" icon="person" subtle @click="site.authOpen.value = true" />
+    <WinButton
+      v-else
+      class="account-signin"
+      label="登录 / 注册"
+      icon="person"
+      subtle
+      @click="site.authOpen.value = true"
+    />
   </div>
 </template>

@@ -5,12 +5,19 @@ import { inlineHtml as html, inlineRemoteEmojiBlocks, type ListItem } from '../c
 import RichList from './RichList.vue'
 
 const props = defineProps<{ data: EditorData | null | undefined }>()
+const emit = defineEmits<{ unlock: [condition: string] }>()
 const blocks = computed(() => inlineRemoteEmojiBlocks(props.data ?? { blocks: [] }).blocks)
 
 function revealSpoiler(event: MouseEvent | KeyboardEvent) {
   if (event instanceof KeyboardEvent && !['Enter', ' '].includes(event.key)) return
   const target = event.target
   if (!(target instanceof Element)) return
+  const locked = target.closest<HTMLElement>('[data-lock-state="locked"]')
+  if (locked) {
+    event.preventDefault()
+    emit('unlock', locked.dataset.contentLock!)
+    return
+  }
   const spoiler = target.closest<HTMLElement>('[data-spoiler]')
   if (!spoiler || (spoiler.classList.contains('is-revealed') && target.closest('a'))) return
   event.preventDefault()

@@ -1,6 +1,16 @@
 <script setup lang="ts">
-import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { Button, Flyout } from 'winuionweb'
+import {
+  computed,
+  h,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  resolveComponent,
+  shallowRef,
+  watch,
+} from 'vue'
+import { Button, Flyout, MenuFlyout } from 'winuionweb'
 import type EditorJS from '@editorjs/editorjs'
 import { api } from '../api'
 import { contentSize, emojiLimit, readDraft, writeDraft } from '../drafts'
@@ -9,6 +19,8 @@ import type { EditorData } from '../types'
 import IconGlyph from './IconGlyph.vue'
 import EmojiPicker from './EmojiPicker.vue'
 import WinButton from './ui/WinButton.vue'
+import WinDialog from './ui/WinDialog.vue'
+import WinSelect from './ui/WinSelect.vue'
 import { editorZh } from '../editorZh'
 import { inlineRemoteEmojiBlocks } from '../content'
 
@@ -65,10 +77,12 @@ class EmojiInlineTool {
   }
 }
 
+const forumSpanSanitize = { class: true, 'data-spoiler': true, 'data-content-lock': true }
+
 class SpoilerInlineTool {
   static isInline = true
   static title = '剧透'
-  static sanitize = { span: { class: 'forum-spoiler', 'data-spoiler': true } }
+  static sanitize = { span: forumSpanSanitize }
   private button?: HTMLButtonElement
 
   render() {
@@ -113,6 +127,27 @@ class SpoilerInlineTool {
   }
 }
 
+class ContentLockInlineTool {
+  static isInline = true
+  static title = '内容锁定'
+  // Keep markers in restored drafts even after permission is revoked.
+  static sanitize = { span: forumSpanSanitize }
+  render() {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'ce-inline-tool'
+    button.textContent = '锁定'
+    button.setAttribute('aria-label', '内容锁定')
+    return button
+  }
+  surround(range: Range | null) {
+    if (range) openLockDialog(range)
+  }
+  checkState() {
+    return false
+  }
+}
+
 const props = defineProps<{
   token: string
   initialData?: EditorData | null
@@ -122,6 +157,75 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ restored: [metadata: Record<string, unknown>] }>()
 const site = useSite()
+const canLock = computed(
+  () => props.kind !== 'reply' && !!site.user.value?.permissions?.includes('posts.hide_content'),
+)
+const lockOpen = ref(false),
+  lockCondition = ref<string | number>('reply'),
+  lockPreview = ref('')
+const lockMenu = ref<InstanceType<typeof MenuFlyout> | null>(null)
+const LockMenuItem = resolveComponent('MenuFlyoutItem')
+let lockRanges: Range[] = []
+const existingLock = shallowRef<HTMLElement | null>(null)
+let contextRange: Range | null = null
+
+function openLockDialog(range: Range) {
+  if (!canLock.value || range.collapsed || !holder.value?.contains(range.commonAncestorContainer)) return
+  const anchor =
+    range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement
+  existingLock.value = anchor?.closest<HTMLElement>('[data-content-lock]') ?? null
+  if (existingLock.value && !existingLock.value.contains(range.endContainer)) existingLock.value = null
+  lockRanges = [...holder.value.querySelectorAll<HTMLElement>('[contenteditable="true"]')].flatMap(
+    (editable) => {
+      if (!range.intersectsNode(editable)) return []
+      const part = document.createRange()
+      part.selectNodeContents(editable)
+      if (editable.contains(range.startContainer)) part.setStart(range.startContainer, range.startOffset)
+      if (editable.contains(range.endContainer)) part.setEnd(range.endContainer, range.endOffset)
+      return part.toString().trim() ? [part] : []
+    },
+  )
+  if (!lockRanges.length) return
+  if (
+    !existingLock.value &&
+    lockRanges.some((part) => part.cloneContents().querySelector('[data-content-lock]'))
+  ) {
+    uploadError.value = '选区包含已锁定文字，请分别设置锁定条件'
+    return
+  }
+  lockPreview.value = existingLock.value?.textContent || range.toString()
+  lockCondition.value = existingLock.value?.dataset.contentLock || 'reply'
+  lockOpen.value = true
+}
+function showLockMenu(event: MouseEvent) {
+  const selection = window.getSelection()
+  if (!canLock.value || !selection?.rangeCount || selection.isCollapsed) return
+  const range = selection.getRangeAt(0)
+  if (!holder.value?.contains(range.commonAncestorContainer)) return
+  event.preventDefault()
+  contextRange = range.cloneRange()
+  const bounds = holder.value.getBoundingClientRect()
+  void lockMenu.value?.ShowAt(holder.value, {
+    Position: { X: event.clientX - bounds.left, Y: event.clientY - bounds.top },
+  })
+}
+function applyLock(remove = false) {
+  if (!canLock.value) return
+  if (existingLock.value) {
+    if (remove) existingLock.value.replaceWith(...existingLock.value.childNodes)
+    else existingLock.value.dataset.contentLock = String(lockCondition.value)
+  } else {
+    for (const range of lockRanges) {
+      const span = document.createElement('span')
+      span.dataset.contentLock = String(lockCondition.value)
+      span.append(range.extractContents())
+      range.insertNode(span)
+    }
+  }
+  holder.value?.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'formatBlock' }))
+  lockOpen.value = false
+  scheduleDraft()
+}
 const size = ref({ characters: 0, images: 0, emojis: 0 })
 const draftStatus = ref('草稿仅保存在此浏览器')
 const assets = new Map<string, { file: Blob; name: string; url: string }>()
@@ -228,7 +332,16 @@ async function initializeEditor() {
       onChange: scheduleDraft,
       placeholder: '写下值得讨论的内容…',
       i18n: editorZh,
-      inlineToolbar: ['bold', 'italic', 'link', 'marker', 'inlineCode', 'spoiler', 'emojiInline'],
+      inlineToolbar: [
+        'bold',
+        'italic',
+        'link',
+        'marker',
+        'inlineCode',
+        'spoiler',
+        'emojiInline',
+        ...(canLock.value ? ['contentLock'] : []),
+      ],
       tools: {
         header: {
           class: headerModule.default,
@@ -243,8 +356,10 @@ async function initializeEditor() {
         spoiler: SpoilerInlineTool,
         emoji: EmojiBlockTool,
         emojiInline: EmojiInlineTool,
+        contentLock: ContentLockInlineTool,
         image: {
           class: imageModule.default,
+          inlineToolbar: true,
           config: {
             captionPlaceholder: '图片说明',
             uploader: {
@@ -278,6 +393,7 @@ watch(() => props.metadata, scheduleDraft, { deep: true })
 function scheduleDraft() {
   if (!ready || discarded) return
   clearTimeout(timer)
+  draftStatus.value = '正在保存草稿…'
   timer = setTimeout(() => {
     void persistDraft()
   }, 250)
@@ -461,7 +577,26 @@ defineExpose({ save, submission, clearDraft })
       @keydown.capture="protectInlineEmojiDeletion"
       @keyup.capture="preserveEmojiParagraph"
       @pointerup="rememberSelection"
+      @contextmenu="showLockMenu"
     />
+    <MenuFlyout v-if="canLock" ref="lockMenu">
+      <component :is="LockMenuItem" Text="内容锁定…" @Click="contextRange && openLockDialog(contextRange)" />
+    </MenuFlyout>
+    <WinDialog v-model:open="lockOpen" title="内容锁定" primary="应用锁定" @primary="applyLock()">
+      <p class="lock-selection-preview">
+        {{ lockPreview.slice(0, 180) }}{{ lockPreview.length > 180 ? '…' : '' }}
+      </p>
+      <WinSelect
+        v-model="lockCondition"
+        label="解锁条件"
+        :options="[
+          { value: 'reply', label: '回复后解锁' },
+          { value: 'like', label: '点赞后解锁' },
+          { value: 'follow', label: '关注后解锁' },
+        ]"
+      />
+      <WinButton v-if="existingLock" label="移除锁定" subtle @click="applyLock(true)" />
+    </WinDialog>
     <div class="editor-actions">
       <div class="editor-tools" @pointerdown.capture="rememberSelection" @keydown.capture="rememberSelection">
         <WinButton

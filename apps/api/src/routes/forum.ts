@@ -10,6 +10,8 @@ import { grantLevelInvitations } from '../invitations.js'
 import { purgeExpiredPosts, recordPostView } from '../posts.js'
 import { replyPage } from '../replies.js'
 import { registerReplyRoutes } from './replies.js'
+import { registerFollowRoutes } from './follows.js'
+import { postUnlocks, validateContentLocks, visibleBody } from '../lockedContent.js'
 
 const currentLevel = readerLevel
 export async function registerForumRoutes(
@@ -17,6 +19,7 @@ export async function registerForumRoutes(
   uploadRoot = resolve(process.cwd(), 'data/uploads'),
 ) {
   await registerReplyRoutes(app, uploadRoot)
+  await registerFollowRoutes(app)
   let cleanupTimer: ReturnType<typeof setInterval> | undefined
   app.addHook('onReady', async () => {
     await purgeExpiredPosts()
@@ -148,21 +151,28 @@ export async function registerForumRoutes(
 
   app.get('/api/posts', async (request, reply) => {
     let readerLevel = 0
+    let uid: string | null = null
     if (request.headers.authorization) {
       const authResult = await authenticate(request, reply)
       if (authResult) return authResult
       readerLevel = await currentLevel(request.user.uid)
+      uid = request.user.uid
     }
     const parsed = z
       .object({
         category: z.string().optional(),
-        q: z.string().trim().max(120).optional(),
+        q: z.string().trim().min(1, '搜索关键词不能为空').max(120, '搜索关键词最多 120 字').optional(),
         sort: z.enum(['latest', 'popular']).optional(),
+        followingFirst: z.enum(['true', 'false']).optional(),
       })
       .safeParse(request.query)
-    if (!parsed.success) return reply.code(400).send({ error: '筛选条件无效' })
-    const { category, q, sort = 'latest' } = parsed.data
-    const result = await query(
+    if (!parsed.success)
+      return reply.code(400).send({
+        error: parsed.error.issues.find((issue) => issue.path[0] === 'q')?.message || '筛选条件无效',
+      })
+    const { category, q, sort = 'latest', followingFirst } = parsed.data
+    const prioritize = !!uid && followingFirst !== 'false' && !category && !q
+    const result = await query<{ title: string; body: Parameters<typeof visibleBody>[0] }>(
       `SELECT p.id, p.title, p.body, p.minimum_reader_level, p.is_pinned, p.view_count, p.created_at,
               c.id AS category_id, c.name AS category_name, c.accent_color AS category_color,
               u.uid AS author_uid, u.username, u.display_name, u.avatar_url, u.experience, u.level_offset,
@@ -173,11 +183,21 @@ export async function registerForumRoutes(
          AND c.minimum_reader_level <= $1
          AND ($2::bigint IS NULL OR c.id = $2)
          AND ($3::text IS NULL OR p.title ILIKE '%' || $3 || '%' OR p.body::text ILIKE '%' || $3 || '%')
-       ORDER BY p.is_pinned DESC, ${sort === 'popular' ? '(SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL) DESC,' : ''} p.created_at DESC
-       LIMIT 60`,
-      [readerLevel, category ?? null, q ?? null],
+       ORDER BY p.is_pinned DESC,
+         (CASE WHEN $5::boolean THEN EXISTS(SELECT 1 FROM user_follows f WHERE f.follower_uid=$4 AND f.followed_uid=p.author_uid)
+           AND NOT EXISTS(SELECT 1 FROM post_views v WHERE v.post_id=p.id AND v.viewer_key='user:' || $4::text) ELSE FALSE END) DESC,
+         ${sort === 'popular' ? '(SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL) DESC,' : ''} p.created_at DESC,p.id DESC
+       ${q ? '' : 'LIMIT 60'}`,
+      [readerLevel, category ?? null, q ?? null, uid, prioritize],
     )
-    return result.rows
+    const posts = result.rows.map((post) => ({ ...post, body: visibleBody(post.body) }))
+    return q
+      ? posts
+          .filter((post) =>
+            `${post.title} ${JSON.stringify(post.body)}`.toLocaleLowerCase().includes(q.toLocaleLowerCase()),
+          )
+          .slice(0, 60)
+      : posts
   })
 
   app.get('/api/me/posts', { preHandler: authenticate }, async (request) => {
@@ -287,11 +307,14 @@ export async function registerForumRoutes(
       'SELECT COUNT(*)::int AS count, COALESCE(bool_or(user_uid=$2::bigint),FALSE) AS liked FROM post_likes WHERE post_id = $1',
       [id, uid],
     )
+    const unlocks = await postUnlocks(id, post.rows[0].author_uid, uid)
+    if (post.rows[0].author_uid !== uid) post.rows[0].body = visibleBody(post.rows[0].body, unlocks)
     return {
       post: post.rows[0],
       ...(await replyPage(request, id)),
       likeCount: likes.rows[0]?.count ?? 0,
       liked: likes.rows[0]?.liked ?? false,
+      following: unlocks.follow,
     }
   })
 
@@ -307,6 +330,7 @@ export async function registerForumRoutes(
       .safeParse(submission.payload)
     if (!parsed.success) return reply.code(400).send({ error: '请填写标题、版块和正文' })
     await validateContent(parsed.data.body, 'post')
+    await validateContentLocks(parsed.data.body, request.user.uid, 'post')
     if (parsed.data.minimumReaderLevel > 0) {
       const permission = await query(
         `SELECT 1 FROM group_memberships gm JOIN group_permissions gp ON gp.group_id = gm.group_id

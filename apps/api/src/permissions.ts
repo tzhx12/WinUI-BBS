@@ -15,6 +15,7 @@ export const permissionKeys = [
   ...managementPermissions,
   ...basicUserPermissions,
   'posts.set_reader_level',
+  'posts.hide_content',
   'posts.bypass_review',
   'posts.require_review',
 ] as const
