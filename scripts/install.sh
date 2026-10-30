@@ -43,7 +43,10 @@ if [[ -z "${pg_cluster:-}" ]]; then
 fi
 pg_isready --port "$pg_port" >/dev/null || pg_ctlcluster 17 "$pg_cluster" start
 
-curl -fsSL --proto '=https' https://api.github.com/repos/tzhx12/WinUI-BBS/releases/latest -o "$task_tmp/release.json"
+if [[ $# == 1 ]]; then
+  cp -- "$1" "$task_tmp/release.tar.gz"
+else
+curl -fsSL --retry 3 --proto '=https' https://api.github.com/repos/tzhx12/WinUI-BBS/releases/latest -o "$task_tmp/release.json"
 release_url=$(node --input-type=module - "$task_tmp/release.json" <<'NODE'
 import { readFileSync } from 'node:fs'
 const r=JSON.parse(readFileSync(process.argv[2], 'utf8'))
@@ -53,11 +56,15 @@ if(!r.assets.some(a=>a.name==='winui-bbs.tar.gz'&&a.browser_download_url===expec
 console.log(expected)
 NODE
 )
-version=$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1])).tag_name.slice(1)' "$task_tmp/release.json")
-target="$root/releases/$version"
 curl -fL --retry 3 --proto '=https' "$release_url" -o "$task_tmp/release.tar.gz"
+fi
 tar -tzf "$task_tmp/release.tar.gz" | node --input-type=module -e 'let s="";for await(const b of process.stdin)s+=b;for(const p of s.trim().split("\n"))if(p.startsWith("/")||p.split("/").includes(".."))throw Error("Unsafe archive")'
 if tar -tvzf "$task_tmp/release.tar.gz" | grep -Eq '^[lh]'; then echo 'Archive contains links' >&2; exit 1; fi
+version=$(tar -xOf "$task_tmp/release.tar.gz" ./package.json | node --input-type=module -e 'let s="";for await(const b of process.stdin)s+=b;const {version}=JSON.parse(s);if(!/^\d+\.\d+\.\d+(?:-(?:rc\d+|Alpha-[0-9a-f]{7,40}))?$/.test(version))throw Error("Invalid package version");console.log(version)')
+if [[ $# == 0 ]]; then
+  [[ "v$version" == "$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1])).tag_name' "$task_tmp/release.json")" ]] || exit 1
+fi
+target="$root/releases/$version"
 install -d "$target"
 tar -xzf "$task_tmp/release.tar.gz" --no-same-owner -C "$target"
 [[ "$(node -p 'require(process.argv[1]).version' "$target/package.json")" == "$version" ]] || exit 1

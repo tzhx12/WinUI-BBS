@@ -14,7 +14,7 @@
 
 正式发布前，在 `dev` 执行 `npm run version:set -- 0.3.0`。提交版本变更后合并到 `main`；根目录、API/Web workspace 和锁文件版本一起更新。Actions 只在构建目录加 Alpha / RC 后缀，不将这些后缀写回分支。main 用作 dev 的集成发布分支，每次合并推送是一个发布批次。
 
-所有包都经过类型检查、图标检查、版本/更新脚本测试、PostgreSQL 17 集成测试及前后端构建。`winui-bbs.tar.gz` 包含编译好的前端/API、迁移、源码、锁文件和许可证；安装时只需安装 API 的生产依赖。CI 包保留 14 天，正式版和 RC 发布为 GitHub Release 附件。CI 的 commit 标识使用 7 位短编号。
+所有包都经过类型检查、图标检查、版本/更新脚本测试、PostgreSQL 17 集成测试及前后端构建。main 发布前还在 Ubuntu 24.04 上运行实际安装脚本，验证 systemd 站点服务、数据库及独立更新服务。`winui-bbs.tar.gz` 包含编译好的前端/API、迁移、源码、锁文件和许可证；安装时只需安装 API 的生产依赖。CI 包保留 14 天，正式版和 RC 发布为 GitHub Release 附件。CI 的 commit 标识使用 7 位短编号。
 
 RC 的 N 按对应正式标签之后 main 的推送合并批次计数，包含构建失败的批次，同一提交的工作流重跑只计一次。main 应只接收 dev 的合并；直接向 main 推送也会计为一个集成批次。该规则同时支持 PR merge、squash、rebase 和本地快进合并后推送。Actions 在构建前创建 `integrations/main/<commit>` 轻量标签保存批次，计数独立于工作流日志保留时间；这些标签应随仓库保留。
 
@@ -25,6 +25,8 @@ RC 使用本项目约定的发布顺序：`0.2.2 → 0.2.2-rc1 → 0.2.2-rc2 →
 ## 一键安装与自动更新
 
 README 中的一键命令下载最新正式版的安装脚本。支持 Debian 12/13、Ubuntu 22.04/24.04、x64/arm64 和 systemd，安装 Node.js 22、PostgreSQL 17 和应用服务。已有的 `winui_bbs` 数据库或账号会使安装停止，避免覆盖现有部署。
+
+已下载发布包时，也可使用 `sudo bash install.sh /绝对路径/winui-bbs.tar.gz` 安装；依赖安装仍需网络连接。
 
 | 位置                             | 用途                                     |
 | -------------------------------- | ---------------------------------------- |

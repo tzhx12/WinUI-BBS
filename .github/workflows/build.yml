@@ -84,9 +84,27 @@ jobs:
           path: release/
           retention-days: 14
 
-  publish:
+  install:
     if: ${{ !cancelled() && needs.build.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
     needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: winui-bbs-${{ needs.build.outputs.version }}
+          path: release
+      - name: Install with systemd and PostgreSQL
+        run: sudo bash release/install.sh release/winui-bbs.tar.gz
+      - name: Exercise managed update service
+        run: node scripts/smoke-installed.mjs
+      - name: Service diagnostics
+        if: failure()
+        run: sudo journalctl -u winui-bbs -u winui-bbs-update.service -n 80 --no-pager
+
+  publish:
+    if: ${{ !cancelled() && needs.install.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    needs: [build, install]
     runs-on: ubuntu-latest
     permissions:
       contents: write
