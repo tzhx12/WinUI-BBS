@@ -3,7 +3,7 @@ import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, wat
 import { Button, Flyout } from 'winuionweb'
 import type EditorJS from '@editorjs/editorjs'
 import { api } from '../api'
-import { contentSize, readDraft, writeDraft } from '../drafts'
+import { contentSize, emojiLimit, readDraft, writeDraft } from '../drafts'
 import { useSite } from '../site'
 import type { EditorData } from '../types'
 import IconGlyph from './IconGlyph.vue'
@@ -122,7 +122,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ restored: [metadata: Record<string, unknown>] }>()
 const site = useSite()
-const size = ref({ characters: 0, images: 0 })
+const size = ref({ characters: 0, images: 0, emojis: 0 })
 const draftStatus = ref('草稿仅保存在此浏览器')
 const assets = new Map<string, { file: Blob; name: string; url: string }>()
 let discarded = false
@@ -326,8 +326,8 @@ async function submission(extra: Record<string, unknown> = {}) {
   size.value = contentSize(current)
   if (size.value.characters > limits.value.characters)
     throw new Error(`正文最多 ${limits.value.characters} 字`)
-  if (size.value.images > limits.value.images)
-    throw new Error(`正文最多 ${limits.value.images} 张图片（含表情）`)
+  if (size.value.images > limits.value.images) throw new Error(`正文最多 ${limits.value.images} 张普通图片`)
+  if (size.value.emojis > emojiLimit) throw new Error(`每篇正文最多 ${emojiLimit} 个表情`)
   const value = serialize(current)
   const payload = { ...extra, body: value.body }
   if (!value.assets.length) return payload
@@ -489,7 +489,8 @@ defineExpose({ save, submission, clearDraft })
       }}</span>
     </div>
     <p class="editor-draft-status" aria-live="polite">
-      {{ size.characters }} / {{ limits.characters }} 字 · {{ size.images }} / {{ limits.images }} 张图片 ·
+      {{ size.characters }} / {{ limits.characters }} 字 · {{ size.images }} / {{ limits.images }} 张普通图片
+      · {{ size.emojis }} / {{ emojiLimit }} 个表情 ·
       {{ draftStatus }}
     </p>
   </div>

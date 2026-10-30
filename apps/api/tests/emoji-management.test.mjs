@@ -350,7 +350,7 @@ test("post-only and reply-only users send community emoji without media permissi
   }
 });
 
-test("remote inline emoji preserve surrounding text, count toward image limits and reject forged images", async () => {
+test("remote inline emoji preserve surrounding text, have a separate limit and reject forged images", async () => {
   const pack = (
     await f.request("GET", "/api/emoji-packs", undefined, member)
   ).json()[0];
@@ -385,14 +385,13 @@ test("remote inline emoji preserve surrounding text, count toward image limits a
     member,
   );
   assert.equal(reply.statusCode, 201, reply.body);
-  const overflow = await f.request(
+  const sixEmoji = await f.request(
     "POST",
     `/api/posts/${post.id}/replies`,
     { body: body(markup.repeat(6)) },
     member,
   );
-  assert.equal(overflow.statusCode, 400, overflow.body);
-  assert.match(overflow.json().message, /最多 5 张/);
+  assert.equal(sixEmoji.statusCode, 201, sixEmoji.body);
   for (const forged of [
     markup.replace(emoji.url, "https://example.test/tracker.png"),
     '<img src="/uploads/fake.png">',
@@ -426,6 +425,159 @@ test("remote inline emoji preserve surrounding text, count toward image limits a
   await f.query("DELETE FROM media_assets WHERE id=$1", [
     localAsset.rows[0].id,
   ]);
+});
+
+test("posts and replies allow 1000 emoji separately from normal images, including mixed packs and child replies", async () => {
+  const packs = (
+    await f.request("GET", "/api/emoji-packs", undefined, member)
+  ).json();
+  const remote = packs.find((p) => p.id === large.id).emojis[0];
+  const shared = packs.find((p) => p.id === community.id).emojis[0];
+  const localBlock = {
+    type: "emoji",
+    data: { url: "/uploads/local-emoji.png", name: "个人上传表情" },
+  };
+  const markup = (emoji) =>
+    `<img data-remote-emoji="${emoji.id}" src="${emoji.url}" alt="表情">`;
+  const inlineBlock = (count) => ({
+    type: "paragraph",
+    data: { text: markup(remote).repeat(count) },
+  });
+  const makeBody = (kind, count) => ({
+    blocks:
+      kind === "local"
+        ? Array.from({ length: count }, () => localBlock)
+        : kind === "inline"
+          ? [inlineBlock(count)]
+          : [
+              ...Array.from({ length: 400 }, () => localBlock),
+              {
+                type: "quote",
+                data: {
+                  text: markup(remote).repeat(200),
+                  caption: markup(shared).repeat(100),
+                },
+              },
+              {
+                type: "list",
+                data: {
+                  style: "unordered",
+                  items: [
+                    { content: markup(shared).repeat(count - 700), items: [] },
+                  ],
+                },
+              },
+            ],
+  });
+  const initial = (
+    await f.request("GET", "/api/admin/content-settings", undefined, f.owner)
+  ).json();
+  const configureContent = async (changes) => {
+    const response = await f.request(
+      "PATCH",
+      "/api/admin/content-settings",
+      { ...initial, ...changes },
+      f.owner,
+    );
+    assert.equal(response.statusCode, 200, response.body);
+  };
+  const publish = (body) =>
+    f.request(
+      "POST",
+      "/api/posts",
+      { title: "普通图片与表情分开限额", categoryId: category.id, body },
+      member,
+    );
+  const image = {
+    type: "image",
+    data: { file: { url: "/deleted-image.png" }, caption: "" },
+  };
+  try {
+    await configureContent({ postImages: 0, replyImages: 0 });
+    for (const kind of ["local", "inline", "mixed"]) {
+      const body = makeBody(kind, 1000);
+      const accepted = await publish(body);
+      assert.equal(accepted.statusCode, 201, `${kind}: ${accepted.body}`);
+      const postId = accepted.json().post.id;
+      const reply = await f.request(
+        "POST",
+        `/api/posts/${postId}/replies`,
+        { body },
+        member,
+      );
+      assert.equal(reply.statusCode, 201, `${kind}: ${reply.body}`);
+      if (kind === "mixed") {
+        const child = await f.request(
+          "POST",
+          `/api/posts/${postId}/replies`,
+          { parentReplyId: reply.json().reply.id, body },
+          member,
+        );
+        assert.equal(child.statusCode, 201, child.body);
+        const childOverflow = await f.request(
+          "POST",
+          `/api/posts/${postId}/replies`,
+          { parentReplyId: reply.json().reply.id, body: makeBody(kind, 1001) },
+          member,
+        );
+        assert.equal(childOverflow.statusCode, 400, childOverflow.body);
+        assert.match(
+          childOverflow.json().message,
+          /最多 1000 个表情，当前 1001 个/,
+        );
+      }
+      const rejectedPost = await publish(makeBody(kind, 1001));
+      assert.equal(rejectedPost.statusCode, 400, rejectedPost.body);
+      assert.match(
+        rejectedPost.json().message,
+        /最多 1000 个表情，当前 1001 个/,
+      );
+      const rejectedReply = await f.request(
+        "POST",
+        `/api/posts/${postId}/replies`,
+        { body: makeBody(kind, 1001) },
+        member,
+      );
+      assert.equal(rejectedReply.statusCode, 400, rejectedReply.body);
+      assert.match(
+        rejectedReply.json().message,
+        /最多 1000 个表情，当前 1001 个/,
+      );
+      const extraImage = await publish({ blocks: [...body.blocks, image] });
+      assert.equal(extraImage.statusCode, 400, extraImage.body);
+      assert.match(extraImage.json().message, /最多 0 张普通图片/);
+    }
+    await configureContent({ postImages: 1, replyImages: 1 });
+    const body = makeBody("mixed", 1000);
+    const accepted = await publish({ blocks: [image, ...body.blocks] });
+    assert.equal(accepted.statusCode, 201, accepted.body);
+    const replyUrl = `/api/posts/${accepted.json().post.id}/replies`;
+    assert.equal(
+      (
+        await f.request(
+          "POST",
+          replyUrl,
+          { body: { blocks: [image, ...body.blocks] } },
+          member,
+        )
+      ).statusCode,
+      201,
+    );
+    for (const response of [
+      await publish({ blocks: [image, image, ...body.blocks] }),
+      await f.request(
+        "POST",
+        replyUrl,
+        { body: { blocks: [image, image, ...body.blocks] } },
+        member,
+      ),
+    ]) {
+      assert.equal(response.statusCode, 400, response.body);
+      assert.match(response.json().message, /最多 1 张普通图片，当前 2 张/);
+    }
+  } finally {
+    await configureContent({});
+  }
 });
 
 test("migration identifies historical remote blocks and preserves personal upload sizes", async () => {

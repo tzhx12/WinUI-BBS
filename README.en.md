@@ -41,7 +41,7 @@ Screenshots show an isolated 0.2.0 demo instance, without real user data.
 ## Features
 
 - **WinUI interface:** light and dark themes, accent colors, compact navigation, text scaling and responsive layouts.
-- **Rich posts and nested replies:** a Chinese Editor.js block editor, inline spoilers, local text and image drafts, configurable content limits and independent pagination for main replies and child replies. Deleted replies do not renumber later floors.
+- **Rich posts and nested replies:** a Chinese Editor.js block editor, inline spoilers, local text and image drafts, configurable text and normal-image limits, a separate limit of 1000 emoji per body and independent pagination for main replies and child replies. Deleted replies do not renumber later floors.
 - **Likes, favorites and user spaces:** persistent like states, split-button save and removal, a default favorite folder, public/private collections and public user profiles.
 - **Categories and permissions:** category trees, reader and author levels, multiple groups, expiring memberships and separate management permissions.
 - **Post review:** site-wide and category review settings, group exemptions or mandatory review, approval, rejection and account bans.

@@ -59,12 +59,12 @@ Administrators with `settings.manage` configure **内容管理 → 发帖与回�
 | Setting | Default | Allowed range |
 | --- | --- | --- |
 | Post body characters | 20000 | 1–100000 |
-| Post images | 15 | 0–50 |
+| Post normal images | 15 | 0–50 |
 | Reply characters | 1000 | 1–10000 |
-| Reply images | 5 | 0–20 |
+| Reply normal images | 5 | 0–20 |
 | Replies per page | 20 | 1–100 |
 
-Visible Unicode characters count toward the body limit, including nested lists and captions; formatting markup does not. Image counts include emoji blocks. Replies are paginated by the server, including in recycle-bin details.
+Visible Unicode characters count toward the body limit, including nested lists and captions; formatting markup does not. Image limits apply only to normal images. Uploaded emoji, remote inline emoji and community emoji share a fixed limit of 1000 per post or individual reply, including child replies. Each insertion counts, including repeated emoji. Replies are paginated by the server, including in recycle-bin details.
 
 Unsent bodies, titles, categories and selected image blobs stay in the current browser's IndexedDB, isolated by user and reply target. Refreshing or revisiting restores the draft; clearing site data removes it. Images use local previews until the post or reply is submitted. Validation or storage failures roll back files and database records and preserve the draft. Successful submission clears the draft. New attachments are limited to 100 MiB per submission and the user's media allowance.
 
@@ -119,7 +119,7 @@ In **图床与表情 → 上传与远端设置**, configure default storage and 
 
 In **我的图片 → 我的表情包**, preview packs and use **上移 / 下移** to save their personal order. The editor picker uses PipsPager. For packs with more than 20 images, wheel scrolling moves within the pack first; continuing in the same direction beyond the top or bottom switches groups after a longer scroll. Momentum is suppressed after switching. Hovering or focusing an emoji shows its name.
 
-Remote emoji are inserted at the caret, inline with text, at twice the current font size (about 30px in normal body text). Consecutive emoji support individual Backspace/Delete, undo and draft restoration. Uploaded emoji retain their 80px block display. Inline emoji count toward body image limits and the server validates their cached image identity. Migration 014 identifies existing remote emoji blocks so the renderer can append them to the preceding paragraph; uploaded emoji retain their existing display.
+Remote emoji are inserted at the caret, inline with text, at twice the current font size (about 30px in normal body text). Consecutive emoji support individual Backspace/Delete, undo and draft restoration. Uploaded emoji retain their 80px block display. Inline emoji count toward the separate fixed limit of 1000 emoji per body, and the server validates their cached image identity. Migration 014 identifies existing remote emoji blocks so the renderer can append them to the preceding paragraph; uploaded emoji retain their existing display.
 
 Remote downloads are disabled initially. Enable them and configure the source page and compatible [Bmoji](https://github.com/SomeOvO/Bmoji) API endpoint. Search, previews and static/GIF imports are supported. Downloads are cached once per API source, pack and version and do not consume personal storage. Remote pack sizes are controlled by the source server and are exempt from the 150-image upload limit. **用户下载的远端表情包计入个人组数限额** starts enabled. Disable it to count only uploaded packs. Re-enabling it keeps existing packs; users over the limit must remove packs before adding more. Removing a collected pack preserves shared cached files and existing post images.
 

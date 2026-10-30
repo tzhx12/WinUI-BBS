@@ -145,7 +145,7 @@ test("content defaults, finite bounds and settings permission isolation", async 
     403,
   );
 });
-test("post and reply limits count Unicode text, nested lists, captions and emoji images", async () => {
+test("post and reply limits count Unicode text, nested lists and captions while separating emoji", async () => {
   assert.equal((await create(content("字".repeat(20000)))).statusCode, 201);
   assert.equal((await create(content("字".repeat(20001)))).statusCode, 400);
   await configure({
@@ -179,7 +179,7 @@ test("post and reply limits count Unicode text, nested lists, captions and emoji
         ],
       })
     ).statusCode,
-    400,
+    201,
   );
   const post = (await create(content("测试"))).json().post;
   assert.equal(

@@ -36,6 +36,7 @@ export const editorBodySchema = z
   .passthrough()
 type Body = z.infer<typeof editorBodySchema>
 type Attachment = { id: string; name: string; mime: string; buffer: Buffer }
+const emojiLimit = 1000
 
 function textLength(value: unknown, key = ''): number {
   if (typeof value === 'string') {
@@ -79,12 +80,14 @@ export async function validateContent(body: Body, kind: 'post' | 'reply') {
   const inline = body.blocks
     .filter((block) => block.type !== 'code')
     .flatMap((block) => inlineEmojiImages(block.data))
-  const images = body.blocks.filter((block) => ['image', 'emoji'].includes(block.type)).length + inline.length
+  const images = body.blocks.filter((block) => block.type === 'image').length
+  const emojis = body.blocks.filter((block) => block.type === 'emoji').length + inline.length
   const maxChars = kind === 'post' ? limits.postCharacters : limits.replyCharacters
   const maxImages = kind === 'post' ? limits.postImages : limits.replyImages
   if (chars > maxChars) throw mediaError(`正文最多 ${maxChars} 字，当前 ${chars} 字`)
-  if (images > maxImages) throw mediaError(`正文最多 ${maxImages} 张图片（含表情），当前 ${images} 张`)
-  if (!chars && !images) throw mediaError('正文不能为空')
+  if (images > maxImages) throw mediaError(`正文最多 ${maxImages} 张普通图片，当前 ${images} 张`)
+  if (emojis > emojiLimit) throw mediaError(`每篇正文最多 ${emojiLimit} 个表情，当前 ${emojis} 个`)
+  if (!chars && !images && !emojis) throw mediaError('正文不能为空')
   if (inline.length) {
     if (inline.some((image) => !z.uuid().safeParse(image.id).success))
       throw mediaError('行内表情无效，请从选择器重新添加')

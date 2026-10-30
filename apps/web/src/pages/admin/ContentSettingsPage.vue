@@ -42,7 +42,7 @@ async function save() {
           />
           <NumberBox
             v-model:Value="data.postImages"
-            Header="最多图片（0–50）"
+            Header="最多普通图片（0–50）"
             :Minimum="0"
             :Maximum="50"
             SpinButtonPlacementMode="Inline"
@@ -61,7 +61,7 @@ async function save() {
           />
           <NumberBox
             v-model:Value="data.replyImages"
-            Header="最多图片（0–20）"
+            Header="最多普通图片（0–20）"
             :Minimum="0"
             :Maximum="20"
             SpinButtonPlacementMode="Inline"
@@ -74,7 +74,10 @@ async function save() {
             SpinButtonPlacementMode="Inline"
           />
         </div>
-        <p class="field-hint">图片数量包含正文中的表情图片。字数按可见文字计数，格式标记不占字数。</p>
+        <p class="field-hint">
+          图片上限只计算普通图片。每篇帖子、每条回复的表情合计固定最多 1000
+          个，包含用户上传、远端和社区表情。字数按可见文字计数，格式标记不占字数。
+        </p>
       </section>
       <section class="surface-card settings-form">
         <h2>个人图床</h2>

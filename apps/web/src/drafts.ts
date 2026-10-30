@@ -1,5 +1,7 @@
 import type { EditorData } from './types'
 
+export const emojiLimit = 1000
+
 export interface DraftAsset {
   id: string
   file: Blob
@@ -41,14 +43,14 @@ export async function writeDraft(key: string, value?: Draft) {
 }
 
 export function contentSize(body: EditorData) {
-  let inlineImages = 0
+  let inlineEmojis = 0
   function count(value: unknown, key = ''): number {
     if (typeof value === 'string') {
       if (!['text', 'content', 'caption', 'code', ''].includes(key)) return 0
       if (key === 'code') return Array.from(value).length
       const element = document.createElement('div')
       element.innerHTML = value
-      inlineImages += element.querySelectorAll('img').length
+      inlineEmojis += element.querySelectorAll('img').length
       return Array.from(element.textContent || '').length
     }
     if (Array.isArray(value)) return value.reduce((sum, item) => sum + count(item), 0)
@@ -58,6 +60,7 @@ export function contentSize(body: EditorData) {
   }
   return {
     characters: body.blocks.reduce((sum, b) => sum + count(b.data), 0),
-    images: body.blocks.filter((b) => ['image', 'emoji'].includes(b.type)).length + inlineImages,
+    images: body.blocks.filter((b) => b.type === 'image').length,
+    emojis: body.blocks.filter((b) => b.type === 'emoji').length + inlineEmojis,
   }
 }
