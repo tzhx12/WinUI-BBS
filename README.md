@@ -2,12 +2,19 @@
 
 简体中文 | [English](README.en.md)
 
-[![版本 0.2.0](https://img.shields.io/badge/version-0.2.0-0078D4)](package.json)
+[![版本 0.2.1](https://img.shields.io/badge/version-0.2.1-0078D4)](package.json)
 [![GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-2d7d46)](LICENSE)
 
 一个采用 **WinUI 风格**的开源论坛系统。使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL，支持图文发帖、楼中楼讨论、收藏与个人空间，并提供用户组权限、内容审核和可视化管理后台。
 
 [GitHub 仓库](https://github.com/tzhx12/WinUI-BBS) · [报告问题](https://github.com/tzhx12/WinUI-BBS/issues) · [使用与配置](docs/configuration.md)
+
+## 0.2.1 更新
+
+- **跨系统图标**：Windows 继续使用系统 Segoe Fluent Icons；其他系统加载本地 Fluent UI System Icons，统一覆盖导航、板块和控件图标。
+- **热门讨论**：顶部直接显示帖子列表，移除板块卡片和发布帖子按钮。
+- **板块发帖**：从板块页发帖时自动选择当前板块；恢复草稿时保留正文、图片和标题，用户仍可更换板块。
+- **独立表情限额**：普通图片按后台配置计数；每篇帖子、每条回复的全部表情独立合计最多 1000 个。普通图片额度为 0 时仍可发表情。
 
 ## 界面预览
 
@@ -40,7 +47,7 @@
 
 ## 功能
 
-- **WinUI 界面**：浅色与深色主题、强调色、紧凑导航、文字缩放和响应式布局。
+- **WinUI 界面**：浅色与深色主题、强调色、紧凑导航、文字缩放和响应式布局；Windows 使用 Segoe Fluent Icons，其他系统使用 Fluent UI System Icons。
 - **图文与楼中楼**：Editor.js 中文块编辑器、行内剧透、本地文字与图片草稿、字数与普通图片限额、每篇正文固定最多 1000 个表情；主回复与楼中楼独立翻页，删除后楼号不重排。
 - **点赞、收藏与空间**：点赞状态持久保存，拆分按钮快速收藏或取消，支持默认收藏夹、公开或私密收藏夹及用户公开空间。
 - **板块与权限**：树形板块、阅读与发帖等级、多用户组、临时成员关系，以及独立的管理权限。
@@ -81,11 +88,11 @@ npm run dev
 
 打开 <http://127.0.0.1:5173/>。首次访问空库时创建站点管理员；API 默认监听 <http://127.0.0.1:4000/>。
 
-## 从 0.1.x 升级
+## 升级到 0.2.1
 
 1. 备份 PostgreSQL 数据库、`apps/api/data/uploads/` 和部署环境配置。使用邮件功能时，保留原 `MAIL_ENCRYPTION_KEY`，以便继续读取已加密凭据。
-2. 更新到 `main` 分支的 0.2.0 代码，执行 `npm ci`、`npm run check` 和 `npm run build`。
-3. 重启 API 与前端服务。API 会按顺序执行尚未应用的迁移（本版包含 009–014），无须重新初始化数据库。
+2. 更新到 `main` 分支的 0.2.1 代码，执行 `npm ci`、`npm run check` 和 `npm run build`。
+3. 重启 API 与前端服务。从 0.2.0 升级没有新增数据库迁移；从 0.1.x 升级时，API 会按顺序执行尚未应用的迁移（009–014），无须重新初始化数据库。
 
 远端下载组现在默认计入个人表情包组数限额；已有分组不会被移除。可在“图床与表情 → 上传与远端设置”调整此开关。
 
@@ -94,12 +101,15 @@ npm run dev
 | 命令                                   | 用途                       |
 | -------------------------------------- | -------------------------- |
 | `npm run dev`                          | 同时启动前后端开发服务     |
-| `npm run check`                        | 检查前后端 TypeScript 类型 |
+| `npm run check`                        | 检查类型和两套图标对应关系 |
 | `npm run build`                        | 构建前后端                 |
+| `npm run build:icons -w apps/web`      | 修改图标后重新生成兼容字体 |
 | `npm run test:integration -w apps/api` | 运行 PostgreSQL 集成测试   |
 | `npm run format -w apps/web`           | 格式化前端代码             |
 
 集成测试会创建并清理独立 schema，数据库账号需要创建 schema 的权限。上传文件存放在 `apps/api/data/uploads/`；环境配置、上传文件和构建产物均已忽略。
+
+普通构建直接使用仓库中的图标字体。新增图标时需同时补齐 Segoe 字符码与 Fluent SVG 的对应关系并重新生成，流程见[图标兼容维护说明](docs/icon-compatibility.md)。
 
 ```text
 apps/web/    Vue、WinUIonWeb、Editor.js 前端
@@ -113,6 +123,8 @@ licenses/    第三方许可与声明
 ## 开源致谢
 
 感谢 [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb)、[Vue](https://vuejs.org/)、[Vue Router](https://router.vuejs.org/)、[Editor.js](https://github.com/codex-team/editor.js)、[DOMPurify](https://github.com/cure53/DOMPurify)、[Fastify](https://fastify.dev/)、[PostgreSQL](https://www.postgresql.org/)、[Vite](https://vite.dev/) 和 [TypeScript](https://www.typescriptlang.org/)。
+
+非 Windows 图标来自 MIT 许可的 [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons)。Windows 仅引用系统字体，项目不分发 Segoe 字体文件。
 
 远端表情功能参考并对接 [Bmoji](https://github.com/SomeOvO/Bmoji) 的表情包服务与兼容接口。完整项目链接见应用内“关于”页，许可信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 

@@ -101,7 +101,7 @@ export async function checkImap(config: MailTransport) {
     doSTARTTLS: !config.imap.secure,
     auth: { user: config.imap.user, pass: decryptMailSecret(config.imap.password) },
     logger: false,
-    clientInfo: { name: 'WinUI-BBS', version: '0.2.0' },
+    clientInfo: { name: 'WinUI-BBS', version: '0.2.1' },
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: 20000,

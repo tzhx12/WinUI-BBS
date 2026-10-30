@@ -2,7 +2,7 @@
 
 [Project home](../README.en.md) · [简体中文](configuration.md)
 
-**Version 0.2.0** · GPL-3.0-only
+**Version 0.2.1** · GPL-3.0-only
 
 WinUI-BBS is an open-source discussion forum with a Vue 3 frontend, WinUIonWeb controls, a Fastify API and PostgreSQL.
 
@@ -56,17 +56,19 @@ Code expiry, mail interval, recovery availability, link expiry, daily request li
 
 Administrators with `settings.manage` configure **内容管理 → 发帖与回复设置**. Both the editor and API enforce the limits for new submissions; existing content is retained.
 
-| Setting | Default | Allowed range |
-| --- | --- | --- |
-| Post body characters | 20000 | 1–100000 |
-| Post normal images | 15 | 0–50 |
-| Reply characters | 1000 | 1–10000 |
-| Reply normal images | 5 | 0–20 |
-| Replies per page | 20 | 1–100 |
+| Setting              | Default | Allowed range |
+| -------------------- | ------- | ------------- |
+| Post body characters | 20000   | 1–100000      |
+| Post normal images   | 15      | 0–50          |
+| Reply characters     | 1000    | 1–10000       |
+| Reply normal images  | 5       | 0–20          |
+| Replies per page     | 20      | 1–100         |
 
 Visible Unicode characters count toward the body limit, including nested lists and captions; formatting markup does not. Image limits apply only to normal images. Uploaded emoji, remote inline emoji and community emoji share a fixed limit of 1000 per post or individual reply, including child replies. Each insertion counts, including repeated emoji. Replies are paginated by the server, including in recycle-bin details.
 
 Unsent bodies, titles, categories and selected image blobs stay in the current browser's IndexedDB, isolated by user and reply target. Refreshing or revisiting restores the draft; clearing site data removes it. Images use local previews until the post or reply is submitted. Validation or storage failures roll back files and database records and preserve the draft. Successful submission clears the draft. New attachments are limited to 100 MiB per submission and the user's media allowance.
+
+Publishing from a category page preselects that category instead of the draft's saved category, while restoring the title, body and images. Users can still change the selection. General posting entry points restore the saved category, or select the first allowed category without a draft. Categories above the user's author level cannot be preselected.
 
 Direct library uploads from **我的图片** start disabled. Administrators can enable them in the same settings page. Avatar and emoji-pack uploads keep their dedicated entry points.
 
@@ -129,7 +131,7 @@ Image management searches filenames, descriptions and pack names, combines searc
 
 ## About and open-source credits
 
-Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 0.2.0 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
+Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 0.2.1 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
 
 The project version comes from the root `package.json`. Site administrators can configure their own community name independently.
 
@@ -138,6 +140,10 @@ The project version comes from the root `package.json`. Site administrators can 
 The application uses WinUIonWeb's `TitleBar` and responsive `NavigationView` as its shell. Its `Frame` runs entrance transitions between sections and a drill-in transition when opening posts. Forms, dialogs, menus, lists, the category tree and progress indicators use the library's controls and theme resources. Light and dark themes are available from the title bar.
 
 The hash routes support direct links to posts, categories and each administration page. The admin navigation shows the sections granted by the current user's groups. Editor.js handles rich text, inline spoilers, uploaded images and separate emoji blocks.
+
+Popular discussions show posts directly, without category cards or a publish button above the list. The community home and category pages retain their category and posting entry points.
+
+Windows uses its system Segoe Fluent Icons. Other platforms load local Fluent UI System Icons before the page mounts, covering application and control icons without a font installation. New icons need paired mappings, checked by `npm run check`; see the [icon compatibility guide (Chinese)](icon-compatibility.md).
 
 `npm run check` checks both workspaces; `npm run build` builds the API and frontend. Run `npm run format -w apps/web` to format the frontend. An isolated frontend test instance can point its Vite proxy at a separate API using `FORUM_API_URL`.
 
