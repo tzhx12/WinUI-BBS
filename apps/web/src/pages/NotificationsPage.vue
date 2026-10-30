@@ -94,7 +94,13 @@ async function more() {
         >
           <div class="section-toolbar">
             <span class="tag">{{
-              notice.kind === 'review' ? '发帖审核' : notice.kind === 'moderation' ? '回复管理' : '社区公告'
+              notice.kind === 'review'
+                ? '发帖审核'
+                : notice.kind === 'moderation'
+                  ? '回复管理'
+                  : notice.kind === 'storage'
+                    ? '存储提醒'
+                    : '社区公告'
             }}</span
             ><span v-if="!notice.read_at" class="status-tag warning">未读</span
             ><time class="secondary-text">{{ formatDateTime(notice.created_at) }}</time>

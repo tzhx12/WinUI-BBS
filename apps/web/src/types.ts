@@ -101,7 +101,7 @@ export interface SiteNotification {
   id: string
   title: string
   body: string
-  kind: 'announcement' | 'review' | 'moderation'
+  kind: 'announcement' | 'review' | 'moderation' | 'storage'
   post_id: string | null
   created_at: string
   read_at: string | null
@@ -115,7 +115,7 @@ export interface MediaAsset {
   mime_type: string
   byte_size: number
   alt_text: string
-  collection: 'library' | 'emoji' | 'site_icon'
+  collection: 'library' | 'emoji' | 'site_icon' | 'avatar'
   remote_cached: boolean
   emoji_pack_id: string | null
   pack_name?: string | null

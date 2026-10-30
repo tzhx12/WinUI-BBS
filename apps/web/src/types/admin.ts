@@ -92,6 +92,40 @@ export interface MediaSettings {
   media_limits: MediaLimits
   remote_emoji: RemoteEmojiSettings
 }
+export interface StorageSettings {
+  localMaxBytes: number
+  preference: 'local' | 's3'
+  recycleBytes: number
+  s3: {
+    enabled: boolean
+    endpoint: string
+    region: string
+    bucket: string
+    prefix: string
+    accessKeyId: string
+    secretAccessKey: string
+    hasCredentials?: boolean
+    capacityBytes: number
+    forcePathStyle: boolean
+  }
+}
+export interface StorageCapacity {
+  backend: 'local' | 's3'
+  usedBytes: number
+  capacityBytes: number
+  freeBytes: number
+  percent: number
+}
+export interface StorageOverview {
+  settings: StorageSettings
+  status: {
+    local: StorageCapacity
+    s3: StorageCapacity | null
+    disks: Array<{ name: string; totalBytes: number; freeBytes: number; uploadDisk: boolean }>
+    serverFreeBytes: number
+    totalFreeBytes: number
+  }
+}
 export interface Invitation {
   id: string
   code: string

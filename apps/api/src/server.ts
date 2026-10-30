@@ -18,12 +18,18 @@ import { registerNotificationRoutes } from './routes/notifications.js'
 import { registerReviewRoutes } from './routes/reviews.js'
 import { registerEmailRoutes } from './routes/email.js'
 import { registerFavoriteRoutes } from './routes/favorites.js'
+import {
+  monitorStorage,
+  flushStorageDeletions,
+  withStorageLock,
+} from './storage.js'
 
 const app = Fastify({ logger: true, bodyLimit: 1_500_000 })
 const uploadRoot = resolve(process.cwd(), 'data/uploads')
 
 async function start() {
-  if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in apps/api/.env')
+  if (!process.env.DATABASE_URL)
+    throw new Error('Set DATABASE_URL in apps/api/.env')
   await mkdir(uploadRoot, { recursive: true })
   await runMigrations()
   await app.register(cors, {
@@ -49,6 +55,31 @@ async function start() {
   await registerEmailRoutes(app)
   await registerFavoriteRoutes(app)
   await registerMediaRoutes(app, uploadRoot)
+
+  const storageMaintenance = async () => {
+    try {
+      await withStorageLock(() => flushStorageDeletions(uploadRoot))
+      await monitorStorage(uploadRoot)
+    } catch (error) {
+      app.log.error(error, 'Storage maintenance failed')
+    }
+  }
+  let checkingStorage = false
+  const storageTimer = setInterval(
+    async () => {
+      if (checkingStorage) return
+      checkingStorage = true
+      try {
+        await storageMaintenance()
+      } finally {
+        checkingStorage = false
+      }
+    },
+    5 * 60 * 1000,
+  )
+  storageTimer.unref()
+  app.addHook('onClose', async () => clearInterval(storageTimer))
+  await storageMaintenance()
 
   const port = Number(process.env.PORT ?? 4000)
   await app.listen({ host: '127.0.0.1', port })

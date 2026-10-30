@@ -2,67 +2,50 @@
 
 简体中文 | [English](README.en.md)
 
-[![版本 0.2.1](https://img.shields.io/badge/version-0.2.1-0078D4)](package.json)
+[![版本 0.2.2](https://img.shields.io/badge/version-0.2.2-0078D4)](package.json)
 [![GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-2d7d46)](LICENSE)
 
-一个采用 **WinUI 风格**的开源论坛系统。使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL，支持图文发帖、楼中楼讨论、收藏与个人空间，并提供用户组权限、内容审核和可视化管理后台。
+一个采用 **WinUI 风格**的开源论坛系统。项目使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL，提供图文讨论、用户空间、细粒度权限和可视化管理后台。界面默认使用简体中文。
 
 [GitHub 仓库](https://github.com/tzhx12/WinUI-BBS) · [报告问题](https://github.com/tzhx12/WinUI-BBS/issues) · [使用与配置](docs/configuration.md)
 
-## 0.2.1 更新
+## 功能
 
-- **跨系统图标**：Windows 继续使用系统 Segoe Fluent Icons；其他系统加载本地 Fluent UI System Icons，统一覆盖导航、板块和控件图标。
-- **热门讨论**：顶部直接显示帖子列表，移除板块卡片和发布帖子按钮。
-- **板块发帖**：从板块页发帖时自动选择当前板块；恢复草稿时保留正文、图片和标题，用户仍可更换板块。
-- **独立表情限额**：普通图片按后台配置计数；每篇帖子、每条回复的全部表情独立合计最多 1000 个。普通图片额度为 0 时仍可发表情。
+### 社区讨论
+
+支持中文块编辑器、图片和表情、草稿恢复、剧透与内容锁定。帖子、主评论和楼中楼分别分页，删除评论不会重新编号；点赞、收藏、关注和浏览记录会持久保存。
+
+### 用户空间与权限
+
+用户可以维护个人资料、头像、关注列表和收藏夹，并公开自己的空间。树形板块、阅读等级、发帖等级、用户组和临时成员关系共同控制内容访问。管理权限按功能拆分，后台菜单会按当前账号权限显示。
+
+### 内容审核与管理
+
+管理员可以配置全站或板块审核，按用户组设置免审或强制审核，并处理通过、拒绝和封禁。公告、审核结果、管理员删除记录和存储提醒都通过站内通知送达；临时封禁账号仍可只读浏览。
+
+### 图床、表情与存储
+
+用户和管理员可以管理图片、个人表情包、社区表情包和站点图标。远端表情支持搜索、预览、静态/GIF 导入和行内插入。
+
+管理后台的“图床与表情 → 存储设置”显示服务器磁盘、本地存储和兼容 S3 对象存储的剩余容量。管理员可以选择优先后端、设置本地上限、对象存储配额和回收批次；优先后端空间不足时自动切换。存储达到 95% 会通知拥有图床管理权限的管理员；所有后端都满时，系统按时间回收普通图片并替换正文引用。表情包、头像和站点图标不会自动回收。
+
+### 外观与跨系统界面
+
+支持浅色/深色主题、强调色、紧凑导航、文字缩放和响应式布局。Windows 使用系统 Segoe Fluent Icons，其他系统使用项目内置的 Fluent UI System Icons。
+
+### 邮件与账号安全
+
+支持 SMTP 发信、注册邮箱验证、限次找回密码、邮箱验证改密和 IMAP 连接检查。邮件及对象存储凭据使用服务端密钥加密保存。
 
 ## 界面预览
 
-**社区首页 · 浅色主题**
-
 ![WinUI-BBS 社区首页，使用独立演示数据](docs/images/community-light.png)
 
-<details>
-<summary>查看楼中楼、表情包和深色管理后台</summary>
-
-**帖子与楼中楼 · 行内表情、点赞与收藏**
-
-![帖子详情、行内表情和楼中楼讨论](docs/images/discussion-light.png)
-
-**编辑器 · PipsPager 表情分组**
-
-![编辑器中的分组表情选择器](docs/images/emoji-picker-light.png)
-
-**我的表情包 · 分组预览与个人排序**
-
-![社区表情置顶、个人分组预览与排序](docs/images/emoji-packs-light.png)
-
-**发帖审核 · 深色主题**
-
-![WinUI-BBS 发帖审核界面，使用独立演示数据](docs/images/moderation-dark.png)
-
-</details>
-
-截图来自 0.2.0 的独立演示实例，不包含真实用户数据。
-
-## 功能
-
-- **WinUI 界面**：浅色与深色主题、强调色、紧凑导航、文字缩放和响应式布局；Windows 使用 Segoe Fluent Icons，其他系统使用 Fluent UI System Icons。
-- **图文与楼中楼**：Editor.js 中文块编辑器、行内剧透、本地文字与图片草稿、字数与普通图片限额、每篇正文固定最多 1000 个表情；主回复与楼中楼独立翻页，删除后楼号不重排。
-- **点赞、收藏与空间**：点赞状态持久保存，拆分按钮快速收藏或取消，支持默认收藏夹、公开或私密收藏夹及用户公开空间。
-- **关注与隐藏段落**：帖子作者旁关注，“我的关注”浏览作者；首页优先展示关注作者的未读帖子。选中文字可设置回复、点赞或关注后解锁，普通组默认拥有隐藏段落权限。
-- **板块与权限**：树形板块、阅读与发帖等级、多用户组、临时成员关系，以及独立的管理权限。
-- **发帖审核**：全站与板块审核开关、用户组免审核或强制审核规则，支持通过、拒绝和封禁处理。
-- **社区管理**：邀请码及等级奖励、签到经验、等级头衔、站内公告、个人回收站与管理员删除记录；临时封禁账号保留只读访问，管理员删除回复会通知作者。
-- **邮件与账号安全**：SMTP 发信、注册邮箱验证码、限次找回密码、邮箱验证改密，以及 IMAP 连接检查。
-- **分组表情**：PipsPager 与滚轮切组、悬停名称、分组预览和个人排序；远端表情与文字同行，个人上传保持原大小。社区组固定置顶，有发帖或回复权限即可在对应区域使用，无须图床权限。
-- **媒体管理**：个人容量与上传限额、Bmoji 兼容远端搜索和导入；远端每组不受 150 张限制，是否计入个人组数可配置。后台支持图片搜索、筛选与分页，默认每页 50 张。
+更多帖子、楼中楼、表情包和管理后台截图见 [使用与配置](docs/configuration.md)。截图使用独立演示数据，不包含真实用户资料。
 
 ## 快速开始
 
 需要 **Node.js 22.12+**、**PostgreSQL 17+**，以及一个供应用使用的数据库和账号。
-
-### 1. 获取项目
 
 ```sh
 git clone https://github.com/tzhx12/WinUI-BBS.git
@@ -70,70 +53,53 @@ cd WinUI-BBS
 npm ci
 ```
 
-### 2. 配置数据库连接
-
-复制 [apps/api/.env.example](apps/api/.env.example) 为 `apps/api/.env`，填写自己的数据库连接串，并设置私有的 JWT 密钥：
+复制 [apps/api/.env.example](apps/api/.env.example) 为 `apps/api/.env`，至少填写数据库连接和 JWT 密钥：
 
 ```dotenv
 DATABASE_URL=postgresql://forum:your-password@127.0.0.1:5432/forum
 JWT_SECRET=replace-with-a-long-random-secret
 ```
 
-完整环境变量见示例文件。开发服务启动时会自动执行 SQL 迁移。
-
-### 3. 启动
+启动开发服务：
 
 ```sh
 npm run dev
 ```
 
-打开 <http://127.0.0.1:5173/>。首次访问空库时创建站点管理员；API 默认监听 <http://127.0.0.1:4000/>。
-
-## 升级到 0.2.1
-
-1. 备份 PostgreSQL 数据库、`apps/api/data/uploads/` 和部署环境配置。使用邮件功能时，保留原 `MAIL_ENCRYPTION_KEY`，以便继续读取已加密凭据。
-2. 更新到 `main` 分支的 0.2.1 代码，执行 `npm ci`、`npm run check` 和 `npm run build`。
-3. 重启 API 与前端服务。从 0.2.0 升级没有新增数据库迁移；从 0.1.x 升级时，API 会按顺序执行尚未应用的迁移（009–014），无须重新初始化数据库。
-
-远端下载组现在默认计入个人表情包组数限额；已有分组不会被移除。可在“图床与表情 → 上传与远端设置”调整此开关。
-
-当前开发分支的关注与隐藏段落功能另含迁移 015，启动 API 时自动执行；详见[关注与隐藏段落](docs/configuration.md#关注与隐藏段落)。
+打开 <http://127.0.0.1:5173/>。API 默认监听 <http://127.0.0.1:4000/>；首次访问空数据库时创建站点管理员。API 启动时会自动执行尚未应用的 SQL 迁移。
 
 ## 开发
 
-| 命令                                   | 用途                       |
-| -------------------------------------- | -------------------------- |
-| `npm run dev`                          | 同时启动前后端开发服务     |
-| `npm run check`                        | 检查类型和两套图标对应关系 |
-| `npm run build`                        | 构建前后端                 |
-| `npm run build:icons -w apps/web`      | 修改图标后重新生成兼容字体 |
-| `npm run test:integration -w apps/api` | 运行 PostgreSQL 集成测试   |
-| `npm run format -w apps/web`           | 格式化前端代码             |
+| 命令                                   | 用途                     |
+| -------------------------------------- | ------------------------ |
+| `npm run dev`                          | 同时启动前后端开发服务   |
+| `npm run check`                        | 检查类型和图标映射       |
+| `npm run build`                        | 构建前后端               |
+| `npm run test:integration -w apps/api` | 运行 PostgreSQL 集成测试 |
+| `npm run format -w apps/web`           | 格式化前端代码           |
 
-集成测试会创建并清理独立 schema，数据库账号需要创建 schema 的权限。上传文件存放在 `apps/api/data/uploads/`；环境配置、上传文件和构建产物均已忽略。
+集成测试会创建并清理独立数据库 schema，测试账号需要具备创建 schema 的权限。上传文件保存在 `apps/api/data/uploads/`；环境文件、上传文件和构建产物均已忽略。
 
-普通构建直接使用仓库中的图标字体。新增图标时需同时补齐 Segoe 字符码与 Fluent SVG 的对应关系并重新生成，流程见[图标兼容维护说明](docs/icon-compatibility.md)。
+项目结构：
 
 ```text
 apps/web/    Vue、WinUIonWeb、Editor.js 前端
-apps/api/    Fastify API、SQL 迁移与集成测试
-docs/        使用说明与界面截图
+apps/api/    Fastify API、SQL 迁移和集成测试
+docs/        使用说明和界面截图
 licenses/    第三方许可与声明
 ```
 
-审核优先级、用户组约束、回收站保留期、浏览量去重和媒体限额等详细行为见[使用与配置](docs/configuration.md)。
+详细的权限、审核、媒体限额、存储策略和部署说明见[使用与配置](docs/configuration.md)。
 
 ## 开源致谢
 
 感谢 [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb)、[Vue](https://vuejs.org/)、[Vue Router](https://router.vuejs.org/)、[Editor.js](https://github.com/codex-team/editor.js)、[DOMPurify](https://github.com/cure53/DOMPurify)、[Fastify](https://fastify.dev/)、[PostgreSQL](https://www.postgresql.org/)、[Vite](https://vite.dev/) 和 [TypeScript](https://www.typescriptlang.org/)。
 
-非 Windows 图标来自 MIT 许可的 [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons)。Windows 仅引用系统字体，项目不分发 Segoe 字体文件。
-
-远端表情功能参考并对接 [Bmoji](https://github.com/SomeOvO/Bmoji) 的表情包服务与兼容接口。完整项目链接见应用内“关于”页，许可信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+非 Windows 图标来自 MIT 许可的 [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons)。远端表情功能参考并对接 [Bmoji](https://github.com/SomeOvO/Bmoji) 的兼容接口。完整许可信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 参与项目
 
-欢迎通过 [Issues](https://github.com/tzhx12/WinUI-BBS/issues) 反馈问题、提出建议，或提交 Pull Request。报告问题时请附上复现步骤、运行环境及相关日志。
+欢迎通过 [Issues](https://github.com/tzhx12/WinUI-BBS/issues) 反馈问题、提出建议或提交 Pull Request。请附上复现步骤、运行环境和相关日志。
 
 ## 开源许可
 

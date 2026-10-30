@@ -14,6 +14,7 @@ import WinButton from '../../components/ui/WinButton.vue'
 import WinDialog from '../../components/ui/WinDialog.vue'
 import WinSelect from '../../components/ui/WinSelect.vue'
 import MediaSettingsPanel from '../../components/MediaSettingsPanel.vue'
+import StorageSettingsPanel from '../../components/StorageSettingsPanel.vue'
 defineOptions({ inheritAttrs: false })
 const site = useSite(),
   collection = ref('all'),
@@ -231,6 +232,11 @@ async function removePack(pack: EmojiPack) {
             subtle
             @click="view = 'library'"
           /><WinButton
+            label="存储设置"
+            :accent="view === 'storage'"
+            subtle
+            @click="view = 'storage'"
+          /><WinButton
             label="上传与远端设置"
             :accent="view === 'settings'"
             subtle
@@ -238,7 +244,7 @@ async function removePack(pack: EmojiPack) {
           />
         </div>
       </div>
-      <section class="surface-card form-stack">
+      <section v-if="view !== 'storage'" class="surface-card form-stack">
         <h2>社区表情包</h2>
         <p class="secondary-text">
           固定显示在选择器第一组。有发帖或回复权限即可在对应编辑器中使用，不占个人组数限额。
@@ -255,7 +261,8 @@ async function removePack(pack: EmojiPack) {
           <WinButton label="保存社区分组" :disabled="saving" @click="saveCommunity" />
         </div>
       </section>
-      <MediaSettingsPanel v-if="view === 'settings'" @added="reload" />
+      <StorageSettingsPanel v-if="view === 'storage'" />
+      <MediaSettingsPanel v-else-if="view === 'settings'" @added="reload" />
       <template v-else>
         <div class="section-toolbar">
           <div class="toolbar-filters">
@@ -266,6 +273,7 @@ async function removePack(pack: EmojiPack) {
                 { value: 'all', label: '全部图片' },
                 { value: 'library', label: '图床' },
                 { value: 'emoji', label: '表情' },
+                { value: 'avatar', label: '头像' },
                 { value: 'site_icon', label: '站点图标' },
               ]"
             /><WinSelect
