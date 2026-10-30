@@ -4,7 +4,10 @@ const origin = 'http://127.0.0.1:4000'
 async function api(path, options = {}) {
   const response = await fetch(origin + path, {
     ...options,
-    headers: { 'content-type': 'application/json', ...options.headers },
+    headers: {
+      ...(options.body ? { 'content-type': 'application/json' } : {}),
+      ...options.headers,
+    },
   })
   assert.ok(response.ok, `HTTP ${response.status}: ${path}`)
   return response.json()
