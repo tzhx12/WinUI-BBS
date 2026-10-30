@@ -13,7 +13,7 @@ An open-source discussion forum with a **WinUI-style interface**, built with Vue
 
 ### Community discussions
 
-The Chinese block editor supports text, images, emoji, draft restoration, spoilers and content locks. Posts, main replies and nested replies paginate independently; deleting a reply does not renumber later floors. Likes, favorites, follows and view records persist across sessions.
+The Chinese block editor supports text, images, emoji, draft restoration, nested replies and content that unlocks after a reply, like or follow. Users can like posts, save favorites and follow authors; the home feed prioritizes unread posts from followed authors.
 
 ### User spaces and permissions
 
@@ -21,13 +21,13 @@ Users can manage profiles, avatars, follows and favorite folders, and publish a 
 
 ### Review and administration
 
-Administrators can require review site-wide or by category, grant group-based exemptions or mandatory review, and process approvals, rejections and bans. Announcements, review results, deletion records and storage alerts are delivered as in-site notifications; temporary bans retain read-only access.
+Administrators can require review site-wide or by category, grant group-based exemptions or mandatory review, and process approvals, rejections and bans. Community tools include invitation codes, check-in rewards, level titles, in-site notifications, recycle bins and management audit records.
 
 ### Media, emoji and storage
 
 Users and administrators can manage images, personal emoji packs, a community pack and the site icon. Remote emoji support search, previews, static/GIF imports and inline insertion.
 
-The administration page **图床与表情 → 存储设置** shows free capacity for server disks, local storage and S3-compatible object storage. Administrators can choose the preferred backend, set the local limit, assign an object-storage quota and configure cleanup batches; uploads switch automatically when the preferred backend is full. At 95% usage, administrators with `media.manage` receive an in-site alert. When all backends are full, the oldest ordinary images are reclaimed and their post references are replaced. Emoji packs, avatars and the site icon are never automatically reclaimed.
+Local and S3-compatible storage support capacity monitoring, automatic switching, low-space alerts and cleanup of the oldest ordinary images. Emoji packs, avatars and the site icon are protected from automatic cleanup. Administrators can configure quotas, storage priority and cleanup batches.
 
 ### Appearance and cross-platform UI
 
@@ -41,7 +41,18 @@ The server supports SMTP delivery, registration email verification, rate-limited
 
 ![WinUI-BBS community home with isolated demo data](docs/images/community-light.png)
 
-More discussion, nested-reply, emoji-pack and administration screenshots are available in the [configuration guide](docs/configuration.en.md). Screenshots use isolated demo data and contain no real user profiles.
+<details>
+<summary>Show discussions, emoji and administration</summary>
+
+![Post details and nested replies](docs/images/discussion-light.png)
+
+![Grouped emoji picker](docs/images/emoji-picker-light.png)
+
+![Personal emoji packs](docs/images/emoji-packs-light.png)
+
+![Post review in the dark theme](docs/images/moderation-dark.png)
+
+</details>
 
 ## Quick start
 

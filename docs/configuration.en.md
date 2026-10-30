@@ -16,6 +16,12 @@ WinUI-BBS is an open-source discussion forum with a Vue 3 frontend, WinUIonWeb c
 
 The API listens on `http://127.0.0.1:4000`. It applies SQL migrations in filename order on startup, records applied files in `schema_migrations`, and stores uploaded media in `apps/api/data/uploads`.
 
+## Updating an existing deployment
+
+Back up PostgreSQL, local uploads and deployment configuration before updating; retain the corresponding buckets when using object storage. Preserve the original `MAIL_ENCRYPTION_KEY` and `STORAGE_ENCRYPTION_KEY` so saved credentials remain readable. After updating, run `npm ci`, `npm run check` and `npm run build`, then restart the services. The API applies pending migrations automatically; do not reinitialize the database.
+
+The migration protects active avatars, existing emoji and site icons. Newly uploaded avatars retain cleanup protection after replacement. Replaced avatars from older installations have no separate identity record and continue to be treated as ordinary library images.
+
 ## Email verification and passwords
 
 The administration navigation groups pages under **用户与注册** (users and registration), **内容管理** (content), and **站点配置** (site configuration). Parent items expand their subtrees; only a child item navigates to a page. Groups and children are filtered by effective permissions. The pane toggle is on the left of the TitleBar: it expands or collapses the desktop navigation and opens or closes the drawer on narrow screens.
