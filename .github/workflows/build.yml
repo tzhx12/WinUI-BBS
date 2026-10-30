@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Record main integration
@@ -55,10 +55,10 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       kind: ${{ steps.version.outputs.kind }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -78,7 +78,7 @@ jobs:
       - run: npm run build
       - run: node scripts/package.mjs
       - run: npm run package:verify
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: winui-bbs-${{ steps.version.outputs.version || github.sha }}
           path: release/
@@ -91,7 +91,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: winui-bbs-${{ needs.build.outputs.version }}
           path: release
@@ -103,12 +103,26 @@ jobs:
           COMMIT: ${{ github.sha }}
         shell: bash
         run: |
-          flags=(--latest)
+          flags=(--latest --prerelease=false)
           if [[ "$KIND" == rc ]]; then flags=(--prerelease --latest=false); fi
-          if [[ "$KIND" == rc ]] && gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v$VERSION already published for this integration."
-            exit 0
-          fi
-          gh release create "v$VERSION" release/winui-bbs.tar.gz release/install.sh \
-            --repo "$GITHUB_REPOSITORY" --target "$COMMIT" \
-            --title "WinUI-BBS $VERSION" --generate-notes "${flags[@]}"
+          tag="v$VERSION"
+          for attempt in 1 2 3; do
+            if draft=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null); then
+              if [[ "$draft" == false ]]; then
+                echo "Release $tag is already published."
+                exit 0
+              fi
+            elif ! gh release create "$tag" --draft --repo "$GITHUB_REPOSITORY" \
+              --target "$COMMIT" --title "WinUI-BBS $VERSION" --generate-notes; then
+              sleep "$((attempt * 5))"
+              continue
+            fi
+            if gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --target "$COMMIT" \
+              && gh release upload "$tag" release/winui-bbs.tar.gz release/install.sh \
+                --repo "$GITHUB_REPOSITORY" --clobber \
+              && gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false "${flags[@]}"; then
+              exit 0
+            fi
+            sleep "$((attempt * 5))"
+          done
+          exit 1
