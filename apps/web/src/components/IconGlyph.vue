@@ -4,6 +4,7 @@ import type { IconName } from './iconNames'
 
 const props = defineProps<{ name: IconName; size?: number | string }>()
 
+// Pair new codepoints in icons/fluent-system-icons.json and rebuild the bridge font.
 const glyphs: Record<IconName, string> = {
   home: String.fromCharCode(0xe80f),
   search: String.fromCharCode(0xe721),

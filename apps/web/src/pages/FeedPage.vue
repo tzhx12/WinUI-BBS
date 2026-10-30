@@ -21,7 +21,8 @@ const site = useSite()
 const router = useRouter()
 const category = computed(() => site.categories.value.find((item) => item.id === props.Parameter.id))
 const isSearch = props.Parameter.path === '/search'
-const sort = ref(props.Parameter.path === '/popular' ? 'popular' : 'latest')
+const isPopular = props.Parameter.path === '/popular'
+const sort = ref(isPopular ? 'popular' : 'latest')
 const title = computed(() =>
   isSearch ? '搜索结果' : category.value?.name || (sort.value === 'popular' ? '热门讨论' : '社区首页'),
 )
@@ -61,6 +62,7 @@ function compose() {
         "
       >
         <WinButton
+          v-if="!isPopular"
           label="发布帖子"
           icon="add"
           accent
@@ -68,7 +70,7 @@ function compose() {
           @click="compose"
         />
       </PageHeader>
-      <div v-if="roots.length && !isSearch" class="category-grid">
+      <div v-if="roots.length && !isSearch && !isPopular" class="category-grid">
         <Button
           v-for="item in roots"
           :key="item.id"
@@ -115,8 +117,8 @@ function compose() {
           <EmptyState
             v-else-if="!posts.length"
             :title="isSearch ? '没有找到相关帖子' : '还没有帖子'"
-            :description="isSearch ? '试试其他关键词。' : '发布第一个帖子，开始讨论。'"
-            ><WinButton v-if="!isSearch" label="发布帖子" icon="add" @click="compose"
+            :description="isSearch ? '试试其他关键词。' : isPopular ? '' : '发布第一个帖子，开始讨论。'"
+            ><WinButton v-if="!isSearch && !isPopular" label="发布帖子" icon="add" @click="compose"
           /></EmptyState>
           <ListView
             v-else

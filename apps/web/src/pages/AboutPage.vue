@@ -14,6 +14,11 @@ const projectGroups = [
         purpose: 'WinUI 风格组件、布局与主题',
         url: 'https://github.com/Furry-Xiyi/WinUIonWeb',
       },
+      {
+        name: 'Fluent UI System Icons',
+        purpose: '非 Windows 系统的图标',
+        url: 'https://github.com/microsoft/fluentui-system-icons',
+      },
       { name: 'Vue', purpose: '响应式界面与组件系统', url: 'https://vuejs.org/' },
       { name: 'Vue Router', purpose: '社区与管理后台路由', url: 'https://router.vuejs.org/' },
       { name: 'Editor.js', purpose: '块编辑器与图文工具', url: 'https://github.com/codex-team/editor.js' },

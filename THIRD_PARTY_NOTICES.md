@@ -8,6 +8,14 @@ The frontend includes Vue and Vue Router under MIT (`licenses/vue-MIT.txt` and `
 
 Segoe Fluent Icons is referenced by local system font family name only. No Microsoft font file is included or redistributed.
 
+On non-Windows systems, the frontend loads a local compatibility font derived from
+[Microsoft Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons)
+under MIT. The outlines come from `@fluentui/svg-icons` 1.1.344; the font remaps
+selected SVGs to the Segoe codepoints used by the application and WinUIonWeb.
+The license is in `licenses/fluent-system-icons-MIT.txt`, and the source mapping
+and generator are in `apps/web/icons/fluent-system-icons.json` and
+`apps/web/scripts/build-icon-font.py`.
+
 ## Project links
 
 The application has an About page with links to these projects and their roles:
@@ -15,6 +23,7 @@ The application has an About page with links to these projects and their roles:
 | Project                                                                                  | Role                                    | License                             |
 | ---------------------------------------------------------------------------------------- | --------------------------------------- | ----------------------------------- |
 | [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb)                                   | WinUI components and themes             | GPL-3.0-only                        |
+| [Fluent UI System Icons](https://github.com/microsoft/fluentui-system-icons)             | Icons on non-Windows systems             | MIT                                |
 | [Vue](https://vuejs.org/) / [Vue Router](https://router.vuejs.org/)                      | UI runtime and routing                  | MIT                                 |
 | [Editor.js](https://github.com/codex-team/editor.js)                                     | Block editor and tools                  | Apache-2.0; tool-package terms vary |
 | [DOMPurify](https://github.com/cure53/DOMPurify)                                         | Rich-text sanitization                  | MPL-2.0 OR Apache-2.0               |

@@ -22,7 +22,8 @@ const editor = ref<InstanceType<typeof EditorComposer> | null>(null)
 const allowedCategories = computed(() =>
   site.categories.value.filter((c) => c.minimum_author_level <= (site.user.value?.level || 0)),
 )
-const category = ref(props.Parameter.query.category || allowedCategories.value[0]?.id || '')
+const requestedCategory = allowedCategories.value.find((c) => c.id === props.Parameter.query.category)?.id
+const category = ref(requestedCategory || allowedCategories.value[0]?.id || '')
 const canPost = computed(() => site.user.value?.permissions?.includes('posts.create'))
 const canSetReaderLevel = computed(() => site.user.value?.permissions?.includes('posts.set_reader_level'))
 const metadata = computed(() => ({
@@ -32,7 +33,8 @@ const metadata = computed(() => ({
 }))
 function restoreDraft(value: Record<string, unknown>) {
   title.value = String(value.title || '')
-  if (allowedCategories.value.some((c) => c.id === value.category)) category.value = String(value.category)
+  if (!requestedCategory && allowedCategories.value.some((c) => c.id === value.category))
+    category.value = String(value.category)
   readerLevel.value = Number(value.readerLevel || 0)
 }
 const requiresReview = computed(() => {

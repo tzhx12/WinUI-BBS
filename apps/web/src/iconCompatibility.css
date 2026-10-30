@@ -1,0 +1,24 @@
+/* Segoe InfoBar icons use two layers; Fluent icons already include their shape. */
+[data-icon-system='fluent-system'] .win-infobar-icon-background {
+  visibility: hidden;
+}
+
+[data-icon-system='fluent-system'] .win-infobar-informational {
+  --forum-infobar-symbol-color: var(--InfoBarInformationalSeverityIconBackground);
+}
+
+[data-icon-system='fluent-system'] .win-infobar-success {
+  --forum-infobar-symbol-color: var(--InfoBarSuccessSeverityIconBackground);
+}
+
+[data-icon-system='fluent-system'] .win-infobar-warning {
+  --forum-infobar-symbol-color: var(--InfoBarWarningSeverityIconBackground);
+}
+
+[data-icon-system='fluent-system'] .win-infobar-error {
+  --forum-infobar-symbol-color: var(--InfoBarErrorSeverityIconBackground);
+}
+
+[data-icon-system='fluent-system'] .win-infobar-standard-icon {
+  color: var(--forum-infobar-symbol-color) !important;
+}
