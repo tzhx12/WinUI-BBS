@@ -56,6 +56,18 @@
 
 ## 快速开始
 
+### 一键安装正式版
+
+在使用 systemd 的 Debian 12/13 或 Ubuntu 22.04/24.04 服务器上运行（支持 x64、arm64）：
+
+```sh
+curl -fsSL https://github.com/tzhx12/WinUI-BBS/releases/latest/download/install.sh -o /tmp/winui-bbs-install.sh && sudo bash /tmp/winui-bbs-install.sh
+```
+
+脚本安装 Node.js、PostgreSQL 和最新正式版，配置开机启动。完成后打开 `http://服务器IP:4000/` 创建管理员；公网部署请配置域名、HTTPS 反向代理和访问规则。后台“站点设置 → 系统更新”可检查更新、选择 Releases / Pre-releases 渠道及启用自动更新。自动更新默认关闭。
+
+### 从源码运行
+
 需要 **Node.js 22.12+**、**PostgreSQL 17+**，以及一个供应用使用的数据库和账号。
 
 ```sh
@@ -86,6 +98,7 @@ npm run dev
 | `npm run dev`                          | 同时启动前后端开发服务   |
 | `npm run check`                        | 检查类型和图标映射       |
 | `npm run build`                        | 构建前后端               |
+| `npm run version:set -- 0.3.0`         | 设置下次正式发布版本     |
 | `npm run test:integration -w apps/api` | 运行 PostgreSQL 集成测试 |
 | `npm run format -w apps/web`           | 格式化前端代码           |
 
@@ -101,6 +114,15 @@ licenses/    第三方许可与声明
 ```
 
 详细的权限、审核、媒体限额、存储策略和部署说明见[使用与配置](docs/configuration.md)。
+
+### 构建与发布
+
+- 每次推送 `dev`，Actions 生成 `[main版本]-Alpha-[7位commit]` CI 包，可在工作流的 Artifacts 下载。
+- `dev` 合并到 `main` 且版本号未变时，发布 `[main版本]-rcN` 预发布包。
+- 要正式发布，先执行 `npm run version:set -- 新版本号`，再将 `dev` 合并到 `main`；版本号变更会触发正式 Release。
+- 首次 main 构建会发布当前 0.2.2；也可在 `main` 手动运行 **Build and release**，选择 `stable`。
+
+版本规则、安装目录及恢复步骤见[发布与更新](docs/releases.md)。
 
 ## 开源致谢
 

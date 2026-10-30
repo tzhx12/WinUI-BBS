@@ -7,6 +7,7 @@ import { useSite } from '../../site'
 import PageHeader from '../../components/ui/PageHeader.vue'
 import ResourceState from '../../components/ui/ResourceState.vue'
 import WinButton from '../../components/ui/WinButton.vue'
+import UpdateSettingsPanel from '../../components/UpdateSettingsPanel.vue'
 defineOptions({ inheritAttrs: false })
 const site = useSite()
 const { data, loading, error, saving, run } = useResource(
@@ -129,6 +130,7 @@ async function reset() {
         />
         <p class="field-hint">更改适用于之后删除的帖子。</p>
       </section>
+      <UpdateSettingsPanel />
     </div>
   </div>
 </template>

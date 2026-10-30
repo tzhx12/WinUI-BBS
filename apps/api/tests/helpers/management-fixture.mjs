@@ -10,7 +10,7 @@ import jwt from "@fastify/jwt";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 
-export async function createManagementFixture({ serve = false } = {}) {
+export async function createManagementFixture({ serve = false, configure } = {}) {
   const schema = `forum_permissions_${randomUUID().replaceAll("-", "")}`;
   const control = new Pool({ connectionString: process.env.DATABASE_URL });
   await control.query(`CREATE SCHEMA ${schema}`);
@@ -39,6 +39,7 @@ export async function createManagementFixture({ serve = false } = {}) {
     ["notifications", "registerNotificationRoutes"],
     ["email", "registerEmailRoutes"],
     ["favorites", "registerFavoriteRoutes"],
+    ["updates", "registerUpdateRoutes"],
   ])
     await (
       await import(`../../src/routes/${module}.ts`)
@@ -46,6 +47,7 @@ export async function createManagementFixture({ serve = false } = {}) {
   await (
     await import("../../src/routes/media.ts")
   ).registerMediaRoutes(app, uploadRoot);
+  if (configure) await configure(app);
   const password = randomUUID();
   const request = (method, url, payload, user) =>
     app.inject({

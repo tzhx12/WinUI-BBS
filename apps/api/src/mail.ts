@@ -5,6 +5,7 @@ import { z } from 'zod'
 import type { PoolClient } from 'pg'
 import { inTransaction } from './db.js'
 import { readSettings } from './settings.js'
+import { currentVersion } from './version.js'
 
 export const mailError = (message: string, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode })
@@ -101,7 +102,7 @@ export async function checkImap(config: MailTransport) {
     doSTARTTLS: !config.imap.secure,
     auth: { user: config.imap.user, pass: decryptMailSecret(config.imap.password) },
     logger: false,
-    clientInfo: { name: 'WinUI-BBS', version: '0.2.2' },
+    clientInfo: { name: 'WinUI-BBS', version: currentVersion },
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: 20000,

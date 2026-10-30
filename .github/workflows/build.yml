@@ -1,0 +1,114 @@
+name: Build and release
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Use stable on main to publish the initial current version; normally use auto."
+        type: choice
+        options: [auto, stable]
+        default: auto
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Record main integration
+        shell: bash
+        run: |
+          ref="refs/tags/integrations/main/$GITHUB_SHA"
+          if ! git show-ref --verify --quiet "$ref"; then
+            git tag "integrations/main/$GITHUB_SHA" "$GITHUB_SHA"
+            git push origin "$ref"
+          fi
+
+  build:
+    needs: integration
+    if: ${{ !cancelled() && (needs.integration.result == 'success' || needs.integration.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: forum
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: forum
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://forum:ci-only-password@127.0.0.1:5432/forum
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      kind: ${{ steps.version.outputs.kind }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Assign build version
+        id: version
+        if: github.event_name != 'pull_request'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          RELEASE_MODE: ${{ inputs.release || 'auto' }}
+        run: |
+          git fetch origin --tags
+          node scripts/version.mjs
+      - run: npm run check
+      - run: node --test scripts/tests/*.test.mjs
+      - run: npm run test:integration -w apps/api
+      - run: npm run build
+      - run: node scripts/package.mjs
+      - run: npm run package:verify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: winui-bbs-${{ steps.version.outputs.version || github.sha }}
+          path: release/
+          retention-days: 14
+
+  publish:
+    if: ${{ !cancelled() && needs.build.result == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: winui-bbs-${{ needs.build.outputs.version }}
+          path: release
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          KIND: ${{ needs.build.outputs.kind }}
+          COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          flags=(--latest)
+          if [[ "$KIND" == rc ]]; then flags=(--prerelease --latest=false); fi
+          if [[ "$KIND" == rc ]] && gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v$VERSION already published for this integration."
+            exit 0
+          fi
+          gh release create "v$VERSION" release/winui-bbs.tar.gz release/install.sh \
+            --repo "$GITHUB_REPOSITORY" --target "$COMMIT" \
+            --title "WinUI-BBS $VERSION" --generate-notes "${flags[@]}"

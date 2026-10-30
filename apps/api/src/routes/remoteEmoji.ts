@@ -6,6 +6,7 @@ import { inTransaction } from '../db.js'
 import { imageTypes, mediaError } from '../media.js'
 import { readSettings, type RemoteEmojiSettings } from '../settings.js'
 import { checkEmojiPackLimit, setCommunityEmojiPack } from '../emoji.js'
+import { currentVersion } from '../version.js'
 import {
   deleteStoredFile,
   monitorStorage,
@@ -54,7 +55,7 @@ async function fetchRemote(url: string) {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(30000),
     headers: {
-      'User-Agent': 'WinUI-BBS/0.2.2',
+      'User-Agent': `WinUI-BBS/${currentVersion}`,
       Referer: 'https://www.bilibili.com/',
     },
   })

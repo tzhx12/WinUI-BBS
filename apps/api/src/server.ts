@@ -18,6 +18,8 @@ import { registerNotificationRoutes } from './routes/notifications.js'
 import { registerReviewRoutes } from './routes/reviews.js'
 import { registerEmailRoutes } from './routes/email.js'
 import { registerFavoriteRoutes } from './routes/favorites.js'
+import { registerUpdateRoutes, startAutomaticUpdates } from './routes/updates.js'
+import { currentVersion } from './version.js'
 import {
   monitorStorage,
   flushStorageDeletions,
@@ -44,6 +46,7 @@ async function start() {
   app.get('/api/health', async () => ({
     status: 'ok',
     database: 'postgresql',
+    version: currentVersion,
   }))
   await registerSetupRoutes(app)
   await registerAuthRoutes(app)
@@ -55,6 +58,11 @@ async function start() {
   await registerEmailRoutes(app)
   await registerFavoriteRoutes(app)
   await registerMediaRoutes(app, uploadRoot)
+  await registerUpdateRoutes(app)
+
+  if (process.env.FORUM_WEB_ROOT) {
+    await app.register(fastifyStatic, { root: resolve(process.env.FORUM_WEB_ROOT), prefix: '/', decorateReply: false })
+  }
 
   const storageMaintenance = async () => {
     try {
@@ -82,7 +90,8 @@ async function start() {
   await storageMaintenance()
 
   const port = Number(process.env.PORT ?? 4000)
-  await app.listen({ host: '127.0.0.1', port })
+  startAutomaticUpdates(app)
+  await app.listen({ host: process.env.HOST || '127.0.0.1', port })
 }
 
 start().catch((error) => {

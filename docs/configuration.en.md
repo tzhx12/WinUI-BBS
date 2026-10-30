@@ -18,6 +18,8 @@ The API listens on `http://127.0.0.1:4000`. It applies SQL migrations in filenam
 
 ## Updating an existing deployment
 
+Installations created by the one-command installer support update checks, Releases / Pre-releases channels and automatic updates under **Site settings → System updates**. See [Builds, releases and updates](releases.md) for deployment and recovery details. Source deployments can continue using the manual procedure below.
+
 Back up PostgreSQL, local uploads and deployment configuration before updating; retain the corresponding buckets when using object storage. Preserve the original `MAIL_ENCRYPTION_KEY` and `STORAGE_ENCRYPTION_KEY` so saved credentials remain readable. After updating, run `npm ci`, `npm run check` and `npm run build`, then restart the services. The API applies pending migrations automatically; do not reinitialize the database.
 
 The migration protects active avatars, existing emoji and site icons. Newly uploaded avatars retain cleanup protection after replacement. Replaced avatars from older installations have no separate identity record and continue to be treated as ordinary library images.

@@ -56,6 +56,18 @@ The server supports SMTP delivery, registration email verification, rate-limited
 
 ## Quick start
 
+### Install the latest stable release
+
+On a Debian 12/13 or Ubuntu 22.04/24.04 server with systemd (x64 or arm64):
+
+```sh
+curl -fsSL https://github.com/tzhx12/WinUI-BBS/releases/latest/download/install.sh -o /tmp/winui-bbs-install.sh && sudo bash /tmp/winui-bbs-install.sh
+```
+
+The installer sets up Node.js, PostgreSQL, the latest stable release and systemd services. Open `http://SERVER_IP:4000/` to create the administrator. Configure a domain, HTTPS reverse proxy and access rules for public deployment. Under **Site settings → System updates**, administrators can check for updates, choose Releases / Pre-releases and enable automatic updates (off by default).
+
+### Run from source
+
 Install **Node.js 22.12+** and **PostgreSQL 17+**, then create a database and account for the application.
 
 ```sh
@@ -86,6 +98,7 @@ Open <http://127.0.0.1:5173/>. The API listens on <http://127.0.0.1:4000/> by de
 | `npm run dev`                          | Start both development servers   |
 | `npm run check`                        | Check types and icon mappings    |
 | `npm run build`                        | Build both workspaces            |
+| `npm run version:set -- 0.3.0`         | Set the next stable version      |
 | `npm run test:integration -w apps/api` | Run PostgreSQL integration tests |
 | `npm run format -w apps/web`           | Format the frontend              |
 
@@ -101,6 +114,10 @@ licenses/    Third-party licenses and notices
 ```
 
 See the [configuration guide](docs/configuration.en.md) for permissions, review, media limits, storage policies and deployment details.
+
+### Builds and releases
+
+Each push to `dev` creates a `[main-version]-Alpha-[7-character-commit]` CI artifact. Merging dev into main without changing the version publishes `[main-version]-rcN`. To publish a stable version, run `npm run version:set -- NEW_VERSION` on dev and merge into main. The first main build publishes the current stable version; the workflow also supports a manual `stable` run on main. See [release and recovery details](docs/releases.md).
 
 ## Acknowledgements
 
