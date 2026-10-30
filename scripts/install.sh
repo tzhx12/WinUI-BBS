@@ -67,6 +67,7 @@ fi
 target="$root/releases/$version"
 install -d "$target"
 tar -xzf "$task_tmp/release.tar.gz" --no-same-owner -C "$target"
+chmod 755 "$target"
 [[ "$(node -p 'require(process.argv[1]).version' "$target/package.json")" == "$version" ]] || exit 1
 (cd "$target" && "$npm_bin" ci --omit=dev --workspace=apps/api --include-workspace-root=false --ignore-scripts)
 

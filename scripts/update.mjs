@@ -155,6 +155,7 @@ async function update() {
     if (listing.split('\n').some((line) => /^[lh]/.test(line)))
       throw new Error('Archive contains links')
     await command('tar', ['-xzf', archive, '--no-same-owner', '-C', target])
+    await chmod(target, 0o755)
     const manifest = JSON.parse(
       await readFile(join(target, 'package.json'), 'utf8'),
     )

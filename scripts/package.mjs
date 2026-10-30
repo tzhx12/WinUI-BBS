@@ -1,10 +1,11 @@
-import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, rm, chmod } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
 const staging = await mkdtemp(join(tmpdir(), 'winui-bbs-package-'))
 try {
+  await chmod(staging, 0o755)
   // An allowlist keeps deployment data, credentials and local fixtures out of releases.
   for (const entry of [
     'package.json',
