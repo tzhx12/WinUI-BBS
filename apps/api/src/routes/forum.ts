@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { requirePermission, authenticate, readerLevel } from '../auth.js'
+import { isGlobalAdministrator, requirePermission, authenticate, readerLevel } from '../auth.js'
 import { awardExperience, inTransaction, query } from '../db.js'
 import { contentLimits, contentLimitsSchema, readSettings, saveSettings } from '../settings.js'
 import { editorBodySchema, readSubmission, validateContent, withSubmission } from '../content.js'
@@ -207,7 +207,7 @@ export async function registerForumRoutes(
     }
     const result = await query<{ title: string; body: Parameters<typeof visibleBody>[0] }>(
       `SELECT p.id, p.title, p.body, p.minimum_reader_level, p.is_pinned, p.view_count, p.created_at,
-              c.id AS category_id, c.name AS category_name, c.accent_color AS category_color,
+              c.id AS category_id, c.slug AS category_slug, c.name AS category_name, c.accent_color AS category_color,
               u.uid AS author_uid, u.username, u.display_name, u.avatar_url, u.experience, u.level_offset,
               (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL)::int AS reply_count,
               (SELECT COUNT(*) FROM post_likes l WHERE l.post_id = p.id)::int AS like_count
@@ -242,7 +242,7 @@ export async function registerForumRoutes(
   app.get('/api/me/posts', { preHandler: authenticate }, async (request) => {
     const result = await query(
       `SELECT p.id, p.title, p.body, p.minimum_reader_level, p.is_pinned, p.view_count, p.status, p.created_at,
-              c.id AS category_id, c.name AS category_name, c.accent_color AS category_color,
+              c.id AS category_id, c.slug AS category_slug, c.name AS category_name, c.accent_color AS category_color,
               u.uid AS author_uid, u.username, u.display_name, u.avatar_url, u.experience, u.level_offset,
               (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL)::int AS reply_count,
               (SELECT COUNT(*) FROM post_likes l WHERE l.post_id = p.id)::int AS like_count
@@ -281,7 +281,7 @@ export async function registerForumRoutes(
     const post = await query(
       `SELECT p.id, p.category_id, p.title, p.body, p.status, p.is_pinned, p.minimum_reader_level,
       p.view_count, p.created_at, p.deleted_at, p.purge_after, p.review_reason,
-      c.name AS category_name, c.accent_color AS category_color,
+      c.slug AS category_slug, c.name AS category_name, c.accent_color AS category_color,
       u.uid AS author_uid, u.username, u.display_name, u.avatar_url, u.experience, u.level_offset
       FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
       WHERE p.id = $1 AND p.author_uid = $2 AND p.deleted_at IS NOT NULL AND p.deletion_source = 'author' AND p.purge_after > NOW()`,
@@ -321,7 +321,7 @@ export async function registerForumRoutes(
     const { id } = request.params as { id: string }
     const post = await query(
       `SELECT p.id, p.category_id, p.title, p.body, p.status, p.is_pinned, p.minimum_reader_level,
-              p.view_count, p.created_at, p.review_reason, c.name AS category_name, c.accent_color AS category_color,
+              p.view_count, p.created_at, p.review_reason, c.slug AS category_slug, c.name AS category_name, c.accent_color AS category_color,
               c.minimum_reader_level AS category_minimum_reader_level,
               u.uid AS author_uid, u.username, u.display_name, u.avatar_url, u.experience, u.level_offset
        FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
@@ -400,9 +400,10 @@ export async function registerForumRoutes(
     ])
     const keys = permissions.rows.map((row) => row.permission_key)
     const requiresReview =
-      keys.includes('posts.require_review') ||
-      (!keys.includes('posts.bypass_review') &&
-        (settings.posts_require_review || category.rows[0].requires_review))
+      !(await isGlobalAdministrator(request.user.uid)) &&
+      (keys.includes('posts.require_review') ||
+        (!keys.includes('posts.bypass_review') &&
+          (settings.posts_require_review || category.rows[0].requires_review)))
     const result = await withSubmission(
       request.user.uid,
       parsed.data.body,

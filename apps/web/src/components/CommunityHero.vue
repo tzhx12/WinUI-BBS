@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button, FontIcon, SystemBackdropElement } from 'winuionweb'
+import { categoryPath } from '../utils'
 import type { Category } from '../types'
 import { useSite } from '../site'
 import CategoryIcon from './CategoryIcon.vue'
@@ -28,6 +29,46 @@ const material = computed(() => ({
   FallbackColor: site.theme.value === 'dark' ? '#292929' : '#f3f3f3',
 }))
 let observer: ResizeObserver | undefined
+let animation = 0
+let targetLeft = 0
+let animatedLeft = 0
+let lastFrame = 0
+let wheelDirection = 0
+function stopAnimation() {
+  cancelAnimationFrame(animation)
+  animation = 0
+  wheelDirection = 0
+}
+function animateScroll(now: number) {
+  const element = viewport.value
+  if (!element) return stopAnimation()
+  targetLeft = Math.max(0, Math.min(element.scrollWidth - element.clientWidth, targetLeft))
+  const distance = targetLeft - animatedLeft
+  if (Math.abs(distance) < 0.5) {
+    element.scrollLeft = targetLeft
+    stopAnimation()
+    return
+  }
+  // Time-based easing keeps consecutive wheel events continuous at any refresh rate.
+  const progress = 1 - Math.exp(-(now - lastFrame) / 65)
+  animatedLeft += distance * progress
+  element.scrollLeft = animatedLeft
+  lastFrame = now
+  animation = requestAnimationFrame(animateScroll)
+}
+function scrollToPosition(left: number) {
+  const element = viewport.value
+  if (!element) return
+  targetLeft = Math.max(0, Math.min(element.scrollWidth - element.clientWidth, left))
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    stopAnimation()
+    element.scrollLeft = targetLeft
+  } else if (!animation) {
+    animatedLeft = element.scrollLeft
+    lastFrame = performance.now()
+    animation = requestAnimationFrame(animateScroll)
+  }
+}
 function updateScroll() {
   const element = viewport.value
   if (!element) return
@@ -36,19 +77,34 @@ function updateScroll() {
   canGoPrevious.value = element.scrollLeft > 1
   canGoNext.value = element.scrollLeft < max - 1
 }
+function onWheel(event: WheelEvent) {
+  const element = viewport.value
+  if (!element) return
+  if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+    stopAnimation()
+    return
+  }
+  const max = element.scrollWidth - element.clientWidth
+  if (max <= 1 || !event.deltaY) return
+  const direction = Math.sign(event.deltaY)
+  if ((direction > 0 && element.scrollLeft >= max - 0.5) || (direction < 0 && element.scrollLeft <= 0.5)) {
+    stopAnimation()
+    return
+  }
+  event.preventDefault()
+  const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientWidth : 1)
+  const start = animation && wheelDirection === direction ? targetLeft : element.scrollLeft
+  scrollToPosition(start + delta)
+  wheelDirection = direction
+}
 function movePage(direction: number) {
   const element = viewport.value
   const card = element?.querySelector<HTMLElement>('.category-mica-card')
   if (!element || !card) return
   const stride = card.getBoundingClientRect().width + 16
   const step = Math.max(1, Math.floor((element.clientWidth + 16) / stride)) * stride
-  element.scrollTo({
-    left: Math.max(
-      0,
-      Math.min(element.scrollWidth - element.clientWidth, element.scrollLeft + direction * step),
-    ),
-    behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
-  })
+  scrollToPosition((animation ? targetLeft : element.scrollLeft) + direction * step)
+  wheelDirection = 0
 }
 watch(
   () => props.categories,
@@ -62,7 +118,10 @@ onMounted(() => {
   if (viewport.value) observer.observe(viewport.value)
   updateScroll()
 })
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  stopAnimation()
+})
 </script>
 <template>
   <section
@@ -92,8 +151,13 @@ onBeforeUnmount(() => observer?.disconnect())
         @click="$emit('compose')"
       />
     </header>
-    <div v-if="categories.length" class="category-carousel">
-      <div ref="viewport" class="category-carousel-viewport" @scroll.passive="updateScroll">
+    <div v-if="categories.length" class="category-carousel" @wheel="onWheel">
+      <div
+        ref="viewport"
+        class="category-carousel-viewport"
+        @scroll.passive="updateScroll"
+        @pointerdown="stopAnimation"
+      >
         <Button
           v-for="item in categories"
           :key="item.id"
@@ -103,7 +167,7 @@ onBeforeUnmount(() => observer?.disconnect())
           HorizontalContentAlignment="Stretch"
           VerticalContentAlignment="Stretch"
           :aria-label="`进入${item.name}`"
-          @Click="router.push(`/category/${item.id}`)"
+          @Click="router.push(categoryPath(item))"
         >
           <SystemBackdropElement
             class="category-mica-material"

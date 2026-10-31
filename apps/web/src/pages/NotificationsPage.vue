@@ -5,7 +5,7 @@ import { api } from '../api'
 import { useResource } from '../composables/useResource'
 import { useSite } from '../site'
 import type { SiteNotification } from '../types'
-import { formatDateTime } from '../utils'
+import { formatDateTime, postPath } from '../utils'
 import PageHeader from '../components/ui/PageHeader.vue'
 import ResourceState from '../components/ui/ResourceState.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
@@ -51,7 +51,14 @@ async function readAll() {
 }
 async function openPost(notice: SiteNotification) {
   await markRead(notice)
-  await router.push(`/post/${notice.post_id}`)
+  if (notice.post_id && notice.category_slug)
+    await router.push(
+      postPath({
+        id: notice.post_id,
+        category_slug: notice.category_slug,
+        status: notice.post_status ?? undefined,
+      }),
+    )
 }
 async function more() {
   await run(async () => {

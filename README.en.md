@@ -64,7 +64,7 @@ On a Debian 12/13 or Ubuntu 22.04/24.04 server with systemd (x64 or arm64):
 curl -fsSL https://github.com/tzhx12/WinUI-BBS/releases/latest/download/install.sh -o /tmp/winui-bbs-install.sh && sudo bash /tmp/winui-bbs-install.sh
 ```
 
-The installer sets up Node.js, PostgreSQL, the latest stable release and systemd services. Open `http://SERVER_IP:4000/` to create the administrator. Configure a domain, HTTPS reverse proxy and access rules for public deployment. Under **Site settings → System updates**, administrators can check for updates, choose Releases / Pre-releases and enable automatic updates (off by default).
+The installer sets up Node.js, PostgreSQL, the latest stable release and systemd services. Create the administrator using the complete private URL printed by the installer. Configure a domain, HTTPS reverse proxy and access rules for public deployment. Under **Site settings → System updates**, administrators can check for updates, choose Releases / Pre-releases and enable automatic updates (off by default).
 
 ### Run from source
 
@@ -89,7 +89,7 @@ Start the development services:
 npm run dev
 ```
 
-Open <http://127.0.0.1:5173/>. The API listens on <http://127.0.0.1:4000/> by default. The first visit to an empty database creates the site administrator, and the API applies pending SQL migrations automatically.
+Open <http://127.0.0.1:5173/>. The API listens on <http://127.0.0.1:4000/> by default. Use the private URL in the API startup log to create the first administrator, and the API applies pending SQL migrations automatically.
 
 ## Development
 

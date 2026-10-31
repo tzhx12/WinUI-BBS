@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { postPath } from '../utils'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { InfoBar, NumberBox, TextBox } from 'winuionweb'
@@ -40,10 +41,11 @@ function restoreDraft(value: Record<string, unknown>) {
 const requiresReview = computed(() => {
   const permissions = site.user.value?.permissions || []
   return (
-    permissions.includes('posts.require_review') ||
-    (!permissions.includes('posts.bypass_review') &&
-      (site.settings.postsRequireReview ||
-        site.categories.value.find((c) => c.id === category.value)?.requires_review))
+    !site.user.value?.groups?.some((group) => group.group_type === 'global') &&
+    (permissions.includes('posts.require_review') ||
+      (!permissions.includes('posts.bypass_review') &&
+        (site.settings.postsRequireReview ||
+          site.categories.value.find((c) => c.id === category.value)?.requires_review)))
   )
 })
 async function publish() {
@@ -65,7 +67,12 @@ async function publish() {
     await editor.value!.clearDraft()
     await Promise.all([site.refreshUser(), site.loadCategories()])
     site.notify(result.post.status === 'pending' ? '帖子已提交，等待审核' : '帖子已发布')
-    void router.replace(`/post/${result.post.id}`)
+    void router.replace(
+      postPath({
+        ...result.post,
+        category_slug: site.categories.value.find((item) => item.id === category.value)!.slug,
+      }),
+    )
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '发布失败'
   } finally {

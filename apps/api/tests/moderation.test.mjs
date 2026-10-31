@@ -52,6 +52,11 @@ before(async () => {
   const owner = await app.inject({
     method: "POST",
     url: "/api/setup/initialize",
+    headers: {
+      "x-setup-token": (
+        await query("SELECT setup_token FROM installation_state")
+      ).rows[0].setup_token,
+    },
     payload: {
       username: "owner",
       email: "owner@example.test",
@@ -138,7 +143,7 @@ test("only administrators can ban and the last active manager remains available"
     (await patchUser({ banMinutes: 30 }, memberUid, memberToken)).statusCode,
     403,
   );
-  assert.equal((await patchUser({ banMinutes: 30 }, adminUid)).statusCode, 409);
+  assert.equal((await patchUser({ banMinutes: 30 }, adminUid)).statusCode, 403);
   assert.equal((await me()).statusCode, 200);
 });
 

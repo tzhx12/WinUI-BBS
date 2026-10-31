@@ -6,7 +6,7 @@ import { api } from '../api'
 import { useResource } from '../composables/useResource'
 import { useSite } from '../site'
 import type { PageParameter, PostFeedPage, PostSummary } from '../types'
-import { itemTemplate } from '../utils'
+import { itemTemplate, postPath } from '../utils'
 import PageHeader from '../components/ui/PageHeader.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import WinButton from '../components/ui/WinButton.vue'
@@ -20,7 +20,9 @@ defineOptions({ inheritAttrs: false })
 const props = defineProps<{ Parameter: PageParameter }>()
 const site = useSite()
 const router = useRouter()
-const category = computed(() => site.categories.value.find((item) => item.id === props.Parameter.id))
+const category = computed(() =>
+  site.categories.value.find((item) => item.slug === props.Parameter.categorySlug),
+)
 const isSearch = props.Parameter.path === '/search'
 const searchTerm = (props.Parameter.query.q || '').trim()
 const isPopular = props.Parameter.path === '/popular'
@@ -48,7 +50,10 @@ const { data, loading, error, reload } = useResource(
     if (isSearch && !searchTerm) return { posts: [], page: 1, pageSize: 20, total: 0, totalPages: 1 }
     const params = new URLSearchParams({ sort: sort.value })
     if (props.Parameter.path !== '/home') params.set('followingFirst', 'false')
-    if (props.Parameter.id) params.set('category', props.Parameter.id)
+    if (props.Parameter.categorySlug) {
+      if (!category.value) throw new Error('板块不存在')
+      params.set('category', category.value.id)
+    }
     if (isSearch) {
       params.set('q', searchTerm)
       const posts = await api<PostSummary[]>(`/api/posts?${params}`, { token: site.token.value })
@@ -84,7 +89,7 @@ function jumpByKeyboard(event: KeyboardEvent) {
 }
 const template = itemTemplate(PostListItem)
 function openPost(_sender: unknown, args: { ClickedItem: PostSummary }) {
-  void router.push(`/post/${args.ClickedItem.id}`)
+  void router.push(postPath(args.ClickedItem))
 }
 function compose() {
   if (!site.user.value) site.authOpen.value = true
@@ -217,8 +222,7 @@ function compose() {
               :key="item.id"
               class="compact-row"
             >
-              <span class="category-label"
-                ><CategoryIcon :category="item" :size="16" />{{ item.name }}</span
+              <span class="category-label"><CategoryIcon :category="item" :size="16" />{{ item.name }}</span
               ><span class="secondary-text">{{ item.post_count || 0 }}</span>
             </div>
           </section>

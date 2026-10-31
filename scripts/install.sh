@@ -137,10 +137,12 @@ WantedBy=multi-user.target
 UNIT
 chmod 644 /etc/systemd/system/winui-bbs{,-update}.service /etc/systemd/system/winui-bbs-update.path
 systemctl daemon-reload
+install_started=$(date --iso-8601=seconds)
 systemctl enable --now winui-bbs winui-bbs-update.path
 for attempt in {1..30}; do
-  if curl -fsS http://127.0.0.1:4000/api/health >/dev/null; then
-    echo "WinUI-BBS $version installed. Open http://YOUR_SERVER_IP:4000/ to create the administrator."
+  if curl -fsS http://127.0.0.1:4000/api/health >/dev/null &&
+    setup_path=$(journalctl -u winui-bbs --since "$install_started" --no-pager -o cat | "$node_bin" --input-type=module -e 'let s="";for await(const b of process.stdin)s+=b;let path;for(const line of s.split("\n")){try{const entry=JSON.parse(line);if(entry.setupPath)path=entry.setupPath}catch{}}if(!path)process.exit(1);console.log(path)'); then
+    echo "WinUI-BBS $version installed. Administrator setup: http://YOUR_SERVER_IP:4000$setup_path"
     exit 0
   fi
   sleep 1

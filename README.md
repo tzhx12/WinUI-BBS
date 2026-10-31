@@ -64,7 +64,7 @@
 curl -fsSL https://github.com/tzhx12/WinUI-BBS/releases/latest/download/install.sh -o /tmp/winui-bbs-install.sh && sudo bash /tmp/winui-bbs-install.sh
 ```
 
-脚本安装 Node.js、PostgreSQL 和最新正式版，配置开机启动。完成后打开 `http://服务器IP:4000/` 创建管理员；公网部署请配置域名、HTTPS 反向代理和访问规则。后台“站点设置 → 系统更新”可检查更新、选择 Releases / Pre-releases 渠道及启用自动更新。自动更新默认关闭。
+脚本安装 Node.js、PostgreSQL 和最新正式版，配置开机启动。完成后使用脚本输出的完整安全入口创建管理员；公网部署请配置域名、HTTPS 反向代理和访问规则。后台“站点设置 → 系统更新”可检查更新、选择 Releases / Pre-releases 渠道及启用自动更新。自动更新默认关闭。
 
 ### 从源码运行
 
@@ -89,7 +89,7 @@ JWT_SECRET=replace-with-a-long-random-secret
 npm run dev
 ```
 
-打开 <http://127.0.0.1:5173/>。API 默认监听 <http://127.0.0.1:4000/>；首次访问空数据库时创建站点管理员。API 启动时会自动执行尚未应用的 SQL 迁移。
+使用 API 启动日志中的完整安全入口创建首位管理员，普通首页不显示创建入口。创建后打开 <http://127.0.0.1:5173/>；API 默认监听 <http://127.0.0.1:4000/>。API 启动时会自动执行尚未应用的 SQL 迁移。
 
 ## 开发
 

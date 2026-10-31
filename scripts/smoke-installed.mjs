@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 const origin = 'http://127.0.0.1:4000'
 async function api(path, options = {}) {
   const response = await fetch(origin + path, {
@@ -12,7 +13,22 @@ async function api(path, options = {}) {
   assert.ok(response.ok, `HTTP ${response.status}: ${path}`)
   return response.json()
 }
+const installationLog = execFileSync('sudo', ['journalctl', '-u', 'winui-bbs', '--no-pager', '-o', 'cat'], {
+  encoding: 'utf8',
+})
+const entry = installationLog
+  .split('\n')
+  .flatMap((line) => {
+    try {
+      return [JSON.parse(line)]
+    } catch {
+      return []
+    }
+  })
+  .findLast((entry) => entry.setupPath)
+assert.ok(entry?.setupPath, 'installation log must contain the private setup entry')
 const owner = await api('/api/setup/initialize', {
+  headers: { 'x-setup-token': entry.setupPath.split('/').at(-1) },
   method: 'POST',
   body: JSON.stringify({
     username: 'installer_test',

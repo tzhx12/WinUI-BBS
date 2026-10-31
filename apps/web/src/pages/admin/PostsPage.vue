@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { postPath } from '../../utils'
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../../api'
@@ -113,7 +114,7 @@ async function update(post: AdminPost, changes: { status?: string; isPinned?: bo
                     label="查看"
                     icon="eye"
                     subtle
-                    @click="router.push(`/post/${post.id}`)"
+                    @click="router.push(postPath(post))"
                   /><WinButton
                     v-else-if="site.user.value?.permissions?.includes('posts.review')"
                     label="前往审核"

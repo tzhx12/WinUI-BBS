@@ -95,7 +95,7 @@ export async function registerReviewRoutes(app: FastifyInstance) {
         // The same lock serializes reviewer bans, preserving an available manager.
         await client.query("SELECT pg_advisory_xact_lock(hashtext('forum-review-bans'))")
         const protectedUser = await client.query(
-          `SELECT 1 WHERE $1::bigint = $2::bigint OR (
+          `SELECT 1 WHERE $1::bigint = 1 OR $1::bigint = $2::bigint OR (
             EXISTS (SELECT 1 FROM group_memberships gm JOIN group_permissions gp ON gp.group_id = gm.group_id
               WHERE gm.user_uid = $1 AND gp.permission_key = 'groups.manage' AND (gm.expires_at IS NULL OR gm.expires_at > NOW()))
             AND NOT EXISTS (SELECT 1 FROM group_memberships gm JOIN group_permissions gp ON gp.group_id = gm.group_id

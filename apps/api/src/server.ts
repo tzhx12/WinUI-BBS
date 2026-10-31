@@ -19,6 +19,7 @@ import { registerReviewRoutes } from './routes/reviews.js'
 import { registerEmailRoutes } from './routes/email.js'
 import { registerFavoriteRoutes } from './routes/favorites.js'
 import { registerUpdateRoutes, startAutomaticUpdates } from './routes/updates.js'
+import { setupPath } from './setup.js'
 import { currentVersion } from './version.js'
 import {
   monitorStorage,
@@ -91,7 +92,16 @@ async function start() {
 
   const port = Number(process.env.PORT ?? 4000)
   startAutomaticUpdates(app)
-  await app.listen({ host: process.env.HOST || '127.0.0.1', port })
+  const address = await app.listen({ host: process.env.HOST || '127.0.0.1', port })
+  const entry = await setupPath()
+  if (entry) {
+    const socket = app.server.address()
+    const boundPort = socket && typeof socket !== 'string' ? socket.port : port
+    const origin =
+      process.env.WEB_ORIGIN ??
+      (process.env.FORUM_WEB_ROOT ? `http://127.0.0.1:${boundPort}` : address)
+    app.log.info({ setupPath: entry, setupUrl: `${origin}${entry}` }, '首次安装：请通过此安全入口创建管理员')
+  }
 }
 
 start().catch((error) => {

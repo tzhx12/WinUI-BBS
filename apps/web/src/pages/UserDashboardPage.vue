@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { postPath } from '../utils'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { InfoBar, ListView, PersonPicture } from 'winuionweb'
@@ -34,8 +35,7 @@ const template = computed(() =>
   itemTemplate(PostListItem, 'item', { canDelete: !site.user.value?.isBanned, onDelete: trashPost }),
 )
 async function trashPost(post: PostSummary) {
-  if (!(await site.confirm(`删除“${post.title}”？`, '帖子将移入仅自己可见的回收站。', '移入回收站')))
-    return
+  if (!(await site.confirm(`删除“${post.title}”？`, '帖子将移入仅自己可见的回收站。', '移入回收站'))) return
   if (
     await run(
       () => api(`/api/me/posts/${post.id}`, { method: 'DELETE', token: site.token.value }),
@@ -45,7 +45,7 @@ async function trashPost(post: PostSummary) {
     await Promise.all([reload(), site.loadCategories()])
 }
 function openPost(_sender: unknown, args: { ClickedItem: PostSummary }) {
-  window.location.hash = `/post/${args.ClickedItem.id}`
+  window.location.hash = postPath(args.ClickedItem)
 }
 function openAppearance() {
   window.location.hash = site.user.value?.permissions?.includes('settings.manage')
@@ -107,9 +107,7 @@ const profileEditor = ref<InstanceType<typeof AccountProfileEditor> | null>(null
                 />
               </div>
               <p class="secondary-text">@{{ site.user?.value?.username }}</p>
-              <p class="secondary-text">
-                UID {{ site.user?.value?.uid }} · {{ site.user?.value?.email }}
-              </p>
+              <p class="secondary-text">UID {{ site.user?.value?.uid }} · {{ site.user?.value?.email }}</p>
             </div>
           </div>
           <div class="dashboard-stat">
@@ -141,12 +139,7 @@ const profileEditor = ref<InstanceType<typeof AccountProfileEditor> | null>(null
               :accent="filter === 'pending'"
               subtle
               @click="filter = 'pending'"
-            /><WinButton
-              label="未通过"
-              :accent="filter === 'rejected'"
-              subtle
-              @click="filter = 'rejected'"
-            />
+            /><WinButton label="未通过" :accent="filter === 'rejected'" subtle @click="filter = 'rejected'" />
             <WinButton label="隐藏" :accent="filter === 'hidden'" subtle @click="filter = 'hidden'" />
           </div>
         </div>

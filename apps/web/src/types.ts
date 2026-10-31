@@ -32,6 +32,7 @@ export interface ReplyThread extends ReplyEntry {
 
 export interface PageParameter {
   path: string
+  categorySlug?: string
   id?: string
   query: Record<string, string | undefined>
 }
@@ -84,6 +85,7 @@ export interface PostSummary {
   view_count: number
   created_at: string
   category_id: string
+  category_slug: string
   category_name: string
   category_color: string
   author_uid: string
@@ -114,6 +116,8 @@ export interface SiteNotification {
   body: string
   kind: 'announcement' | 'review' | 'moderation' | 'storage'
   post_id: string | null
+  post_status: PostSummary['status'] | null
+  category_slug: string | null
   created_at: string
   read_at: string | null
   sender_name: string | null

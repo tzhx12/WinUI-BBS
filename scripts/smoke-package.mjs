@@ -19,9 +19,7 @@ const pool = new Pool({ connectionString: databaseUrl })
 const installEnv = { ...process.env }
 for (const key of Object.keys(installEnv))
   if (
-    /^npm_config_(allow_scripts|local_prefix|workspace|workspaces|include_workspace_root|prefix)$/i.test(
-      key,
-    )
+    /^npm_config_(allow_scripts|local_prefix|workspace|workspaces|include_workspace_root|prefix)$/i.test(key)
   )
     delete installEnv[key]
 let server
@@ -72,23 +70,48 @@ try {
   const health = await fetch(`${origin}/api/health`)
   assert.equal(health.status, 200)
   assert.equal((await health.json()).version, version)
+  const publicSetup = await fetch(`${origin}/api/setup/status`)
+  assert.deepEqual(await publicSetup.json(), { required: true, allowed: false })
+  assert.equal((await fetch(`${origin}/api/setup/initialize`, { method: 'POST' })).status, 404)
+  const entry = logs
+    .join('')
+    .split('\n')
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line)]
+      } catch {
+        return []
+      }
+    })
+    .findLast((entry) => entry.setupPath)
+  assert.match(entry?.setupPath ?? '', /^\/#\/setup\/[a-f0-9]{64}$/)
+  assert.equal(entry.setupUrl, `${origin}${entry.setupPath}`)
+  const initialized = await fetch(`${origin}/api/setup/initialize`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-setup-token': entry.setupPath.split('/').at(-1) },
+    body: JSON.stringify({
+      username: 'package_owner',
+      email: 'package@example.test',
+      displayName: 'Package test',
+      password: randomUUID(),
+    }),
+  })
+  assert.equal(initialized.status, 201)
+  assert.equal((await initialized.json()).user.uid, '1')
+  assert.deepEqual(await (await fetch(`${origin}/api/setup/status`)).json(), {
+    required: false,
+    allowed: false,
+  })
   const response = await fetch(origin),
     html = await response.text()
   assert.equal(response.status, 200)
-  const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)].map(
-    (match) => match[1],
-  )
+  const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)].map((match) => match[1])
   assert.ok(assets.length >= 2)
-  for (const asset of assets)
-    assert.equal((await fetch(origin + asset)).status, 200, asset)
+  for (const asset of assets) assert.equal((await fetch(origin + asset)).status, 200, asset)
   assert.equal((await fetch(`${origin}/api/admin/updates`)).status, 401)
-  assert.equal(
-    JSON.parse(await readFile(join(root, 'apps/api/package.json'), 'utf8'))
-      .version,
-    version,
-  )
+  assert.equal(JSON.parse(await readFile(join(root, 'apps/api/package.json'), 'utf8')).version, version)
   console.log(
-    `Production package ${version}: API-only dependencies, compiled startup, migrations, health, frontend assets and update authorization passed`,
+    `Production package ${version}: API-only dependencies, compiled startup, migrations, private setup, health, frontend assets and update authorization passed`,
   )
 } finally {
   if (server && server.exitCode === null) {

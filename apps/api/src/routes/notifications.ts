@@ -21,10 +21,11 @@ export async function registerNotificationRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.code(400).send({ error: '通知分页参数无效' })
     return (
       await query(
-        `SELECT n.id, n.title, n.body, n.kind, n.post_id, n.created_at, r.read_at,
+        `SELECT n.id, n.title, n.body, n.kind, n.post_id, p.status AS post_status, c.slug AS category_slug, n.created_at, r.read_at,
               u.display_name AS sender_name
        FROM notification_recipients r JOIN notifications n ON n.id = r.notification_id
        LEFT JOIN users u ON u.uid = n.sender_uid
+       LEFT JOIN posts p ON p.id = n.post_id LEFT JOIN categories c ON c.id = p.category_id
        WHERE r.user_uid = $1 AND ($2::bigint IS NULL OR n.id < $2)
        ORDER BY n.id DESC LIMIT 50`,
         [request.user.uid, parsed.data.before ?? null],
@@ -55,7 +56,8 @@ export async function registerNotificationRoutes(app: FastifyInstance) {
           `SELECT n.id, n.title, n.body, n.audience, n.created_at, u.display_name AS sender_name,
               COUNT(r.user_uid)::int AS recipient_count, COUNT(r.read_at)::int AS read_count
        FROM notifications n LEFT JOIN notification_recipients r ON r.notification_id = n.id
-       LEFT JOIN users u ON u.uid = n.sender_uid WHERE n.kind = 'announcement'
+       LEFT JOIN users u ON u.uid = n.sender_uid
+       LEFT JOIN posts p ON p.id = n.post_id LEFT JOIN categories c ON c.id = p.category_id WHERE n.kind = 'announcement'
        GROUP BY n.id, u.uid ORDER BY n.id DESC LIMIT 100`,
         )
       ).rows,

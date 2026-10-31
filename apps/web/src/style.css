@@ -417,7 +417,6 @@ small {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  scroll-snap-type: x proximity;
   padding: 2px 0 8px;
 }
 .category-carousel-viewport::-webkit-scrollbar {
@@ -432,7 +431,6 @@ small {
   overflow: hidden;
   text-align: left;
   border-radius: 8px;
-  scroll-snap-align: start;
   background: color-mix(in srgb, var(--card-bg) 80%, transparent);
   border: 1px solid var(--card-stroke);
   backdrop-filter: blur(22px) saturate(0.8);

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { postPath } from '../utils'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
@@ -88,7 +89,7 @@ async function followChanged(following: boolean) {
         <template v-if="tab === 'posts'"
           ><EmptyState v-if="!data.posts.length" title="暂无可阅读的帖子" icon="chat" />
           <section v-for="post in data.posts" :key="post.id" class="surface-card favorite-post">
-            <PostListItem :item="post" @click="router.push(`/post/${post.id}`)" /></section
+            <PostListItem :item="post" @click="router.push(postPath(post))" /></section
         ></template>
         <template v-else
           ><EmptyState v-if="!data.folders.length" title="暂无公开收藏夹" icon="favorite" />

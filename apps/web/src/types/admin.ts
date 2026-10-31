@@ -66,6 +66,8 @@ export interface AdminPost {
   is_pinned: boolean
   minimum_reader_level: number
   created_at: string
+  category_id: string
+  category_slug: string
   category_name: string
   author_uid: string
   display_name: string

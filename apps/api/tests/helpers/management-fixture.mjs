@@ -53,13 +53,20 @@ export async function createManagementFixture({
     await import("../../src/routes/media.ts")
   ).registerMediaRoutes(app, uploadRoot);
   if (configure) await configure(app);
+  const setupToken = (await query("SELECT setup_token FROM installation_state"))
+    .rows[0].setup_token;
   const password = randomUUID();
   const request = (method, url, payload, user) =>
     app.inject({
       method,
       url,
       payload,
-      headers: user ? { authorization: `Bearer ${user.token}` } : {},
+      headers: {
+        ...(user ? { authorization: `Bearer ${user.token}` } : {}),
+        ...(url === "/api/setup/initialize"
+          ? { "x-setup-token": setupToken }
+          : {}),
+      },
     });
   const ownerResponse = await request("POST", "/api/setup/initialize", {
     username: "permissions_owner",

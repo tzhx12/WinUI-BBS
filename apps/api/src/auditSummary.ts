@@ -166,6 +166,7 @@ const values: Record<string, string> = {
   pending: '待审核',
   hidden: '隐藏',
   rejected: '未通过',
+  global: '全局管理员用户组',
   management: '管理用户组',
   normal: '普通用户组',
   public: '公开用户组',

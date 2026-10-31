@@ -6,7 +6,7 @@ import { api } from '../api'
 import { useResource } from '../composables/useResource'
 import { useSite } from '../site'
 import type { PageParameter, PostSummary, ReplyThread as Thread } from '../types'
-import { formatDate, formatDateTime } from '../utils'
+import { categoryPath, postPath, formatDate, formatDateTime } from '../utils'
 import EditorComposer from '../components/EditorComposer.vue'
 import PostBody from '../components/PostBody.vue'
 import IconGlyph from '../components/IconGlyph.vue'
@@ -48,6 +48,11 @@ const canReply = computed(
   () => !isTrash && isPublic.value && site.user.value?.permissions?.includes('replies.create'),
 )
 watch(site.token, reload)
+watch(data, (value) => {
+  if (isTrash || !value) return
+  const path = postPath(value.post)
+  if (props.Parameter.path !== path) void router.replace({ path, query: props.Parameter.query })
+})
 async function goPage(value: number) {
   page.value = value
   await reload()
@@ -153,7 +158,9 @@ async function reply() {
           icon="back"
           subtle
           @click="
-            router.push(isTrash ? '/account/trash' : data ? `/category/${data.post.category_id}` : '/home')
+            router.push(
+              isTrash ? '/account/trash' : data ? categoryPath({ slug: data.post.category_slug }) : '/home',
+            )
           "
         /><span v-if="data">{{ data.post.category_name }}</span>
       </div>

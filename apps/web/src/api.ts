@@ -1,4 +1,5 @@
 export interface ApiOptions {
+  headers?: HeadersInit
   method?: string
   token?: string | null
   body?: unknown
@@ -14,7 +15,7 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
-  const headers = new Headers()
+  const headers = new Headers(options.headers)
   if (options.token) headers.set('Authorization', `Bearer ${options.token}`)
 
   let body: BodyInit | undefined
@@ -27,7 +28,8 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 
   const response = await fetch(path, { method: options.method, headers, body })
   const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string }
-  if (!response.ok) throw new ApiError(payload.message ?? payload.error ?? `请求失败 (${response.status})`, response.status)
+  if (!response.ok)
+    throw new ApiError(payload.message ?? payload.error ?? `请求失败 (${response.status})`, response.status)
   return payload as T
 }
 

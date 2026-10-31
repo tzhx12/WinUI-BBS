@@ -73,3 +73,13 @@ export const adminPermissions = {
   media: requirePermission('media.manage'),
   settings: requirePermission('settings.manage'),
 }
+
+export async function isGlobalAdministrator(uid: string) {
+  const result = await query(
+    `SELECT 1 FROM group_memberships gm JOIN user_groups g ON g.id = gm.group_id
+     WHERE gm.user_uid = $1 AND g.group_type = 'global'
+       AND (gm.expires_at IS NULL OR gm.expires_at > NOW())`,
+    [uid],
+  )
+  return !!result.rowCount
+}

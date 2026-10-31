@@ -371,7 +371,7 @@ test("permission revocation, expiry, invalid locks, reply locks and hidden text 
     [reader.user.uid],
   );
   await f.query(
-    "DELETE FROM group_permissions WHERE permission_key='posts.hide_content'",
+    "DELETE FROM group_permissions WHERE permission_key='posts.hide_content' AND group_id IN (SELECT id FROM user_groups WHERE group_type <> 'global')",
   );
   const result = await f.request(
     "POST",

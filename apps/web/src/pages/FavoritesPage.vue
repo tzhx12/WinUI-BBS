@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { postPath } from '../utils'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { TextBox, ToggleSwitch } from 'winuionweb'
@@ -213,7 +214,7 @@ async function move() {
           icon="favorite"
         />
         <section v-for="post in data.detail.posts" :key="post.id" class="surface-card favorite-post">
-          <PostListItem :item="post" @click="router.push(`/post/${post.id}`)" />
+          <PostListItem :item="post" @click="router.push(postPath(post))" />
           <div v-if="canEdit" class="row-actions">
             <WinButton
               label="移动到"

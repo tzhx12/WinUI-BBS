@@ -12,7 +12,7 @@ const folderSchema = z.object({
 })
 const id = z.string().regex(/^\d+$/)
 const postColumns = `p.id,p.title,p.body,p.minimum_reader_level,p.is_pinned,p.view_count,p.created_at,p.status,
- c.id AS category_id,c.name AS category_name,c.accent_color AS category_color,
+ c.id AS category_id,c.slug AS category_slug,c.name AS category_name,c.accent_color AS category_color,
  u.uid AS author_uid,u.username,u.display_name,u.avatar_url,u.experience,u.level_offset,
  (SELECT COUNT(*)::int FROM replies r WHERE r.post_id=p.id AND r.deleted_at IS NULL) AS reply_count,
  (SELECT COUNT(*)::int FROM post_likes l WHERE l.post_id=p.id) AS like_count`

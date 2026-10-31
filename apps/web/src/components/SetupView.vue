@@ -4,6 +4,7 @@ import { InfoBar, TextBox, PasswordBox } from 'winuionweb'
 import { api } from '../api'
 import type { User } from '../types'
 import WinButton from './ui/WinButton.vue'
+const props = defineProps<{ setupToken: string }>()
 const emit = defineEmits<{ complete: [value: { token: string; user: User }] }>()
 const username = ref(''),
   email = ref(''),
@@ -19,6 +20,7 @@ async function createOwner() {
       'complete',
       await api<{ token: string; user: User }>('/api/setup/initialize', {
         method: 'POST',
+        headers: { 'x-setup-token': props.setupToken },
         body: {
           username: username.value,
           email: email.value,

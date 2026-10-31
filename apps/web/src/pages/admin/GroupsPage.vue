@@ -40,6 +40,10 @@ const form = reactive({
   permissions: [] as string[],
   mediaLimits: {} as Partial<MediaLimits>,
 })
+const isGlobal = computed(() => form.groupType === 'global')
+const canManageGlobal = computed(() =>
+  site.user.value?.groups?.some((group) => group.group_type === 'global'),
+)
 const isManagement = computed(() => form.groupType === 'management')
 const isOrdinary = computed(() => form.groupType === 'normal' || form.groupType === 'public')
 const userPermissions = permissions.filter(([key]) => !managementPermissionKeys.includes(key))
@@ -74,6 +78,7 @@ function edit(group?: Group) {
 }
 function togglePermission(key: string, checked: boolean | null) {
   if (
+    isGlobal.value ||
     (isManagement.value && basicUserPermissionKeys.includes(key)) ||
     (isOrdinary.value && managementPermissionKeys.includes(key))
   )
@@ -177,10 +182,10 @@ async function removeMember(member: GroupMember) {
       <div v-if="!loading" class="group-grid">
         <section v-for="group in groups" :key="group.id" class="surface-card admin-group">
           <div class="section-toolbar">
-            <IconGlyph :name="group.group_type === 'management' ? 'shield' : 'people'" :size="26" /><span
-              class="tag"
-              >{{ groupTypes.find((type) => type.value === group.group_type)?.label }}</span
-            >
+            <IconGlyph
+              :name="['global', 'management'].includes(group.group_type) ? 'shield' : 'people'"
+              :size="26"
+            /><span class="tag">{{ groupTypes.find((type) => type.value === group.group_type)?.label }}</span>
           </div>
           <h2>{{ group.name }}</h2>
           <p v-if="group.description" class="secondary-text">{{ group.description }}</p>
@@ -198,6 +203,7 @@ async function removeMember(member: GroupMember) {
                 label="编辑"
                 icon="edit"
                 subtle
+                :disabled="group.group_type === 'global' && !canManageGlobal"
                 @click="edit(group)"
               /><WinButton
                 v-if="!group.is_protected"
@@ -220,7 +226,8 @@ async function removeMember(member: GroupMember) {
         ><TextBox v-model:Text="form.name" Header="名称" aria-label="用户组名称" :MaxLength="64" /><WinSelect
           v-model="form.groupType"
           label="用户组类型"
-          :options="groupTypes"
+          :options="groupTypes.filter((type) => isGlobal || type.value !== 'global')"
+          :disabled="isGlobal"
         /><TextBox
           v-model:Text="form.description"
           Header="说明"
@@ -240,11 +247,12 @@ async function removeMember(member: GroupMember) {
               :key="key"
               :Content="label"
               :IsChecked="form.permissions.includes(key)"
-              :IsEnabled="!(isManagement && basicUserPermissionKeys.includes(key))"
+              :IsEnabled="!isGlobal && !(isManagement && basicUserPermissionKeys.includes(key))"
               @update:IsChecked="togglePermission(key, $event)"
             />
           </div>
         </fieldset>
+        <p v-if="isGlobal" class="field-hint">全局管理员固定拥有全部权限。</p>
         <p v-if="isManagement" class="field-hint">管理用户组固定保留发帖、回复和使用图床权限。</p>
         <fieldset v-if="!isOrdinary" class="permissions-fieldset">
           <legend>管理类权限</legend>
@@ -255,6 +263,7 @@ async function removeMember(member: GroupMember) {
               :key="key"
               :Content="label"
               :IsChecked="form.permissions.includes(key)"
+              :IsEnabled="!isGlobal"
               @update:IsChecked="togglePermission(key, $event)"
             />
           </div>
@@ -286,7 +295,9 @@ async function removeMember(member: GroupMember) {
           ><WinButton
             label="添加成员"
             icon="add"
-            :disabled="saving || !memberUid.trim()"
+            :disabled="
+              saving || !memberUid.trim() || (memberGroup?.group_type === 'global' && !canManageGlobal)
+            "
             @click="addMember"
           />
         </div>
@@ -299,7 +310,16 @@ async function removeMember(member: GroupMember) {
                 {{ member.expires_at ? `${formatDate(member.expires_at)} 到期` : '长期成员' }}</small
               >
             </div>
-            <WinButton label="移除" icon="delete" subtle :disabled="saving" @click="removeMember(member)" />
+            <WinButton
+              label="移除"
+              icon="delete"
+              subtle
+              :disabled="
+                saving ||
+                (memberGroup?.group_type === 'global' && (member.uid === '1' || site.user.value?.uid !== '1'))
+              "
+              @click="removeMember(member)"
+            />
           </div>
           <p v-if="!members.length" class="secondary-text">暂无成员</p>
         </div></WinDialog

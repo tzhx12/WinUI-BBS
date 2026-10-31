@@ -94,7 +94,9 @@ const setLimits = async (limits, remoteConfig) => {
 before(async () => {
   await control.query(`CREATE SCHEMA ${schema}`);
   await runMigrations();
-  await query("UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'");
+  await query(
+    "UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'",
+  );
   uploadRoot = await mkdtemp(join(tmpdir(), "forum-media-"));
   await app.register(jwt, { secret: randomUUID() });
   await app.register(multipart, {
@@ -110,6 +112,11 @@ before(async () => {
     await app.inject({
       method: "POST",
       url: "/api/setup/initialize",
+      headers: {
+        "x-setup-token": (
+          await query("SELECT setup_token FROM installation_state")
+        ).rows[0].setup_token,
+      },
       payload: {
         username: "owner",
         email: "owner@example.test",
@@ -869,7 +876,9 @@ test("avatar uploads persist, reject invalid uploads and protect the active avat
   ).json();
   const firstImage = images.find((image) => image.url === firstUrl);
   assert.ok(firstImage);
-  const personalImages = (await request("GET", "/api/me/media", undefined, member)).json();
+  const personalImages = (
+    await request("GET", "/api/me/media", undefined, member)
+  ).json();
   assert.ok(!personalImages.some((image) => image.url === firstUrl));
   assert.equal(
     (
@@ -941,7 +950,9 @@ test("revoking media permission survives restart migrations and blocks upload en
     permissions: ["posts.create", "replies.create"],
   });
   await runMigrations();
-  await query("UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'");
+  await query(
+    "UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'",
+  );
   assert.equal(
     (await request("GET", "/api/me/media", undefined, other)).statusCode,
     403,

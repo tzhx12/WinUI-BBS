@@ -24,6 +24,7 @@ import {
   xamlScopeKey,
 } from 'winuionweb'
 import { api } from './api'
+import { categoryPath } from './utils'
 import { adminNavigationGroups, adminSections, createSite, siteKey } from './site'
 import type { Category, User } from './types'
 import HeaderSearch from './components/HeaderSearch.vue'
@@ -43,7 +44,7 @@ provide(xamlScopeKey, {})
 provide(xamlNameScopeKey, shallowReactive({}))
 const router = useRouter()
 const route = useRoute()
-const mode = ref<'loading' | 'ready' | 'setup' | 'error'>('loading')
+const mode = ref<'loading' | 'ready' | 'setup' | 'pending' | 'error'>('loading')
 const error = ref('')
 const frame = ref<InstanceType<typeof Frame> | null>(null)
 const navigation = ref<{ IsPaneOpen: boolean } | null>(null)
@@ -60,9 +61,11 @@ const canAccess = computed(
 const selectedNavigation = computed(() =>
   route.path.startsWith('/account/')
     ? '/account'
-    : route.path.startsWith('/post/') || route.path === '/compose' || route.path === '/search'
-      ? '/home'
-      : route.path,
+    : route.params.categorySlug
+      ? categoryPath({ slug: String(route.params.categorySlug) })
+      : route.path.startsWith('/post/') || route.path === '/compose' || route.path === '/search'
+        ? '/home'
+        : route.path,
 )
 
 function categoryItems(parent: string | null): unknown[] {
@@ -70,7 +73,7 @@ function categoryItems(parent: string | null): unknown[] {
     .filter((item) => item.parent_id === parent)
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((item: Category) => ({
-      Tag: `/category/${item.id}`,
+      Tag: categoryPath(item),
       Content: item.name,
       Icon: item.icon_image_url
         ? h(ImageIcon, { Source: item.icon_image_url, Width: 20, Height: 20 })
@@ -147,12 +150,15 @@ async function initialize() {
   mode.value = 'loading'
   error.value = ''
   try {
-    const status = await api<{ required: boolean }>('/api/setup/status')
+    const status = await api<{ required: boolean; allowed: boolean }>('/api/setup/status', {
+      headers: route.params.setupToken ? { 'x-setup-token': String(route.params.setupToken) } : undefined,
+    })
     if (status.required) {
-      mode.value = 'setup'
+      mode.value = status.allowed ? 'setup' : 'pending'
       return
     }
     await site.load()
+    if (route.params.setupToken) await router.replace('/home')
     mode.value = 'ready'
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '无法连接论坛服务'
@@ -163,11 +169,24 @@ async function initialize() {
 async function setupComplete(value: { token: string; user: User }) {
   await site.authenticate(value)
   await site.load()
+  await router.replace('/home')
   mode.value = 'ready'
 }
 
 async function renderPage() {
   if (mode.value !== 'ready' || !canAccess.value) return
+  if (route.params.setupToken) {
+    await router.replace('/home')
+    return
+  }
+  const slug = route.params.categorySlug
+  if (slug && !route.params.id && !site.categories.value.some((item) => item.slug === slug)) {
+    const legacy = site.categories.value.find((item) => item.id === slug)
+    if (legacy) {
+      await router.replace({ path: categoryPath(legacy), query: route.query })
+      return
+    }
+  }
   await nextTick()
   const component = route.matched.at(-1)?.components?.default as Component | undefined
   if (component && frame.value)
@@ -176,13 +195,14 @@ async function renderPage() {
       {
         path: route.path,
         id: route.params.id,
+        categorySlug: route.params.categorySlug,
         query: { ...route.query },
       },
       {
         IsNavigationStackEnabled: false,
         TransitionInfoOverride: {
           Type:
-            route.path.startsWith('/post/') || route.path.startsWith('/account/')
+            route.path.includes('/post/') || route.path.startsWith('/account/')
               ? 'DrillInNavigationTransitionInfo'
               : 'EntranceNavigationTransitionInfo',
         },
@@ -194,6 +214,7 @@ watch([mode, () => route.fullPath, canAccess], renderPage, { flush: 'post' })
 watch(
   () => route.path,
   (path) => {
+    if (mode.value === 'pending' || mode.value === 'setup') void initialize()
     if (path === '/reset-password') site.authOpen.value = false
   },
 )
@@ -220,7 +241,14 @@ onBeforeUnmount(() => clearInterval(unreadTimer))
       <TitleBarRightHeader><HeaderAccount /></TitleBarRightHeader>
     </TitleBar>
 
-    <SetupView v-if="mode === 'setup'" @complete="setupComplete" />
+    <SetupView
+      v-if="mode === 'setup'"
+      :setup-token="String(route.params.setupToken)"
+      @complete="setupComplete"
+    />
+    <div v-else-if="mode === 'pending'" class="app-status">
+      <EmptyState title="社区正在准备中" description="请等待管理员完成初始化。" icon="shield" />
+    </div>
     <div v-else-if="mode === 'loading'" class="app-status">
       <ProgressRing :IsActive="true" :Width="40" :Height="40" />
       <p>正在连接社区</p>

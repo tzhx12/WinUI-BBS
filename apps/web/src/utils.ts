@@ -33,7 +33,18 @@ export function itemTemplate(component: Component, property = 'item', props: Rec
   )
 }
 
+export function categoryPath(category: { slug: string }) {
+  return `/category/${encodeURIComponent(category.slug)}`
+}
+
+export function postPath(post: { id: string; category_slug: string; status?: string }) {
+  return post.status === 'hidden'
+    ? `/post/${post.id}`
+    : `${categoryPath({ slug: post.category_slug })}/post/${post.id}`
+}
+
 export const groupTypes = [
+  { value: 'global', label: '全局管理员用户组' },
   { value: 'management', label: '管理用户组' },
   { value: 'public', label: '公开用户组' },
   { value: 'normal', label: '普通用户组' },

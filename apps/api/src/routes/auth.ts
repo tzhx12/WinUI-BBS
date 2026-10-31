@@ -17,7 +17,7 @@ const usernameChangeAvailableAtSql = `CASE
   WHEN u.username_changed_at > NOW() - INTERVAL '180 days'
     AND NOT EXISTS (
       SELECT 1 FROM group_memberships gm JOIN user_groups g ON g.id = gm.group_id
-      WHERE gm.user_uid = u.uid AND g.group_type = 'management'
+      WHERE gm.user_uid = u.uid AND g.group_type IN ('management', 'global')
         AND (gm.expires_at IS NULL OR gm.expires_at > NOW())
     )
   THEN u.username_changed_at + INTERVAL '180 days'
@@ -109,6 +109,9 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
     try {
       const user = await inTransaction(async (client) => {
+        await client.query("SELECT pg_advisory_xact_lock(hashtext('forum-first-admin'))")
+        if (!(await client.query('SELECT 1 FROM users LIMIT 1')).rowCount)
+          throw Object.assign(new Error('社区尚未完成初始化'), { statusCode: 403 })
         const registration = await client.query<{ setting_key: string; setting_value: unknown }>(
           "SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ('registration_enabled', 'registration_mode', 'email_security') FOR SHARE",
         )

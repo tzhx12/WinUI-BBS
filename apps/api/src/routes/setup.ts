@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { inTransaction, query } from '../db.js'
+import { inTransaction } from '../db.js'
+import { setupState } from '../setup.js'
 
 const setupSchema = z.object({
   username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_.-]+$/),
@@ -12,12 +13,15 @@ const setupSchema = z.object({
 })
 
 export async function registerSetupRoutes(app: FastifyInstance) {
-  app.get('/api/setup/status', async () => {
-    const result = await query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users')
-    return { required: Number(result.rows[0]?.count ?? 0) === 0 }
+  app.get('/api/setup/status', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store')
+    return setupState(request.headers['x-setup-token'] as string | undefined)
   })
 
   app.post('/api/setup/initialize', async (request, reply) => {
+    const setupToken = request.headers['x-setup-token'] as string | undefined
+    if (!(await setupState(setupToken)).allowed)
+      return reply.code(404).send({ error: '管理员创建入口不可用' })
     const parsed = setupSchema.safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '请完整填写管理员账号，密码至少 10 位' })
     const passwordHash = await bcrypt.hash(parsed.data.password, 12)
@@ -25,14 +29,17 @@ export async function registerSetupRoutes(app: FastifyInstance) {
       await client.query("SELECT pg_advisory_xact_lock(hashtext('forum-first-admin'))")
       const existing = await client.query('SELECT 1 FROM users LIMIT 1')
       if (existing.rowCount) return null
+      const entry = await client.query('SELECT 1 FROM installation_state WHERE setup_token = $1 FOR UPDATE', [setupToken])
+      if (!entry.rowCount) return null
       const created = await client.query<{ uid: string; uuid: string; username: string; display_name: string }>(
-        `INSERT INTO users (username, email, password_hash, display_name)
-         VALUES ($1, $2, $3, $4) RETURNING uid, uuid, username, display_name`,
+        `INSERT INTO users (uid, username, email, password_hash, display_name)
+         VALUES (1, $1, $2, $3, $4) RETURNING uid, uuid, username, display_name`,
         [parsed.data.username.toLowerCase(), parsed.data.email.toLowerCase(), passwordHash, parsed.data.displayName],
       )
+      await client.query("SELECT setval(pg_get_serial_sequence('users', 'uid'), 1, TRUE)")
       const owner = created.rows[0]!
       const groups = await client.query<{ id: string; name: string }>(
-        "SELECT id, name FROM user_groups WHERE name = '站点管理' OR is_default = TRUE",
+        "SELECT id, name FROM user_groups WHERE group_type = 'global' OR is_default = TRUE",
       )
       for (const group of groups.rows) {
         await client.query('INSERT INTO group_memberships (user_uid, group_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [owner.uid, group.id])
@@ -53,6 +60,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
           [categoryId, owner.uid, title, JSON.stringify({ time: Date.now(), blocks: [{ id: randomUUID(), type: 'paragraph', data: { text } }], version: '2.31.0' })],
         )
       }
+      await client.query('UPDATE installation_state SET setup_token = NULL')
       return owner
     })
     if (!result) return reply.code(409).send({ error: '管理员已经创建，请登录' })

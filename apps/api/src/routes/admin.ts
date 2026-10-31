@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { resolve } from 'node:path'
 import { removeSiteAssetIfUnused } from '../siteAssets.js'
 import { z } from 'zod'
-import { adminPermissions } from '../auth.js'
+import { adminPermissions, isGlobalAdministrator } from '../auth.js'
 import { effectiveLevel, inTransaction, query } from '../db.js'
 import { homeContentSchema, httpUrl, mediaLimitsSchema, readSettings, saveSettings } from '../settings.js'
 import { grantLevelInvitations } from '../invitations.js'
@@ -128,6 +128,8 @@ export async function registerAdminRoutes(
     )
     if (!current.rows[0]) return reply.code(404).send({ error: '用户不存在' })
     const changes = parsed.data
+    if (uid === '1' && (changes.status === 'suspended' || changes.banMinutes != null))
+      return reply.code(403).send({ error: '不可停用或封禁首位管理员' })
     if (changes.status === 'suspended' || changes.banMinutes != null) {
       const access = await query<{
         is_manager: boolean
@@ -257,7 +259,7 @@ export async function registerAdminRoutes(
     const parsed = z
       .object({
         name: z.string().trim().min(2).max(48).optional(),
-        groupType: z.enum(groupTypes).optional(),
+        groupType: z.enum(['global', ...groupTypes]).optional(),
         description: z.string().max(500).optional(),
         isJoinable: z.boolean().optional(),
         permissions: z.array(z.enum(permissionKeys)).optional(),
@@ -268,6 +270,22 @@ export async function registerAdminRoutes(
     if (!parsed.success) return reply.code(400).send({ error: '请提供需要更新的字段' })
     const { id } = request.params as { id: string }
     const data = parsed.data
+    const group = (
+      await query<{ group_type: string }>('SELECT group_type FROM user_groups WHERE id = $1', [id])
+    ).rows[0]
+    if (!group) return reply.code(404).send({ error: '用户组不存在' })
+    if (group.group_type === 'global') {
+      if (!(await isGlobalAdministrator(request.user.uid)))
+        return reply.code(403).send({ error: '仅全局管理员可编辑该组' })
+      if (
+        (data.groupType && data.groupType !== 'global') ||
+        data.isJoinable ||
+        (data.permissions && permissionKeys.some((key) => !data.permissions!.includes(key)))
+      )
+        return reply.code(400).send({ error: '全局管理员组类型与全部权限不可变更' })
+    } else if (data.groupType === 'global') {
+      return reply.code(400).send({ error: '不可创建全局管理员组' })
+    }
     if (data.permissions && !data.permissions.includes('groups.manage')) {
       const access = await query<{
         is_manager_group: boolean
@@ -355,6 +373,8 @@ export async function registerAdminRoutes(
 
   app.delete('/api/admin/groups/:id', { preHandler: adminPermissions.groups }, async (request, reply) => {
     const { id } = request.params as { id: string }
+    const group = await query("SELECT 1 FROM user_groups WHERE id = $1 AND group_type = 'global'", [id])
+    if (group.rowCount) return reply.code(403).send({ error: '全局管理员组不可删除' })
     const access = await query<{
       is_manager_group: boolean
       has_active_member: boolean
@@ -399,6 +419,15 @@ export async function registerAdminRoutes(
         .safeParse(request.body)
       if (!parsed.success) return reply.code(400).send({ error: '成员资料无效' })
       const { id } = request.params as { id: string }
+      const group = (
+        await query<{ group_type: string }>('SELECT group_type FROM user_groups WHERE id = $1', [id])
+      ).rows[0]
+      if (!group) return reply.code(404).send({ error: '用户组不存在' })
+      if (group.group_type === 'global') {
+        if (!(await isGlobalAdministrator(request.user.uid)))
+          return reply.code(403).send({ error: '仅全局管理员可添加该组成员' })
+        if (parsed.data.expiresAt) return reply.code(400).send({ error: '全局管理员成员不可设置到期时间' })
+      }
       await query(
         `INSERT INTO group_memberships (user_uid, group_id, expires_at)
        VALUES ($1, $2, $3) ON CONFLICT (user_uid, group_id) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
@@ -414,6 +443,11 @@ export async function registerAdminRoutes(
     { preHandler: adminPermissions.groups },
     async (request, reply) => {
       const { id, uid } = request.params as { id: string; uid: string }
+      const group = await query("SELECT 1 FROM user_groups WHERE id = $1 AND group_type = 'global'", [id])
+      if (group.rowCount && (uid === '1' || request.user.uid !== '1'))
+        return reply.code(403).send({
+          error: uid === '1' ? 'UID 1 不可移出全局管理员组' : '仅 UID 1 可移除全局管理员成员',
+        })
       const access = await query<{ removing_last_manager: boolean }>(
         `SELECT
          EXISTS (SELECT 1 FROM group_memberships target
@@ -712,7 +746,7 @@ export async function registerAdminRoutes(
     const status = parsed.success ? (parsed.data.status ?? null) : null
     const result = await query(
       `SELECT p.id, p.title, p.status, p.is_pinned, p.minimum_reader_level, p.created_at,
-              c.name AS category_name, u.uid AS author_uid, u.display_name,
+              c.id AS category_id, c.slug AS category_slug, c.name AS category_name, u.uid AS author_uid, u.display_name,
               (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL)::int AS reply_count
        FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
        WHERE p.deleted_at IS NULL AND ($1::text IS NULL OR p.status = $1) ORDER BY p.created_at DESC LIMIT 200`,

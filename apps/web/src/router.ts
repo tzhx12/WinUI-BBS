@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import SetupView from './components/SetupView.vue'
 import FeedPage from './pages/FeedPage.vue'
 import PostPage from './pages/PostPage.vue'
 import ComposePage from './pages/ComposePage.vue'
@@ -42,7 +43,9 @@ export const router = createRouter({
     { path: '/home', component: FeedPage },
     { path: '/popular', component: FeedPage },
     { path: '/search', component: FeedPage },
-    { path: '/category/:id', component: FeedPage },
+    { path: '/category/:categorySlug', component: FeedPage },
+    { path: '/category/:categorySlug/post/:id', component: PostPage },
+    { path: '/setup/:setupToken', component: SetupView },
     { path: '/post/:id', component: PostPage },
     { path: '/compose', component: ComposePage },
     { path: '/profile', component: ProfilePage },

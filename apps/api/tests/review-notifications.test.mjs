@@ -27,7 +27,8 @@ const { registerMediaRoutes } = await import("../src/routes/media.ts");
 const { purgeExpiredPosts } = await import("../src/posts.ts");
 const app = Fastify();
 const password = randomUUID();
-let owner,
+let setupToken,
+  owner,
   member,
   reviewer,
   other,
@@ -38,7 +39,17 @@ let owner,
 const headers = (user) =>
   user ? { authorization: `Bearer ${user.token}` } : {};
 const request = (method, url, payload, user = owner) =>
-  app.inject({ method, url, payload, headers: headers(user) });
+  app.inject({
+    method,
+    url,
+    payload,
+    headers: {
+      ...headers(user),
+      ...(url === "/api/setup/initialize"
+        ? { "x-setup-token": setupToken }
+        : {}),
+    },
+  });
 const content = (text = "测试正文") => ({
   blocks: [{ type: "paragraph", data: { text } }],
 });
@@ -84,10 +95,14 @@ async function specialPermissions(permissions, user = member) {
 before(async () => {
   await control.query(`CREATE SCHEMA ${schema}`);
   await runMigrations();
-  await query("UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'");
+  await query(
+    "UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'",
+  );
   uploadRoot = await mkdtemp(join(tmpdir(), "forum-review-"));
   await app.register(jwt, { secret: randomUUID() });
   await app.register(multipart);
+  setupToken = (await query("SELECT setup_token FROM installation_state"))
+    .rows[0].setup_token;
   await registerSetupRoutes(app);
   await registerAuthRoutes(app);
   await registerAdminRoutes(app);
@@ -187,7 +202,9 @@ test("review precedence: global, category, bypass, mandatory, conflicting and ex
     403,
   );
   await runMigrations();
-  await query("UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'");
+  await query(
+    "UPDATE app_settings SET setting_value=jsonb_set(setting_value, '{directLibraryUploads}', 'true'::jsonb) WHERE setting_key='content_limits'",
+  );
   assert.equal(
     (await request("GET", "/api/admin/review-settings")).json()
       .posts_require_review,

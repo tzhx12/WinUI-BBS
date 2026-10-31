@@ -12,9 +12,13 @@ WinUI-BBS is an open-source discussion forum with a Vue 3 frontend, WinUIonWeb c
 2. Create a PostgreSQL database named `forum` and a login for the application.
 3. Copy `apps/api/.env.example` to `apps/api/.env`, then set `DATABASE_URL` and a private `JWT_SECRET`.
 4. Run `npm install`, then `npm run dev` from the repository root.
-5. Open `http://127.0.0.1:5173`. The first visit creates the site administrator; subsequent visits use the sign-in form.
+5. Open the complete private setup URL printed in the API startup log. The public homepage shows a preparation state until setup completes. The entry survives restarts and expires immediately after creating the administrator.
 
 The API listens on `http://127.0.0.1:4000`. It applies SQL migrations in filename order on startup, records applied files in `schema_migrations`, and stores uploaded media in `apps/api/data/uploads`.
+
+The unique global administrator group has every permission permanently. Its name can change, but its type and permissions cannot; it cannot be created or deleted. UID 1 is a permanent member and cannot be banned or suspended. Global administrators can add members; only UID 1 can remove other global administrators. Existing management groups can be deleted. Global administrators bypass post review and the username-change waiting period.
+
+Category URLs use the slug, for example `/#/category/square`. Posts use `/#/category/square/post/{uuid}`; hidden posts use `/#/post/{uuid}`. Older links redirect to the current canonical URL. Wheel scrolling over overflowing category cards moves through the cards first, then scrolls the page at the boundary.
 
 ## Updating an existing deployment
 
