@@ -115,10 +115,6 @@ licenses/    Third-party licenses and notices
 
 See the [configuration guide](docs/configuration.en.md) for permissions, review, media limits, storage policies and deployment details.
 
-### Builds and releases
-
-Each push to `dev` creates a `[main-version]-Alpha-[7-character-commit]` CI artifact. Merging dev into main without changing the version publishes `[main-version]-rcN`. To publish a stable version, run `npm run version:set -- NEW_VERSION` on dev and merge into main. The first main build publishes the current stable version; the workflow also supports a manual `stable` run on main. See [release and recovery details](docs/releases.md).
-
 ## Acknowledgements
 
 Built with [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb), [Vue](https://vuejs.org/), [Vue Router](https://router.vuejs.org/), [Editor.js](https://github.com/codex-team/editor.js), [DOMPurify](https://github.com/cure53/DOMPurify), [Fastify](https://fastify.dev/), [PostgreSQL](https://www.postgresql.org/), [Vite](https://vite.dev/) and [TypeScript](https://www.typescriptlang.org/).

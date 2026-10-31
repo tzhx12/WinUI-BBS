@@ -115,15 +115,6 @@ licenses/    第三方许可与声明
 
 详细的权限、审核、媒体限额、存储策略和部署说明见[使用与配置](docs/configuration.md)。
 
-### 构建与发布
-
-- 每次推送 `dev`，Actions 生成 `[main版本]-Alpha-[7位commit]` CI 包，可在工作流的 Artifacts 下载。
-- `dev` 合并到 `main` 且版本号未变时，发布 `[main版本]-rcN` 预发布包。
-- 要正式发布，先执行 `npm run version:set -- 新版本号`，再将 `dev` 合并到 `main`；版本号变更会触发正式 Release。
-- 首次 main 构建会发布当前 0.2.2；也可在 `main` 手动运行 **Build and release**，选择 `stable`。
-
-版本规则、安装目录及恢复步骤见[发布与更新](docs/releases.md)。
-
 ## 开源致谢
 
 感谢 [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb)、[Vue](https://vuejs.org/)、[Vue Router](https://router.vuejs.org/)、[Editor.js](https://github.com/codex-team/editor.js)、[DOMPurify](https://github.com/cure53/DOMPurify)、[Fastify](https://fastify.dev/)、[PostgreSQL](https://www.postgresql.org/)、[Vite](https://vite.dev/) 和 [TypeScript](https://www.typescriptlang.org/)。
