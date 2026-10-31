@@ -4,7 +4,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createManagementFixture } from './helpers/management-fixture.mjs'
-import { compareVersions, selectRelease } from '../src/release.ts'
+import { compareVersions, selectRelease, parseVersion } from '../src/release.ts'
 import { currentVersion } from '../src/version.ts'
 
 let f, directory, checkAutomaticUpdates
@@ -35,19 +35,42 @@ after(async () => {
   if (directory) await rm(directory, { recursive: true, force: true })
 })
 
-test('release channels filter drafts, CI, missing packages and sort numeric RCs', () => {
+test('release channels filter drafts, Alpha, legacy tags and mismatched flags; RCs sort numerically', () => {
   const items = [
     release('0.2.2'),
-    release('0.2.2-rc2', true),
-    release('0.2.2-rc10', true),
-    release('0.2.2-Alpha-abcdef1', true),
-    { ...release('0.3.0'), draft: true },
-    { ...release('0.4.0'), assets: [] },
+    release('0.3.0-rc.2', true),
+    release('0.3.0-rc.10', true),
+    release('0.3.0-Alpha.abcdef1', true),
+    release('0.2.2-rc1', true),
+    release('0.6.0-rc.1'),
+    release('0.7.0', true),
+    { ...release('0.8.0'), draft: true },
+    { ...release('0.9.0'), assets: [] },
   ]
   assert.equal(selectRelease(items, 'releases').version, '0.2.2')
-  assert.equal(selectRelease(items, 'pre-releases').version, '0.2.2-rc10')
-  assert.ok(compareVersions('0.2.2-rc1', '0.2.2') > 0)
-  assert.ok(compareVersions('0.2.3', '0.2.2-rc99') > 0)
+  assert.equal(selectRelease(items, 'pre-releases').version, '0.3.0-rc.10')
+  items.push(release('0.3.0'))
+  assert.equal(selectRelease(items, 'releases').version, '0.3.0')
+  assert.equal(selectRelease(items, 'pre-releases').version, '0.3.0')
+})
+test('SemVer places the next pre-release above the current stable and below its own stable', () => {
+  const versions = [
+    '0.2.2',
+    '0.3.0-Alpha.abcdef1',
+    '0.3.0-rc.1',
+    '0.3.0-rc.2',
+    '0.3.0-rc.10',
+    '0.3.0',
+    '0.4.0-rc.1',
+    '0.4.0',
+  ]
+  for (let i = 1; i < versions.length; i++)
+    assert.ok(compareVersions(versions[i], versions[i - 1]) > 0, versions[i])
+  assert.equal(compareVersions('0.3.0+build.1', '0.3.0+build.2'), 0)
+  assert.equal(parseVersion('0.3.0-rc.01'), null)
+  // Existing installations keep a readable current version after the rule change.
+  assert.ok(compareVersions('0.3.0', '0.2.2-rc1') > 0)
+  assert.ok(compareVersions('0.3.0', '0.2.2-Alpha-abcdef1') > 0)
 })
 test('all update endpoints require settings.manage', async () => {
   const user = f.managers.find((m) => m.permission === 'users.manage')
@@ -108,7 +131,7 @@ test('checking reports no release, available update and GitHub failures without 
     { automatic: false, channel: 'pre-releases' },
     f.owner,
   )
-  const next = `${Number(currentVersion.split('.')[0]) + 1}.0.0-rc1`
+  const next = `${Number(currentVersion.split('.')[0]) + 1}.0.0-rc.1`
   globalThis.fetch = async () => Response.json([release(next, true)])
   let result = await f.request(
     'POST',

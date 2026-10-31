@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Use stable on main to publish the initial current version; normally use auto."
+        description: "Use auto normally; stable on main publishes the configured version if its tag does not exist."
         type: choice
         options: [auto, stable]
         default: auto

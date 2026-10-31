@@ -1,9 +1,14 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
+import semver from 'semver'
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim()
-const stable = (value) => /^\d+\.\d+\.\d+$/.test(value)
+const stable = (value) =>
+  semver.valid(value) === value &&
+  semver.prerelease(value) === null &&
+  semver.parse(value).build.length === 0
+const nextStable = (value) => semver.inc(value, 'minor')
 export function releasePlan({
   branch,
   version,
@@ -13,22 +18,29 @@ export function releasePlan({
   tags,
   mergeCount,
   mode = 'auto',
+  nextVersion,
 }) {
   if (!stable(version) || !stable(mainVersion))
     throw new Error('Use a stable x.y.z version in package.json')
   if (!/^[0-9a-f]{7,40}$/.test(sha)) throw new Error('Invalid commit ID')
+  const published = tags
+    .filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag))
+    .map((tag) => tag.slice(1))
+    .sort(semver.rcompare)[0]
   if (branch === 'dev') {
     if (mode !== 'auto') throw new Error('Publish releases from main only')
-    return { version: `${mainVersion}-Alpha-${sha.slice(0, 7)}`, kind: 'ci' }
+    const target =
+      nextVersion ||
+      (semver.gt(version, published || mainVersion)
+        ? version
+        : nextStable(published || mainVersion))
+    if (!stable(target) || semver.lte(target, published || mainVersion))
+      throw new Error('The next stable version must increase')
+    return { version: `${target}-Alpha.${sha.slice(0, 7)}`, kind: 'ci' }
   }
   if (branch !== 'main') throw new Error('Release branch must be main or dev')
-  if (previousVersion && version !== previousVersion) {
-    const before = previousVersion.split('.').map(Number),
-      after = version.split('.').map(Number)
-    const direction =
-      after[0] - before[0] || after[1] - before[1] || after[2] - before[2]
-    if (direction <= 0) throw new Error('The stable version must increase')
-  }
+  if (previousVersion && semver.lt(version, previousVersion))
+    throw new Error('The stable version must increase')
   const official =
     mode === 'stable' ||
     (previousVersion && version !== previousVersion) ||
@@ -36,13 +48,18 @@ export function releasePlan({
   if (official) {
     if (tags.includes(`v${version}`))
       throw new Error(`v${version} already exists`)
+    if (published && semver.lte(version, published))
+      throw new Error('The stable version must increase')
     return { version, kind: 'stable' }
   }
   if (!Number.isSafeInteger(mergeCount) || mergeCount < 1)
     throw new Error(
       'No main integration since the stable release; publish the initial stable version first',
     )
-  return { version: `${version}-rc${mergeCount}`, kind: 'rc' }
+  const target = nextVersion || nextStable(version)
+  if (!stable(target) || semver.lte(target, version))
+    throw new Error('The next stable version must increase')
+  return { version: `${target}-rc.${mergeCount}`, kind: 'rc' }
 }
 
 export function countIntegrations(runs, baseSha, currentSha, isAncestor) {
@@ -109,8 +126,25 @@ if (
     const version = process.argv[3]
     if (!stable(version)) throw new Error('Expected x.y.z')
     await stampVersion(version)
+    const manifest = JSON.parse(await readFile('package.json', 'utf8'))
+    if (
+      manifest.release?.nextVersion &&
+      semver.lte(manifest.release.nextVersion, version)
+    ) {
+      delete manifest.release.nextVersion
+      if (!Object.keys(manifest.release).length) delete manifest.release
+      await writeFile('package.json', JSON.stringify(manifest, null, 2) + '\n')
+    }
+  } else if (process.argv[2] === 'next') {
+    const version = process.argv[3]
+    const manifest = JSON.parse(await readFile('package.json', 'utf8'))
+    if (!stable(version) || semver.lte(version, manifest.version))
+      throw new Error('The next stable version must increase')
+    manifest.release = { ...manifest.release, nextVersion: version }
+    await writeFile('package.json', JSON.stringify(manifest, null, 2) + '\n')
   } else {
-    const version = JSON.parse(await readFile('package.json', 'utf8')).version
+    const manifest = JSON.parse(await readFile('package.json', 'utf8'))
+    const version = manifest.version
     const branch =
       process.env.GITHUB_REF_NAME || git('branch', '--show-current')
     const mainVersion = JSON.parse(
@@ -140,6 +174,7 @@ if (
       tags,
       mergeCount,
       mode,
+      nextVersion: manifest.release?.nextVersion,
     })
     await stampVersion(plan.version)
     if (process.env.GITHUB_OUTPUT)

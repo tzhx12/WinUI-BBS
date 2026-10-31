@@ -60,7 +60,7 @@ curl -fL --retry 3 --proto '=https' "$release_url" -o "$task_tmp/release.tar.gz"
 fi
 tar -tzf "$task_tmp/release.tar.gz" | node --input-type=module -e 'let s="";for await(const b of process.stdin)s+=b;for(const p of s.trim().split("\n"))if(p.startsWith("/")||p.split("/").includes(".."))throw Error("Unsafe archive")'
 if tar -tvzf "$task_tmp/release.tar.gz" | grep -Eq '^[lh]'; then echo 'Archive contains links' >&2; exit 1; fi
-version=$(tar -xOf "$task_tmp/release.tar.gz" ./package.json | node --input-type=module -e 'let s="";for await(const b of process.stdin)s+=b;const {version}=JSON.parse(s);if(!/^\d+\.\d+\.\d+(?:-(?:rc\d+|Alpha-[0-9a-f]{7,40}))?$/.test(version))throw Error("Invalid package version");console.log(version)')
+version=$(tar -xOf "$task_tmp/release.tar.gz" ./package.json | node --input-type=module -e 'let s="";for await(const b of process.stdin)s+=b;const {version}=JSON.parse(s);if(!/^\d+\.\d+\.\d+(?:-(?:rc(?:\.[1-9]\d*|\d+)|Alpha[.-][0-9a-f]{7,40}))?$/.test(version))throw Error("Invalid package version");console.log(version)')
 if [[ $# == 0 ]]; then
   [[ "v$version" == "$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1])).tag_name' "$task_tmp/release.json")" ]] || exit 1
 fi

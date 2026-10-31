@@ -1,3 +1,5 @@
+import semver from 'semver'
+
 export const releaseRepository = 'tzhx12/WinUI-BBS'
 export const releaseAssetName = 'winui-bbs.tar.gz'
 export type UpdateChannel = 'releases' | 'pre-releases'
@@ -11,27 +13,12 @@ export type Release = {
 }
 
 export function parseVersion(value: string) {
-  const match =
-    /^v?(\d+)\.(\d+)\.(\d+)(?:-(rc(\d+)|Alpha-([0-9a-f]{7,40})))?$/.exec(value)
-  // RCs in this project follow the stable base (0.2.2 -> 0.2.2-rc1).
-  return match
-    ? {
-        base: match.slice(1, 4).map(Number),
-        stage: match[6] ? 0 : match[5] ? 2 : 1,
-        rc: Number(match[5] || 0),
-      }
-    : null
+  return semver.parse(value)
 }
 
 export function compareVersions(a: string, b: string) {
-  const left = parseVersion(a),
-    right = parseVersion(b)
-  if (!left || !right) throw new Error('无法识别版本号')
-  for (let i = 0; i < 3; i++) {
-    const difference = left.base[i]! - right.base[i]!
-    if (difference) return difference
-  }
-  return left.stage - right.stage || left.rc - right.rc
+  if (!parseVersion(a) || !parseVersion(b)) throw new Error('无法识别版本号')
+  return semver.compare(a, b)
 }
 
 export function selectRelease(
@@ -43,14 +30,15 @@ export function selectRelease(
     const value = item as Record<string, any>
     const parsed =
       typeof value.tag_name === 'string' && parseVersion(value.tag_name)
-    if (
-      !parsed ||
-      parsed.stage === 0 ||
-      value.draft ||
-      (channel === 'releases' && value.prerelease)
-    )
-      continue
-    if (value.prerelease !== (parsed.stage === 2)) continue
+    if (!parsed || value.draft) continue
+    const isStable = parsed.prerelease.length === 0
+    const isRc =
+      parsed.prerelease.length === 2 &&
+      parsed.prerelease[0] === 'rc' &&
+      typeof parsed.prerelease[1] === 'number' &&
+      parsed.prerelease[1] > 0
+    if (!isStable && !isRc) continue
+    if (value.prerelease !== isRc || (channel === 'releases' && isRc)) continue
     const version = value.tag_name.replace(/^v/, '')
     const asset =
       Array.isArray(value.assets) &&

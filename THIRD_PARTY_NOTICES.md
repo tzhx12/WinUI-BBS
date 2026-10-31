@@ -41,6 +41,8 @@ The application has an About page with links to these projects and their roles:
 | [concurrently](https://github.com/open-cli-tools/concurrently)                           | Development process management          | MIT                                 |
 | [Prettier](https://prettier.io/)                                                         | Formatting                              | MIT                                 |
 
+[node-semver](https://github.com/npm/node-semver), licensed under ISC, implements SemVer parsing and ordering for builds and updates. Its installed package includes the license text.
+
 Dependency versions are recorded in `package-lock.json`. Package-specific license files and notices remain with the installed dependencies.
 
 [parse5](https://github.com/inikulin/parse5), licensed under MIT, parses rich-text fragments on the server to validate inline remote emoji and count them toward image limits. Its installed dependency includes the license text.

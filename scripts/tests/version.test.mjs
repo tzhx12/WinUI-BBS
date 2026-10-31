@@ -16,21 +16,48 @@ const input = {
   tags: ['v0.2.2'],
   mergeCount: 1,
 }
-test('dev CI uses main base even when dev stages a future stable version', () => {
+test('dev CI uses the next stable base, including an explicitly staged stable version', () => {
   assert.deepEqual(releasePlan({ ...input, branch: 'dev', version: '0.3.0' }), {
-    version: '0.2.2-Alpha-abcdef1',
+    version: '0.3.0-Alpha.abcdef1',
     kind: 'ci',
   })
 })
+test('default targets advance the minor version and explicit targets apply to Alpha and RC', () => {
+  assert.equal(
+    releasePlan({ ...input, branch: 'dev' }).version,
+    '0.3.0-Alpha.abcdef1',
+  )
+  for (const branch of ['dev', 'main']) {
+    const plan = releasePlan({ ...input, branch, nextVersion: '1.0.0' })
+    assert.equal(
+      plan.version,
+      branch === 'dev' ? '1.0.0-Alpha.abcdef1' : '1.0.0-rc.1',
+    )
+    assert.throws(
+      () => releasePlan({ ...input, branch, nextVersion: '0.2.2' }),
+      /must increase/,
+    )
+  }
+  assert.equal(
+    releasePlan({
+      ...input,
+      branch: 'dev',
+      version: '0.3.0',
+      mainVersion: '0.3.0',
+      tags: ['v0.3.0'],
+    }).version,
+    '0.4.0-Alpha.abcdef1',
+  )
+})
 test('unchanged main version starts and increments RC count numerically', () => {
-  assert.equal(releasePlan(input).version, '0.2.2-rc1')
+  assert.equal(releasePlan(input).version, '0.3.0-rc.1')
   assert.equal(
     releasePlan({
       ...input,
       mergeCount: 11,
-      tags: [...input.tags, 'v0.2.2-rc2', 'v0.2.2-rc10', 'v0.2.1-rc100'],
+      tags: [...input.tags, 'v0.3.0-rc.2', 'v0.3.0-rc.10', 'v0.2.1-rc100'],
     }).version,
-    '0.2.2-rc11',
+    '0.3.0-rc.11',
   )
 })
 test('explicit version change produces a stable release and resets the RC sequence', () => {
@@ -43,9 +70,9 @@ test('explicit version change produces a stable release and resets the RC sequen
       ...input,
       version: '0.3.0',
       previousVersion: '0.3.0',
-      tags: ['v0.2.2-rc12', 'v0.3.0'],
+      tags: ['v0.3.0-rc.12', 'v0.3.0'],
     }).version,
-    '0.3.0-rc1',
+    '0.4.0-rc.1',
   )
 })
 test('bootstrap is main only, and stable versions cannot be overwritten or decreased', () => {
@@ -117,13 +144,13 @@ test('stamping updates only project versions and keeps dependency versions intac
       }),
     )
     process.chdir(directory)
-    await stampVersion('0.2.2-Alpha-abcdef1')
+    await stampVersion('0.3.0-Alpha.abcdef1')
     const lock = JSON.parse(await readFile('package-lock.json', 'utf8'))
-    assert.equal(lock.packages['apps/api'].version, '0.2.2-Alpha-abcdef1')
+    assert.equal(lock.packages['apps/api'].version, '0.3.0-Alpha.abcdef1')
     assert.equal(lock.packages['node_modules/example'].version, '1.2.3')
     assert.equal(
       JSON.parse(await readFile('apps/web/package.json')).version,
-      '0.2.2-Alpha-abcdef1',
+      '0.3.0-Alpha.abcdef1',
     )
   } finally {
     process.chdir(original)
@@ -188,14 +215,44 @@ test('CLI derives RC counts from Git integration tags and stamps deployable mani
         GITHUB_OUTPUT: '',
       },
     })
-    assert.deepEqual(JSON.parse(output), { version: '0.2.2-rc2', kind: 'rc' })
+    assert.deepEqual(JSON.parse(output), { version: '0.3.0-rc.2', kind: 'rc' })
     assert.equal(
       JSON.parse(
         await readFile(join(directory, 'apps/api/package.json'), 'utf8'),
       ).version,
-      '0.2.2-rc2',
+      '0.3.0-rc.2',
     )
-    execFileSync(process.execPath, [script, 'set', '0.3.0'], { cwd: directory })
+    execFileSync(process.execPath, [script, 'set', '0.2.2'], {
+      cwd: directory,
+    })
+    execFileSync(process.execPath, [script, 'next', '0.5.0'], {
+      cwd: directory,
+    })
+    assert.equal(
+      JSON.parse(await readFile(join(directory, 'package.json'))).release
+        .nextVersion,
+      '0.5.0',
+    )
+    const customRc = execFileSync(process.execPath, [script], {
+      cwd: directory,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_REF_NAME: 'main',
+        BEFORE_SHA: base,
+        RELEASE_MODE: 'auto',
+        GITHUB_OUTPUT: '',
+      },
+    })
+    assert.equal(JSON.parse(customRc).version, '0.5.0-rc.2')
+    execFileSync(process.execPath, [script, 'set', '0.5.0'], {
+      cwd: directory,
+    })
+    assert.equal(
+      JSON.parse(await readFile(join(directory, 'package.json'))).release,
+      undefined,
+    )
+
     const alpha = execFileSync(process.execPath, [script], {
       cwd: directory,
       encoding: 'utf8',
@@ -209,7 +266,7 @@ test('CLI derives RC counts from Git integration tags and stamps deployable mani
     })
     assert.equal(
       JSON.parse(alpha).version,
-      `0.2.2-Alpha-${git('rev-parse', '--short=7', 'HEAD')}`,
+      `0.5.0-Alpha.${git('rev-parse', '--short=7', 'HEAD')}`,
     )
   } finally {
     await rm(directory, { recursive: true, force: true })
