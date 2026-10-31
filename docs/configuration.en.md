@@ -2,7 +2,7 @@
 
 [Project home](../README.en.md) · [简体中文](configuration.md)
 
-**Version 0.2.2** · GPL-3.0-only
+**Version 0.3.0** · GPL-3.0-only
 
 WinUI-BBS is an open-source discussion forum with a Vue 3 frontend, WinUIonWeb controls, a Fastify API and PostgreSQL.
 
@@ -157,7 +157,7 @@ Image management searches filenames, descriptions and pack names, combines searc
 
 ## About and open-source credits
 
-Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 0.2.2 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
+Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 0.3.0 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
 
 The project version comes from the root `package.json`. Site administrators can configure their own community name independently.
 

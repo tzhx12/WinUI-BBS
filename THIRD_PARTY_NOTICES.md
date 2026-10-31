@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-WinUI-BBS 0.2.2 is distributed under GPL-3.0-only. WinUIonWeb is also GPL-3.0-only; its full license is in `LICENSE` and its upstream-specific notices are in `licenses/WinUIonWeb-THIRD_PARTY_NOTICES.md`.
+WinUI-BBS 0.3.0 is distributed under GPL-3.0-only. WinUIonWeb is also GPL-3.0-only; its full license is in `LICENSE` and its upstream-specific notices are in `licenses/WinUIonWeb-THIRD_PARTY_NOTICES.md`.
 
 Editor.js is Apache-2.0. The license text is in `licenses/editorjs/Apache-2.0.txt`. The Editor.js tool packages used by the editor identify their licenses in their npm package metadata; the MIT-licensed tool packages remain separate dependencies in `package-lock.json`.
 

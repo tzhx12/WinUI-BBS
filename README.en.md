@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | English
 
-[![Version 0.2.2](https://img.shields.io/badge/version-0.2.2-0078D4)](package.json)
+[![Version 0.3.0](https://img.shields.io/badge/version-0.3.0-0078D4)](package.json)
 [![GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-2d7d46)](LICENSE)
 
 An open-source discussion forum with a **WinUI-style interface**, built with Vue 3, WinUIonWeb, Fastify and PostgreSQL. It provides rich discussions, user spaces, fine-grained permissions and a visual administration panel. The interface is currently in Simplified Chinese.
