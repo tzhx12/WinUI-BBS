@@ -4,4 +4,5 @@ CREATE TABLE installation_state (
   setup_token TEXT
 );
 INSERT INTO installation_state (setup_token)
-SELECT CASE WHEN EXISTS (SELECT 1 FROM users) THEN NULL ELSE encode(gen_random_bytes(32), 'hex') END;
+SELECT CASE WHEN EXISTS (SELECT 1 FROM users) THEN NULL
+  ELSE replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '') END;
