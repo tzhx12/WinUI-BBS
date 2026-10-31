@@ -26,44 +26,59 @@ export async function registerEmailRoutes(app: FastifyInstance) {
   app.get('/api/admin/mail-settings', { preHandler: adminPermissions.settings }, async () =>
     publicMailTransport(await readMailTransport()),
   )
-  app.put('/api/admin/mail-settings', { preHandler: adminPermissions.settings }, async (request, reply) => {
-    const parsed = mailTransportSchema.safeParse(request.body)
-    if (!parsed.success) return reply.code(400).send({ error: '请检查发信和收信设置' })
-    const value = parsed.data
-    await inTransaction(async (client) => {
-      const stored = (
-        await client.query<{ setting_value: typeof value }>(
-          "SELECT setting_value FROM app_settings WHERE setting_key='mail_transport' FOR UPDATE",
+  app.put(
+    '/api/admin/mail-settings',
+    { preHandler: adminPermissions.settings },
+    async (request, reply) => {
+      const parsed = mailTransportSchema.safeParse(request.body)
+      if (!parsed.success) return reply.code(400).send({ error: '请检查发信和收信设置' })
+      const value = parsed.data
+      await inTransaction(async (client) => {
+        const stored = (
+          await client.query<{ setting_value: typeof value }>(
+            "SELECT setting_value FROM app_settings WHERE setting_key='mail_transport' FOR UPDATE",
+          )
+        ).rows[0]!.setting_value
+        for (const key of ['smtp', 'imap'] as const)
+          value[key].password = value[key].password
+            ? encryptMailSecret(value[key].password)
+            : stored[key].password
+        if (
+          value.enabled &&
+          (!value.fromAddress || !value.smtp.host || !value.smtp.user || !value.smtp.password)
         )
-      ).rows[0]!.setting_value
-      for (const key of ['smtp', 'imap'] as const)
-        value[key].password = value[key].password
-          ? encryptMailSecret(value[key].password)
-          : stored[key].password
-      if (
-        value.enabled &&
-        (!value.fromAddress || !value.smtp.host || !value.smtp.user || !value.smtp.password)
-      )
-        throw mailError('启用发信需填写发件邮箱、SMTP 地址、账号和密码')
-      if (value.imap.enabled && (!value.imap.host || !value.imap.user || !value.imap.password))
-        throw mailError('启用 IMAP 需填写收信服务器、账号和密码')
-      if (!value.enabled && (await emailSecurity(client)).registrationVerification)
-        throw mailError('请先关闭注册邮箱验证，再停用发信服务')
-      await saveSettings({ mail_transport: value }, client)
-      await client.query(
-        "INSERT INTO audit_events(actor_uid,action_key,target_type) VALUES($1,'mail.settings.update','site')",
-        [request.user.uid],
-      )
-    })
-    return { saved: true }
-  })
+          throw mailError('启用发信需填写发件邮箱、SMTP 地址、账号和密码')
+        if (value.imap.enabled && (!value.imap.host || !value.imap.user || !value.imap.password))
+          throw mailError('启用 IMAP 需填写收信服务器、账号和密码')
+        if (!value.enabled && (await emailSecurity(client)).registrationVerification)
+          throw mailError('请先关闭注册邮箱验证，再停用发信服务')
+        await saveSettings({ mail_transport: value }, client)
+        await client.query(
+          "INSERT INTO audit_events(actor_uid,action_key,target_type,details) VALUES($1,'mail.settings.update','site',$2::jsonb)",
+          [
+            request.user.uid,
+            JSON.stringify({
+              enabled: value.enabled,
+              smtpConfigured: !!value.smtp.host,
+              imapEnabled: value.imap.enabled,
+            }),
+          ],
+        )
+      })
+      return { saved: true }
+    },
+  )
   app.post(
     '/api/admin/mail-settings/test',
     { preHandler: adminPermissions.settings },
     async (request, reply) => {
       const parsed = z.object({ email: emailSchema }).safeParse(request.body)
       if (!parsed.success) return reply.code(400).send({ error: '请填写测试收件邮箱' })
-      await sendEmail(parsed.data.email, 'WinUI-BBS · 发信测试', '发信测试成功。此邮件由站点管理后台发出。')
+      await sendEmail(
+        parsed.data.email,
+        'WinUI-BBS · 发信测试',
+        '发信测试成功。此邮件由站点管理后台发出。',
+      )
       return { sent: true }
     },
   )
@@ -188,15 +203,17 @@ export async function registerEmailRoutes(app: FastifyInstance) {
     return { changed: true }
   })
   app.post('/api/me/password/code', { preHandler: authenticate }, async (request) => {
-    const user = (await query<{ email: string }>('SELECT email FROM users WHERE uid=$1', [request.user.uid]))
-      .rows[0]!
+    const user = (
+      await query<{ email: string }>('SELECT email FROM users WHERE uid=$1', [request.user.uid])
+    ).rows[0]!
     return issueEmailChallenge(user.email.toLowerCase(), 'password_change', request.user.uid)
   })
   app.post('/api/me/password', { preHandler: authenticate }, async (request, reply) => {
     const parsed = z
       .object({ code: z.string().regex(/^\d{6}$/), password: passwordSchema })
       .safeParse(request.body)
-    if (!parsed.success) return reply.code(400).send({ error: '请填写 6 位邮箱验证码，新密码需为 10–128 位' })
+    if (!parsed.success)
+      return reply.code(400).send({ error: '请填写 6 位邮箱验证码，新密码需为 10–128 位' })
     const hash = await bcrypt.hash(parsed.data.password, 12)
     const result = await inTransaction(async (client) => {
       const security = await emailSecurity(client)

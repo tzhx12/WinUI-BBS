@@ -1,7 +1,7 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Pool } from "pg";
@@ -10,7 +10,10 @@ import jwt from "@fastify/jwt";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 
-export async function createManagementFixture({ serve = false, configure } = {}) {
+export async function createManagementFixture({
+  serve = false,
+  configure,
+} = {}) {
   const schema = `forum_permissions_${randomUUID().replaceAll("-", "")}`;
   const control = new Pool({ connectionString: process.env.DATABASE_URL });
   await control.query(`CREATE SCHEMA ${schema}`);
@@ -20,7 +23,9 @@ export async function createManagementFixture({ serve = false, configure } = {})
   const { pool, query, runMigrations } = await import("../../src/db.ts");
   await runMigrations();
   const app = Fastify();
-  const uploadRoot = await mkdtemp(join(tmpdir(), "forum-permissions-"));
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "forum-permissions-"));
+  const uploadRoot = join(fixtureRoot, "uploads");
+  await mkdir(uploadRoot);
   await app.register(jwt, { secret: randomUUID() });
   await app.register(multipart);
   await app.register(fastifyStatic, { root: uploadRoot, prefix: "/uploads/" });
@@ -43,7 +48,7 @@ export async function createManagementFixture({ serve = false, configure } = {})
   ])
     await (
       await import(`../../src/routes/${module}.ts`)
-    )[fn](app, ...(module === "forum" ? [uploadRoot] : []));
+    )[fn](app, ...(["forum", "admin"].includes(module) ? [uploadRoot] : []));
   await (
     await import("../../src/routes/media.ts")
   ).registerMediaRoutes(app, uploadRoot);
@@ -103,7 +108,7 @@ export async function createManagementFixture({ serve = false, configure } = {})
     await pool.end();
     await control.query(`DROP SCHEMA ${schema} CASCADE`);
     await control.end();
-    await rm(uploadRoot, { recursive: true, force: true });
+    await rm(fixtureRoot, { recursive: true, force: true });
   }
   return {
     schema,
@@ -133,6 +138,7 @@ export const adminPages = [
   ["groups", "用户组与权限", "groups.manage", "/api/admin/groups"],
   ["levels", "等级与经验", "levels.manage", "/api/admin/level-config"],
   ["categories", "板块结构", "categories.manage", "/api/admin/categories"],
+  ["home-settings", "主页设置", "settings.manage", "/api/admin/home-settings"],
   ["posts", "发帖管理", "posts.manage", "/api/admin/posts"],
   [
     "content-settings",

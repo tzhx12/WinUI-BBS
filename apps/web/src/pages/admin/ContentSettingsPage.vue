@@ -9,14 +9,19 @@ import WinButton from '../../components/ui/WinButton.vue'
 defineOptions({ inheritAttrs: false })
 const site = useSite()
 const { data, loading, error, saving, run } = useResource(
-  () => api<typeof site.settings.contentLimits>('/api/admin/content-settings', { token: site.token.value }),
+  () =>
+    api<typeof site.settings.contentLimits>('/api/admin/content-settings', { token: site.token.value }),
   { ...site.settings.contentLimits },
 )
 async function save() {
   if (
     await run(
       () =>
-        api('/api/admin/content-settings', { method: 'PATCH', token: site.token.value, body: data.value }),
+        api('/api/admin/content-settings', {
+          method: 'PATCH',
+          token: site.token.value,
+          body: data.value,
+        }),
       '发帖与回复设置已保存',
     )
   )
@@ -30,6 +35,19 @@ async function save() {
         ><WinButton label="保存设置" accent :disabled="saving || loading" @click="save"
       /></PageHeader>
       <ResourceState :loading="loading" :error="error" />
+      <section class="surface-card settings-form">
+        <h2>帖子列表</h2>
+        <NumberBox
+          v-model:Value="data.postsPerPage"
+          Header="每页帖子数（10–50）"
+          :Minimum="10"
+          :Maximum="50"
+          :SmallChange="1"
+          SpinButtonPlacementMode="Inline"
+          AutomationProperties.Name="每页帖子数"
+        />
+        <p class="field-hint">适用于社区首页、热门讨论和各板块。</p>
+      </section>
       <section class="surface-card settings-form">
         <h2>帖子正文</h2>
         <div class="form-columns">

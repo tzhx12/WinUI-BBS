@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { PersonPicture } from 'winuionweb'
 import { api } from '../api'
 import { useSite } from '../site'
 import { useResource } from '../composables/useResource'
-import type { PageParameter, PostSummary } from '../types'
+import type { PageParameter, PostSummary, User } from '../types'
 import PageHeader from '../components/ui/PageHeader.vue'
 import ResourceState from '../components/ui/ResourceState.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import WinButton from '../components/ui/WinButton.vue'
 import PostListItem from '../components/PostListItem.vue'
 import FollowButton from '../components/FollowButton.vue'
+import UserProfileDetails from '../components/UserProfileDetails.vue'
 defineOptions({ inheritAttrs: false })
 const props = defineProps<{ Parameter: PageParameter }>()
 const router = useRouter(),
@@ -21,6 +21,11 @@ const { data, loading, error, reload } = useResource(
   () =>
     api<{
       user: {
+        uuid: string
+        experience: number
+        level: number
+        title: User['title']
+        groups: User['groups']
         uid: string
         username: string
         display_name: string
@@ -32,6 +37,22 @@ const { data, loading, error, reload } = useResource(
       folders: Array<{ id: string; name: string; post_count: number }>
     }>(`/api/users/${props.Parameter.id}`, { token: site.token.value }),
   null,
+)
+const profile = computed<User | null>(() =>
+  data.value
+    ? {
+        uid: data.value.user.uid,
+        uuid: data.value.user.uuid,
+        username: data.value.user.username,
+        displayName: data.value.user.display_name,
+        avatarUrl: data.value.user.avatar_url,
+        experience: data.value.user.experience,
+        level: data.value.user.level,
+        title: data.value.user.title,
+        groups: data.value.user.groups,
+        followerCount: data.value.user.follower_count,
+      }
+    : null,
 )
 watch(site.token, reload)
 async function followChanged(following: boolean) {
@@ -46,31 +67,15 @@ async function followChanged(following: boolean) {
         ><WinButton label="返回社区" icon="back" @click="router.push('/home')"
       /></PageHeader>
       <ResourceState :loading="loading" :error="error" />
-      <template v-if="data"
-        ><section class="surface-card user-space-profile">
-          <div class="profile-identity">
-            <PersonPicture
-              :DisplayName="data.user.display_name"
-              :ProfilePicture="data.user.avatar_url || undefined"
-              :Width="64"
-              :Height="64"
-            />
-            <div>
-              <h1>{{ data.user.display_name }}</h1>
-              <p class="secondary-text">@{{ data.user.username }} · UID {{ data.user.uid }}</p>
-              <p class="user-space-followers" aria-live="polite">
-                <strong>{{ data.user.follower_count.toLocaleString() }}</strong>
-                <span class="secondary-text">粉丝</span>
-              </p>
-            </div>
-          </div>
-          <FollowButton
-            :uid="data.user.uid"
-            :following="data.user.following"
-            @changed="followChanged"
-            @error="error = $event"
-          />
-        </section>
+      <template v-if="data">
+        <UserProfileDetails v-if="profile" :user="profile"
+          ><template #action
+            ><FollowButton
+              :uid="data.user.uid"
+              :following="data.user.following"
+              @changed="followChanged"
+              @error="error = $event" /></template
+        ></UserProfileDetails>
         <div class="section-toolbar">
           <div class="row-actions">
             <WinButton label="已发布的帖子" :accent="tab === 'posts'" @click="tab = 'posts'" /><WinButton

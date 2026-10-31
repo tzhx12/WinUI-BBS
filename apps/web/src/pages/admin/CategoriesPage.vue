@@ -12,6 +12,7 @@ import EmptyState from '../../components/ui/EmptyState.vue'
 import WinButton from '../../components/ui/WinButton.vue'
 import WinDialog from '../../components/ui/WinDialog.vue'
 import WinSelect from '../../components/ui/WinSelect.vue'
+import AdminImageSetting from '../../components/AdminImageSetting.vue'
 defineOptions({ inheritAttrs: false })
 interface CategoryNode extends Category {
   Children: CategoryNode[]
@@ -126,6 +127,9 @@ async function refresh() {
   if (selected.value)
     selected.value = categories.value.find((category) => category.id === selected.value!.id) || null
 }
+async function imageUpdated() {
+  await refresh()
+}
 async function save() {
   if (
     await run(
@@ -207,6 +211,19 @@ function select(_sender: unknown, args: { InvokedItem: Category }) {
             ><span class="category-label"><i :style="{ background: selected.accent_color }" />板块设置</span>
             <h2>{{ selected.name }}</h2>
             <p v-if="selected.description" class="secondary-text">{{ selected.description }}</p>
+            <AdminImageSetting
+              :key="`${selected.id}-icon`"
+              label="自定义板块图标"
+              :url="selected.icon_image_url"
+              :endpoint="`/api/admin/categories/${selected.id}/icon`"
+              icon
+              @updated="imageUpdated" />
+            <AdminImageSetting
+              :key="`${selected.id}-header`"
+              label="板块头部背景图"
+              :url="selected.header_background_url"
+              :endpoint="`/api/admin/categories/${selected.id}/header-background`"
+              @updated="imageUpdated" />
             <dl class="details-list">
               <div>
                 <dt>路径标识</dt>

@@ -45,45 +45,53 @@ export async function registerInvitationRoutes(app: FastifyInstance) {
     })
     return reply.code(201).send(result)
   })
-  app.patch('/api/admin/invitations/:id', { preHandler: adminPermissions.users }, async (request, reply) => {
-    const parsed = z.object({ isEnabled: z.boolean() }).safeParse(request.body)
-    if (!parsed.success) return reply.code(400).send({ error: '邀请码状态无效' })
-    const result = await query('UPDATE invitations SET is_enabled = $2 WHERE id = $1 RETURNING id', [
-      (request.params as { id: string }).id,
-      parsed.data.isEnabled,
-    ])
-    if (!result.rowCount) return reply.code(404).send({ error: '邀请码不存在' })
-    return { saved: true }
-  })
-  app.post('/api/admin/invitation-rules', { preHandler: adminPermissions.users }, async (request, reply) => {
-    const parsed = z
-      .object({
-        minimumLevel: z.number().int().min(1).max(10000),
-        quantity: z.number().int().min(1).max(100),
-      })
-      .safeParse(request.body)
-    if (!parsed.success) return reply.code(400).send({ error: '等级奖励规则无效' })
-    return reply
-      .code(201)
-      .send(
-        (
-          await query('INSERT INTO invitation_rules (minimum_level, quantity) VALUES ($1, $2) RETURNING *', [
-            parsed.data.minimumLevel,
-            parsed.data.quantity,
-          ])
-        ).rows[0],
-      )
-  })
+  app.patch(
+    '/api/admin/invitations/:id',
+    { preHandler: adminPermissions.users },
+    async (request, reply) => {
+      const parsed = z.object({ isEnabled: z.boolean() }).safeParse(request.body)
+      if (!parsed.success) return reply.code(400).send({ error: '邀请码状态无效' })
+      const result = await query('UPDATE invitations SET is_enabled = $2 WHERE id = $1 RETURNING id', [
+        (request.params as { id: string }).id,
+        parsed.data.isEnabled,
+      ])
+      if (!result.rowCount) return reply.code(404).send({ error: '邀请码不存在' })
+      return { saved: true }
+    },
+  )
+  app.post(
+    '/api/admin/invitation-rules',
+    { preHandler: adminPermissions.users },
+    async (request, reply) => {
+      const parsed = z
+        .object({
+          minimumLevel: z.number().int().min(1).max(10000),
+          quantity: z.number().int().min(1).max(100),
+        })
+        .safeParse(request.body)
+      if (!parsed.success) return reply.code(400).send({ error: '等级奖励规则无效' })
+      return reply
+        .code(201)
+        .send(
+          (
+            await query(
+              'INSERT INTO invitation_rules (minimum_level, quantity) VALUES ($1, $2) RETURNING *',
+              [parsed.data.minimumLevel, parsed.data.quantity],
+            )
+          ).rows[0],
+        )
+    },
+  )
   app.patch(
     '/api/admin/invitation-rules/:id',
     { preHandler: adminPermissions.users },
     async (request, reply) => {
       const parsed = z.object({ isEnabled: z.boolean() }).safeParse(request.body)
       if (!parsed.success) return reply.code(400).send({ error: '规则状态无效' })
-      const result = await query('UPDATE invitation_rules SET is_enabled = $2 WHERE id = $1 RETURNING id', [
-        (request.params as { id: string }).id,
-        parsed.data.isEnabled,
-      ])
+      const result = await query(
+        'UPDATE invitation_rules SET is_enabled = $2 WHERE id = $1 RETURNING id',
+        [(request.params as { id: string }).id, parsed.data.isEnabled],
+      )
       if (!result.rowCount) return reply.code(404).send({ error: '规则不存在' })
       return { saved: true }
     },
@@ -94,12 +102,15 @@ export async function registerInvitationRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string }
       const result = await inTransaction(async (client) => {
-        const deleted = await client.query('DELETE FROM invitation_rules WHERE id = $1 RETURNING id', [id])
+        const deleted = await client.query(
+          'DELETE FROM invitation_rules WHERE id = $1 RETURNING minimum_level, quantity, is_enabled',
+          [id],
+        )
         if (!deleted.rowCount) return null
         await client.query(
-          `INSERT INTO audit_events (actor_uid, action_key, target_type, target_id)
-         VALUES ($1, 'invitation.rule.delete', 'invitation-rule', $2)`,
-          [request.user.uid, id],
+          `INSERT INTO audit_events (actor_uid, action_key, target_type, target_id, details)
+         VALUES ($1, 'invitation.rule.delete', 'invitation-rule', $2, $3::jsonb)`,
+          [request.user.uid, id, JSON.stringify(deleted.rows[0])],
         )
         return { deleted: true }
       })

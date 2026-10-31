@@ -179,7 +179,9 @@ async function removePack(pack: EmojiPack) {
       await reload()
 }
 async function copy(image: MediaAsset) {
-  await navigator.clipboard.writeText(new URL(image.url, site.settings.url || window.location.origin).href)
+  await navigator.clipboard.writeText(
+    new URL(image.url, site.settings.url || window.location.origin).href,
+  )
   site.notify('图片链接已复制')
 }
 </script>
@@ -199,27 +201,37 @@ async function copy(image: MediaAsset) {
           @click="showUpload"
       /></PageHeader>
       <ResourceState :loading="loading" :error="uploadOpen || packOpen || assetOpen ? '' : error" />
-      <p v-if="!site.settings.contentLimits.directLibraryUploads" class="secondary-text">
-        正文图片在发帖或回复时添加，成功发布后会出现在这里。
-      </p>
       <section v-if="data.usage" class="surface-card storage-summary">
         <div class="section-toolbar">
           <h2>图床容量</h2>
           <span
-            >{{ formatBytes(data.usage.usedBytes) }} / {{ formatBytes(data.usage.limits.storageBytes) }}</span
+            >{{ formatBytes(data.usage.usedBytes) }} /
+            {{ formatBytes(data.usage.limits.storageBytes) }}</span
           >
         </div>
-        <ProgressBar :Value="data.usage.usedBytes" :Maximum="data.usage.limits.storageBytes" />
-        <p class="secondary-text">
-          单图 {{ formatBytes(data.usage.limits.imageBytes) }} · 表情包 {{ data.usage.uploadedPacks }} /
-          {{ data.usage.limits.emojiPackCount }} 组 · 个人上传每组
-          {{ data.usage.limits.emojiImagesPerPack }} 张 · 单张表情
-          {{ formatBytes(data.usage.limits.emojiImageBytes) }}
-        </p>
+        <ProgressBar
+          aria-label="图床容量"
+          :Value="data.usage.usedBytes"
+          :Maximum="data.usage.limits.storageBytes"
+        />
+        <div class="section-toolbar storage-pack-heading">
+          <h2>表情包用量</h2>
+          <span>{{ data.usage.uploadedPacks }} / {{ data.usage.limits.emojiPackCount }} 组</span>
+        </div>
+        <ProgressBar
+          aria-label="表情包用量"
+          :Value="data.usage.uploadedPacks"
+          :Maximum="Math.max(1, data.usage.limits.emojiPackCount)"
+        />
       </section>
       <div class="section-toolbar">
         <div class="row-actions">
-          <WinButton label="个人上传" :accent="tab === 'images'" subtle @click="tab = 'images'" /><WinButton
+          <WinButton
+            label="个人上传"
+            :accent="tab === 'images'"
+            subtle
+            @click="tab = 'images'"
+          /><WinButton
             label="我的表情包"
             :accent="tab === 'packs'"
             subtle
@@ -325,7 +337,10 @@ async function copy(image: MediaAsset) {
             </div>
           </div></section
       ></template>
-      <RemoteEmojiBrowser v-else-if="tab === 'remote' && data.usage?.remoteEmoji.enabled" @added="reload" />
+      <RemoteEmojiBrowser
+        v-else-if="tab === 'remote' && data.usage?.remoteEmoji.enabled"
+        @added="reload"
+      />
       <WinDialog
         v-model:open="uploadOpen"
         title="上传图片"

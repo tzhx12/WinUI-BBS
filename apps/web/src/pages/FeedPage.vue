@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Button, FontIcon, InfoBar, ListView, ProgressRing } from 'winuionweb'
+import { InfoBar, ListView, NumberBox, ProgressRing } from 'winuionweb'
 import { api } from '../api'
 import { useResource } from '../composables/useResource'
 import { useSite } from '../site'
-import type { PageParameter, PostSummary } from '../types'
+import type { PageParameter, PostFeedPage, PostSummary } from '../types'
 import { itemTemplate } from '../utils'
 import PageHeader from '../components/ui/PageHeader.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import WinButton from '../components/ui/WinButton.vue'
 import WinSelect from '../components/ui/WinSelect.vue'
-import IconGlyph from '../components/IconGlyph.vue'
+import CommunityHero from '../components/CommunityHero.vue'
+import CategoryIcon from '../components/CategoryIcon.vue'
 import PostListItem from '../components/PostListItem.vue'
 import MemberCard from '../components/MemberCard.vue'
 
@@ -23,27 +24,64 @@ const category = computed(() => site.categories.value.find((item) => item.id ===
 const isSearch = props.Parameter.path === '/search'
 const searchTerm = (props.Parameter.query.q || '').trim()
 const isPopular = props.Parameter.path === '/popular'
-const sort = ref(isPopular ? 'popular' : 'latest')
+const sort = ref(
+  props.Parameter.query.sort === 'popular' || (!props.Parameter.query.sort && isPopular)
+    ? 'popular'
+    : 'latest',
+)
+const requestedPage = Math.max(1, Number(props.Parameter.query.page) || 1)
+const jump = ref(requestedPage)
 const title = computed(() =>
-  isSearch ? '搜索结果' : category.value?.name || (sort.value === 'popular' ? '热门讨论' : '社区首页'),
+  isSearch
+    ? '搜索结果'
+    : category.value
+      ? category.value.name
+      : isPopular
+        ? site.settings.homeContent.popularTitle
+        : site.settings.homeContent.homeTitle,
 )
 const roots = computed(() =>
   site.categories.value.filter((item) => item.parent_id === (category.value?.id || null)),
 )
-const {
-  data: posts,
-  loading,
-  error,
-  reload,
-} = useResource(async () => {
-  if (isSearch && !searchTerm) return []
-  const params = new URLSearchParams({ sort: sort.value })
-  if (props.Parameter.path !== '/home') params.set('followingFirst', 'false')
-  if (props.Parameter.id) params.set('category', props.Parameter.id)
-  if (isSearch) params.set('q', searchTerm)
-  return api<PostSummary[]>(`/api/posts?${params}`, { token: site.token.value })
-}, [])
-watch([sort, site.token], reload)
+const { data, loading, error, reload } = useResource(
+  async () => {
+    if (isSearch && !searchTerm) return { posts: [], page: 1, pageSize: 20, total: 0, totalPages: 1 }
+    const params = new URLSearchParams({ sort: sort.value })
+    if (props.Parameter.path !== '/home') params.set('followingFirst', 'false')
+    if (props.Parameter.id) params.set('category', props.Parameter.id)
+    if (isSearch) {
+      params.set('q', searchTerm)
+      const posts = await api<PostSummary[]>(`/api/posts?${params}`, { token: site.token.value })
+      return { posts, page: 1, pageSize: posts.length, total: posts.length, totalPages: 1 }
+    }
+    params.set('page', String(requestedPage))
+    return api<PostFeedPage>(`/api/posts?${params}`, { token: site.token.value })
+  },
+  { posts: [], page: 1, pageSize: 20, total: 0, totalPages: 1 } as PostFeedPage,
+)
+const posts = computed(() => data.value.posts)
+watch(site.token, reload)
+watch(sort, () => {
+  void router.push({
+    path: props.Parameter.path,
+    query: { ...props.Parameter.query, sort: sort.value, page: undefined },
+  })
+})
+watch(data, (value) => {
+  jump.value = value.page
+})
+function goPage(page: number) {
+  if (loading.value || !Number.isInteger(page) || page < 1 || page > data.value.totalPages) return
+  void router.push({
+    path: props.Parameter.path,
+    query: { ...props.Parameter.query, sort: sort.value, page: String(page) },
+  })
+}
+function jumpByKeyboard(event: KeyboardEvent) {
+  if (!(event.target instanceof HTMLInputElement)) return
+  event.preventDefault()
+  goPage(Number(event.target.value))
+}
 const template = itemTemplate(PostListItem)
 function openPost(_sender: unknown, args: { ClickedItem: PostSummary }) {
   void router.push(`/post/${args.ClickedItem.id}`)
@@ -54,16 +92,30 @@ function compose() {
 }
 </script>
 <template>
-  <div class="page-scroll">
+  <div class="page-scroll" :class="{ 'community-page': category }">
+    <div v-if="category?.header_background_url" class="community-page-background" aria-hidden="true">
+      <img :src="category.header_background_url" alt="" />
+    </div>
     <div class="page-content">
+      <CommunityHero
+        v-if="!isSearch && !isPopular"
+        :title="title"
+        :description="category ? category.description : site.settings.homeContent.homeDescription"
+        :background="category ? undefined : site.settings.homeBackground"
+        :categories="roots"
+        :category="category"
+        @compose="compose"
+      />
       <PageHeader
+        v-else
+        :icon="isPopular ? 'fire' : undefined"
         :title="title"
         :description="
           isSearch
             ? searchTerm
               ? `“${searchTerm}” 的搜索结果`
               : '输入关键词查找社区帖子。'
-            : category?.description || '浏览社区中的新话题，参与感兴趣的讨论。'
+            : site.settings.homeContent.popularDescription
         "
       >
         <WinButton
@@ -75,36 +127,11 @@ function compose() {
           @click="compose"
         />
       </PageHeader>
-      <div v-if="roots.length && !isSearch && !isPopular" class="category-grid">
-        <Button
-          v-for="item in roots"
-          :key="item.id"
-          HorizontalContentAlignment="Stretch"
-          class="category-tile"
-          @Click="router.push(`/category/${item.id}`)"
-        >
-          <div class="category-tile-content">
-            <span class="category-tile-icon"
-              ><FontIcon :Glyph="item.icon_glyph" FontFamily="Segoe Fluent Icons" :FontSize="23"
-            /></span>
-            <div>
-              <strong>{{ item.name }}</strong>
-              <p v-if="item.description">{{ item.description }}</p>
-              <small
-                >{{ item.post_count || 0 }} 个帖子<span v-if="item.minimum_reader_level">
-                  · Lv.{{ item.minimum_reader_level }}+</span
-                ></small
-              >
-            </div>
-            <IconGlyph name="arrow" :size="14" />
-          </div>
-        </Button>
-      </div>
       <div class="feed-layout">
         <section class="feed-section">
           <div class="section-toolbar">
             <h2>
-              {{ isSearch ? '匹配的帖子' : '帖子' }} <span class="count">{{ posts.length }}</span>
+              {{ isSearch ? '匹配的帖子' : '帖子' }} <span class="count">{{ data.total }}</span>
             </h2>
             <WinSelect
               v-model="sort"
@@ -143,6 +170,43 @@ function compose() {
             class="post-list"
             @ItemClick="openPost"
           />
+          <nav
+            v-if="!isSearch && !error && data.totalPages > 1"
+            class="feed-pagination"
+            aria-label="帖子翻页"
+          >
+            <div class="feed-page-controls">
+              <WinButton
+                label="上一页"
+                :disabled="loading || data.page <= 1"
+                @click="goPage(data.page - 1)"
+              />
+              <span aria-live="polite"
+                >第 {{ data.page }} / {{ data.totalPages }} 页 · 每页 {{ data.pageSize }} 篇</span
+              >
+              <WinButton
+                label="下一页"
+                :disabled="loading || data.page >= data.totalPages"
+                @click="goPage(data.page + 1)"
+              />
+            </div>
+            <div class="feed-page-jump" @keydown.enter.capture="jumpByKeyboard">
+              <span>跳至</span>
+              <NumberBox
+                v-model:Value="jump"
+                :Minimum="1"
+                :Maximum="data.totalPages"
+                :SmallChange="1"
+                SpinButtonPlacementMode="Hidden"
+                AutomationProperties.Name="帖子页码"
+              />
+              <WinButton
+                label="跳转"
+                :disabled="loading || !Number.isInteger(jump) || jump < 1 || jump > data.totalPages"
+                @click="goPage(jump)"
+              />
+            </div>
+          </nav>
         </section>
         <aside class="feed-aside">
           <MemberCard />
@@ -154,7 +218,7 @@ function compose() {
               class="compact-row"
             >
               <span class="category-label"
-                ><i :style="{ background: item.accent_color }" />{{ item.name }}</span
+                ><CategoryIcon :category="item" :size="16" />{{ item.name }}</span
               ><span class="secondary-text">{{ item.post_count || 0 }}</span>
             </div>
           </section>

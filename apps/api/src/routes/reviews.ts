@@ -133,7 +133,7 @@ export async function registerReviewRoutes(app: FastifyInstance) {
           request.user.uid,
           `post.review.${action}`,
           id,
-          JSON.stringify({ reason, banMinutes, authorUid: author }),
+          JSON.stringify({ title: post.rows[0].title, reason, banMinutes, authorUid: author }),
         ],
       )
       return { id, status: action === 'approve' ? 'published' : 'rejected' }

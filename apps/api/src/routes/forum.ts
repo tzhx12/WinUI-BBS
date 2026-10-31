@@ -38,6 +38,8 @@ export async function registerForumRoutes(
     return readSettings([
       'site_title',
       'site_icon_url',
+      'home_background_url',
+      'home_content',
       'site_url',
       'registration_enabled',
       'registration_mode',
@@ -56,12 +58,16 @@ export async function registerForumRoutes(
     async (request, reply) => {
       const parsed = contentLimitsSchema.safeParse(request.body)
       if (!parsed.success)
-        return reply.code(400).send({ error: '请检查正文、图片和分页限制，不能超过最大上限' })
+        return reply.code(400).send({ error: '请检查正文、图片和分页限制；每页帖子数需为 10–50 的整数' })
       await inTransaction(async (client) => {
-        await saveSettings({ content_limits: parsed.data }, client)
+        const current = await client.query<{ setting_value: Record<string, unknown> }>(
+          "SELECT setting_value FROM app_settings WHERE setting_key='content_limits' FOR UPDATE",
+        )
+        const limits = { ...current.rows[0]!.setting_value, ...parsed.data }
+        await saveSettings({ content_limits: limits }, client)
         await client.query(
           "INSERT INTO audit_events(actor_uid,action_key,target_type,details) VALUES($1,'content.settings.update','site',$2::jsonb)",
-          [request.user.uid, JSON.stringify(parsed.data)],
+          [request.user.uid, JSON.stringify(limits)],
         )
       })
       return { saved: true }
@@ -77,6 +83,8 @@ export async function registerForumRoutes(
       description: string
       accent_color: string
       icon_glyph: string
+      icon_image_url: string
+      header_background_url: string
       show_notification: boolean
       requires_review: boolean
       minimum_reader_level: number
@@ -84,7 +92,7 @@ export async function registerForumRoutes(
       sort_order: number
       post_count: string
     }>(
-      `SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.accent_color, c.icon_glyph, c.show_notification, c.requires_review,
+      `SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.accent_color, c.icon_glyph, c.icon_image_url, c.header_background_url, c.show_notification, c.requires_review,
               c.minimum_reader_level, c.minimum_author_level, c.sort_order,
               COUNT(p.id)::text AS post_count
        FROM categories c LEFT JOIN posts p ON p.category_id = c.id AND p.status = 'published' AND p.deleted_at IS NULL
@@ -164,37 +172,68 @@ export async function registerForumRoutes(
         q: z.string().trim().min(1, '搜索关键词不能为空').max(120, '搜索关键词最多 120 字').optional(),
         sort: z.enum(['latest', 'popular']).optional(),
         followingFirst: z.enum(['true', 'false']).optional(),
+        page: z.coerce.number().int().min(1).optional(),
       })
       .safeParse(request.query)
     if (!parsed.success)
       return reply.code(400).send({
         error: parsed.error.issues.find((issue) => issue.path[0] === 'q')?.message || '筛选条件无效',
       })
-    const { category, q, sort = 'latest', followingFirst } = parsed.data
+    const { category, q, sort = 'latest', followingFirst, page: requestedPage } = parsed.data
     const prioritize = !!uid && followingFirst !== 'false' && !category && !q
+    const from = `FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
+       WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.minimum_reader_level <= $1
+         AND c.minimum_reader_level <= $1
+         AND ($2::bigint IS NULL OR c.id = $2)
+         AND ($3::text IS NULL OR p.title ILIKE '%' || $3 || '%' OR p.body::text ILIKE '%' || $3 || '%')`
+    const paginated = requestedPage !== undefined && !q
+    let page = 1,
+      pageSize = 20,
+      total = 0,
+      totalPages = 1
+    if (paginated) {
+      const [limits, count] = await Promise.all([
+        contentLimits(),
+        query<{ total: number }>(`SELECT COUNT(*)::int AS total ${from}`, [
+          readerLevel,
+          category ?? null,
+          q ?? null,
+        ]),
+      ])
+      pageSize = limits.postsPerPage
+      total = count.rows[0]!.total
+      totalPages = Math.max(1, Math.ceil(total / pageSize))
+      page = Math.min(requestedPage, totalPages)
+    }
     const result = await query<{ title: string; body: Parameters<typeof visibleBody>[0] }>(
       `SELECT p.id, p.title, p.body, p.minimum_reader_level, p.is_pinned, p.view_count, p.created_at,
               c.id AS category_id, c.name AS category_name, c.accent_color AS category_color,
               u.uid AS author_uid, u.username, u.display_name, u.avatar_url, u.experience, u.level_offset,
               (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL)::int AS reply_count,
               (SELECT COUNT(*) FROM post_likes l WHERE l.post_id = p.id)::int AS like_count
-       FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
-       WHERE p.status = 'published' AND p.deleted_at IS NULL AND p.minimum_reader_level <= $1
-         AND c.minimum_reader_level <= $1
-         AND ($2::bigint IS NULL OR c.id = $2)
-         AND ($3::text IS NULL OR p.title ILIKE '%' || $3 || '%' OR p.body::text ILIKE '%' || $3 || '%')
+       ${from}
        ORDER BY p.is_pinned DESC,
          (CASE WHEN $5::boolean THEN EXISTS(SELECT 1 FROM user_follows f WHERE f.follower_uid=$4 AND f.followed_uid=p.author_uid)
            AND NOT EXISTS(SELECT 1 FROM post_views v WHERE v.post_id=p.id AND v.viewer_key='user:' || $4::text) ELSE FALSE END) DESC,
          ${sort === 'popular' ? '(SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL) DESC,' : ''} p.created_at DESC,p.id DESC
-       ${q ? '' : 'LIMIT 60'}`,
-      [readerLevel, category ?? null, q ?? null, uid, prioritize],
+       ${paginated ? 'LIMIT $6 OFFSET $7' : q ? '' : 'LIMIT 60'}`,
+      [
+        readerLevel,
+        category ?? null,
+        q ?? null,
+        uid,
+        prioritize,
+        ...(paginated ? [pageSize, (page - 1) * pageSize] : []),
+      ],
     )
     const posts = result.rows.map((post) => ({ ...post, body: visibleBody(post.body) }))
+    if (paginated) return { posts, page, pageSize, total, totalPages }
     return q
       ? posts
           .filter((post) =>
-            `${post.title} ${JSON.stringify(post.body)}`.toLocaleLowerCase().includes(q.toLocaleLowerCase()),
+            `${post.title} ${JSON.stringify(post.body)}`
+              .toLocaleLowerCase()
+              .includes(q.toLocaleLowerCase()),
           )
           .slice(0, 60)
       : posts
@@ -337,13 +376,16 @@ export async function registerForumRoutes(
         WHERE gm.user_uid = $1 AND gp.permission_key = 'posts.set_reader_level' AND (gm.expires_at IS NULL OR gm.expires_at > NOW()) LIMIT 1`,
         [request.user.uid],
       )
-      if (!permission.rowCount) return reply.code(403).send({ error: '当前用户组没有设定最低阅读等级的权限' })
+      if (!permission.rowCount)
+        return reply.code(403).send({ error: '当前用户组没有设定最低阅读等级的权限' })
     }
     const authorLevel = await currentLevel(request.user.uid)
     const category = await query<{
       minimum_author_level: number
       requires_review: boolean
-    }>('SELECT minimum_author_level, requires_review FROM categories WHERE id = $1', [parsed.data.categoryId])
+    }>('SELECT minimum_author_level, requires_review FROM categories WHERE id = $1', [
+      parsed.data.categoryId,
+    ])
     if (!category.rows[0]) return reply.code(404).send({ error: '版块不存在' })
     if (authorLevel < category.rows[0].minimum_author_level)
       return reply.code(403).send({ error: '当前等级不能在此版块发帖' })

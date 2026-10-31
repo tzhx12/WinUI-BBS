@@ -1,10 +1,14 @@
 import type { FastifyInstance } from 'fastify'
+import { resolve } from 'node:path'
+import { removeSiteAssetIfUnused } from '../siteAssets.js'
 import { z } from 'zod'
 import { adminPermissions } from '../auth.js'
 import { effectiveLevel, inTransaction, query } from '../db.js'
-import { httpUrl, mediaLimitsSchema, readSettings, saveSettings } from '../settings.js'
+import { homeContentSchema, httpUrl, mediaLimitsSchema, readSettings, saveSettings } from '../settings.js'
 import { grantLevelInvitations } from '../invitations.js'
 import { groupPermissionError, permissionKeys } from '../permissions.js'
+import { auditSummary } from '../auditSummary.js'
+import { replyExcerpt } from '../content.js'
 
 const groupTypes = ['management', 'public', 'normal', 'temporary', 'special'] as const
 
@@ -21,7 +25,30 @@ async function audit(
   )
 }
 
-export async function registerAdminRoutes(app: FastifyInstance) {
+export async function registerAdminRoutes(
+  app: FastifyInstance,
+  uploadRoot = resolve(process.cwd(), 'data/uploads'),
+) {
+  app.get('/api/admin/home-settings', { preHandler: adminPermissions.settings }, async () =>
+    readSettings(['home_content', 'home_background_url']),
+  )
+  app.patch(
+    '/api/admin/home-settings',
+    { preHandler: adminPermissions.settings },
+    async (request, reply) => {
+      const parsed = homeContentSchema.strict().safeParse(request.body)
+      if (!parsed.success)
+        return reply.code(400).send({ error: '标题需为 1–64 个字符，说明最多 500 个字符' })
+      await inTransaction(async (client) => {
+        await saveSettings({ home_content: parsed.data }, client)
+        await client.query(
+          "INSERT INTO audit_events(actor_uid,action_key,target_type,details) VALUES($1,'home.settings.update','site',$2::jsonb)",
+          [request.user.uid, JSON.stringify(parsed.data)],
+        )
+      })
+      return { saved: true }
+    },
+  )
   app.get('/api/admin/overview', { preHandler: adminPermissions.users }, async () => {
     const result = await query<{
       users: string
@@ -161,16 +188,20 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     return result.rows
   })
 
-  app.get('/api/admin/groups/:id/memberships', { preHandler: adminPermissions.groups }, async (request) => {
-    const { id } = request.params as { id: string }
-    const result = await query(
-      `SELECT u.uid, u.uuid, u.username, u.display_name, u.email, gm.expires_at, gm.joined_at
+  app.get(
+    '/api/admin/groups/:id/memberships',
+    { preHandler: adminPermissions.groups },
+    async (request) => {
+      const { id } = request.params as { id: string }
+      const result = await query(
+        `SELECT u.uid, u.uuid, u.username, u.display_name, u.email, gm.expires_at, gm.joined_at
        FROM group_memberships gm JOIN users u ON u.uid = gm.user_uid
        WHERE gm.group_id = $1 ORDER BY u.uid`,
-      [id],
-    )
-    return result.rows
-  })
+        [id],
+      )
+      return result.rows
+    },
+  )
 
   app.post('/api/admin/groups', { preHandler: adminPermissions.groups }, async (request, reply) => {
     const parsed = z
@@ -303,10 +334,10 @@ export async function registerAdminRoutes(app: FastifyInstance) {
         if (data.permissions) {
           await client.query('DELETE FROM group_permissions WHERE group_id = $1', [id])
           for (const permission of data.permissions)
-            await client.query('INSERT INTO group_permissions (group_id, permission_key) VALUES ($1, $2)', [
-              id,
-              permission,
-            ])
+            await client.query(
+              'INSERT INTO group_permissions (group_id, permission_key) VALUES ($1, $2)',
+              [id, permission],
+            )
         }
         return { id }
       })
@@ -348,11 +379,11 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       return reply.code(409).send({ error: '先为其他活跃用户组授予管理权限' })
     }
     const result = await query(
-      'DELETE FROM user_groups WHERE id = $1 AND is_default = FALSE AND is_protected = FALSE RETURNING id',
+      'DELETE FROM user_groups WHERE id = $1 AND is_default = FALSE AND is_protected = FALSE RETURNING id, name, description',
       [id],
     )
     if (!result.rowCount) return reply.code(404).send({ error: '用户组不存在或为系统组' })
-    await audit(request.user.uid, 'group.delete', 'group', id)
+    await audit(request.user.uid, 'group.delete', 'group', id, result.rows[0])
     return { deleted: true }
   })
 
@@ -428,61 +459,65 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     return result.rows
   })
 
-  app.post('/api/admin/categories', { preHandler: adminPermissions.categories }, async (request, reply) => {
-    const parsed = z
-      .object({
-        parentId: z.string().regex(/^\d+$/).nullable().optional(),
-        name: z.string().trim().min(2).max(64),
-        slug: z
-          .string()
-          .trim()
-          .toLowerCase()
-          .regex(/^[a-z0-9-]+$/)
-          .max(72),
-        description: z.string().max(500).default(''),
-        accentColor: z
-          .string()
-          .regex(/^#[0-9a-fA-F]{6}$/)
-          .default('#d85b45'),
-        iconGlyph: z
-          .string()
-          .regex(/^[\uE700-\uF8FF]$/u)
-          .default('\ue8b7'),
-        showNotification: z.boolean().default(false),
-        requiresReview: z.boolean().default(false),
-        minimumReaderLevel: z.number().int().min(0).default(0),
-        minimumAuthorLevel: z.number().int().min(1).default(1),
-        sortOrder: z.number().int().default(0),
-      })
-      .safeParse(request.body)
-    if (!parsed.success) return reply.code(400).send({ error: '版块资料无效' })
-    try {
-      const result = await query(
-        `INSERT INTO categories (parent_id, name, slug, description, accent_color, minimum_reader_level, minimum_author_level, sort_order, icon_glyph, show_notification, requires_review)
+  app.post(
+    '/api/admin/categories',
+    { preHandler: adminPermissions.categories },
+    async (request, reply) => {
+      const parsed = z
+        .object({
+          parentId: z.string().regex(/^\d+$/).nullable().optional(),
+          name: z.string().trim().min(2).max(64),
+          slug: z
+            .string()
+            .trim()
+            .toLowerCase()
+            .regex(/^[a-z0-9-]+$/)
+            .max(72),
+          description: z.string().max(500).default(''),
+          accentColor: z
+            .string()
+            .regex(/^#[0-9a-fA-F]{6}$/)
+            .default('#d85b45'),
+          iconGlyph: z
+            .string()
+            .regex(/^[\uE700-\uF8FF]$/u)
+            .default('\ue8b7'),
+          showNotification: z.boolean().default(false),
+          requiresReview: z.boolean().default(false),
+          minimumReaderLevel: z.number().int().min(0).default(0),
+          minimumAuthorLevel: z.number().int().min(1).default(1),
+          sortOrder: z.number().int().default(0),
+        })
+        .safeParse(request.body)
+      if (!parsed.success) return reply.code(400).send({ error: '版块资料无效' })
+      try {
+        const result = await query(
+          `INSERT INTO categories (parent_id, name, slug, description, accent_color, minimum_reader_level, minimum_author_level, sort_order, icon_glyph, show_notification, requires_review)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-        [
-          parsed.data.parentId ?? null,
-          parsed.data.name,
-          parsed.data.slug,
-          parsed.data.description,
-          parsed.data.accentColor,
-          parsed.data.minimumReaderLevel,
-          parsed.data.minimumAuthorLevel,
-          parsed.data.sortOrder,
-          parsed.data.iconGlyph,
-          parsed.data.showNotification,
-          parsed.data.requiresReview,
-        ],
-      )
-      const category = result.rows[0]!
-      await audit(request.user.uid, 'category.create', 'category', String(category.id), parsed.data)
-      return reply.code(201).send(result.rows[0])
-    } catch (error) {
-      if ((error as { code?: string }).code === '23505')
-        return reply.code(409).send({ error: '版块标识已使用' })
-      throw error
-    }
-  })
+          [
+            parsed.data.parentId ?? null,
+            parsed.data.name,
+            parsed.data.slug,
+            parsed.data.description,
+            parsed.data.accentColor,
+            parsed.data.minimumReaderLevel,
+            parsed.data.minimumAuthorLevel,
+            parsed.data.sortOrder,
+            parsed.data.iconGlyph,
+            parsed.data.showNotification,
+            parsed.data.requiresReview,
+          ],
+        )
+        const category = result.rows[0]!
+        await audit(request.user.uid, 'category.create', 'category', String(category.id), parsed.data)
+        return reply.code(201).send(result.rows[0])
+      } catch (error) {
+        if ((error as { code?: string }).code === '23505')
+          return reply.code(409).send({ error: '版块标识已使用' })
+        throw error
+      }
+    },
+  )
 
   app.patch(
     '/api/admin/categories/:id',
@@ -574,9 +609,17 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       const children = await query('SELECT 1 FROM categories WHERE parent_id = $1 LIMIT 1', [id])
       if (children.rowCount) return reply.code(409).send({ error: '请先移动或删除子版块' })
       try {
-        const result = await query('DELETE FROM categories WHERE id = $1 RETURNING id', [id])
+        const result = await query(
+          'DELETE FROM categories WHERE id = $1 RETURNING id, name, description, icon_image_url, header_background_url',
+          [id],
+        )
         if (!result.rowCount) return reply.code(404).send({ error: '版块不存在' })
-        await audit(request.user.uid, 'category.delete', 'category', id)
+        await removeSiteAssetIfUnused(uploadRoot, result.rows[0]!.icon_image_url, app.log)
+        await removeSiteAssetIfUnused(uploadRoot, result.rows[0]!.header_background_url, app.log)
+        await audit(request.user.uid, 'category.delete', 'category', id, {
+          name: result.rows[0]!.name,
+          description: result.rows[0]!.description,
+        })
         return { deleted: true }
       } catch (error) {
         if ((error as { code?: string }).code === '23503')
@@ -591,7 +634,9 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       query<{ setting_value: number }>(
         "SELECT setting_value::text::integer AS setting_value FROM app_settings WHERE setting_key = 'points_per_level'",
       ),
-      query('SELECT id, minimum_level, maximum_level, title, color FROM level_titles ORDER BY minimum_level'),
+      query(
+        'SELECT id, minimum_level, maximum_level, title, color FROM level_titles ORDER BY minimum_level',
+      ),
       query('SELECT action_key, points, is_enabled FROM experience_rules ORDER BY action_key'),
     ])
     return {
@@ -699,7 +744,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     values.push(id)
     const result = await query(
       `UPDATE posts SET ${set.join(', ')}, updated_at = NOW() WHERE id = $${values.length} AND deleted_at IS NULL
-      ${parsed.data.status ? "AND status IN ('published', 'hidden')" : ''} RETURNING id, status, is_pinned`,
+      ${parsed.data.status ? "AND status IN ('published', 'hidden')" : ''} RETURNING id, title, status, is_pinned`,
       values,
     )
     if (!result.rows[0]) {
@@ -708,7 +753,10 @@ export async function registerAdminRoutes(app: FastifyInstance) {
         ? reply.code(409).send({ error: '请在发帖审核中处理此帖' })
         : reply.code(404).send({ error: '帖子不存在' })
     }
-    await audit(request.user.uid, 'post.moderate', 'post', id, parsed.data)
+    await audit(request.user.uid, 'post.moderate', 'post', id, {
+      title: result.rows[0].title,
+      ...parsed.data,
+    })
     return result.rows[0]
   })
 
@@ -717,18 +765,25 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     const result = await inTransaction(async (client) => {
       const updated = await client.query(
         `UPDATE posts SET deleted_at = NOW(), deletion_source = 'admin', deleted_by = $2, purge_after = NULL, updated_at = NOW()
-         WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+         WHERE id = $1 AND deleted_at IS NULL RETURNING id, title, body`,
         [id, request.user.uid],
       )
       if (!updated.rows[0]) return null
       await client.query(
-        "INSERT INTO audit_events (actor_uid, action_key, target_type, target_id) VALUES ($1, 'post.delete', 'post', $2)",
-        [request.user.uid, id],
+        "INSERT INTO audit_events (actor_uid, action_key, target_type, target_id, details) VALUES ($1, 'post.delete', 'post', $2, $3::jsonb)",
+        [
+          request.user.uid,
+          id,
+          JSON.stringify({
+            title: updated.rows[0].title,
+            excerpt: replyExcerpt(updated.rows[0].body, 240),
+          }),
+        ],
       )
       return updated.rows[0]
     })
     if (!result) return reply.code(404).send({ error: '帖子不存在或已删除' })
-    return result
+    return { id: result.id }
   })
   app.get(
     '/api/admin/deleted-posts',
@@ -752,18 +807,18 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       const result = await inTransaction(async (client) => {
         const updated = await client.query(
           `UPDATE posts SET deleted_at = NULL, deleted_by = NULL, purge_after = NULL, updated_at = NOW()
-         WHERE id = $1 AND deleted_at IS NOT NULL AND deletion_source = 'admin' RETURNING id, status`,
+         WHERE id = $1 AND deleted_at IS NOT NULL AND deletion_source = 'admin' RETURNING id, status, title`,
           [id],
         )
         if (!updated.rows[0]) return null
         await client.query(
-          "INSERT INTO audit_events (actor_uid, action_key, target_type, target_id) VALUES ($1, 'post.restore', 'post', $2)",
-          [request.user.uid, id],
+          "INSERT INTO audit_events (actor_uid, action_key, target_type, target_id, details) VALUES ($1, 'post.restore', 'post', $2, $3::jsonb)",
+          [request.user.uid, id, JSON.stringify({ title: updated.rows[0].title })],
         )
         return updated.rows[0]
       })
       if (!result) return reply.code(404).send({ error: '删除记录不存在' })
-      return result
+      return { id: result.id, status: result.status }
     },
   )
 
@@ -771,6 +826,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     return readSettings([
       'site_title',
       'site_icon_url',
+      'home_background_url',
       'site_url',
       'registration_enabled',
       'registration_mode',
@@ -810,12 +866,17 @@ export async function registerAdminRoutes(app: FastifyInstance) {
   })
 
   app.get('/api/admin/audit', { preHandler: adminPermissions.settings }, async () => {
-    const result = await query(
+    const result = await query<{
+      action_key: string
+      target_type: string
+      target_id: string | null
+      details: unknown
+    }>(
       `SELECT a.id, a.action_key, a.target_type, a.target_id, a.details, a.created_at,
               u.display_name AS actor_name
        FROM audit_events a LEFT JOIN users u ON u.uid = a.actor_uid
        ORDER BY a.created_at DESC LIMIT 100`,
     )
-    return result.rows
+    return result.rows.map((entry) => ({ ...entry, summary: auditSummary(entry) }))
   })
 }

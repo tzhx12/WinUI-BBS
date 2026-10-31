@@ -7,6 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': process.env.FORUM_API_URL || 'http://127.0.0.1:4000',
+      '/site-assets': process.env.FORUM_API_URL || 'http://127.0.0.1:4000',
       '/uploads': process.env.FORUM_API_URL || 'http://127.0.0.1:4000',
     },
   },

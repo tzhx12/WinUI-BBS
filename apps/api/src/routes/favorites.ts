@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { authenticate, readerLevel } from '../auth.js'
-import { inTransaction, query } from '../db.js'
+import { effectiveLevel, inTransaction, query } from '../db.js'
 import { mediaError } from '../media.js'
 import { visibleBody } from '../lockedContent.js'
 
@@ -57,9 +57,10 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
       )
       if (count.rows[0]!.count >= 100) throw mediaError('最多创建 100 个收藏夹')
       if (parsed.data.isDefault)
-        await client.query('UPDATE favorite_folders SET is_default=false WHERE user_uid=$1 AND is_default', [
-          request.user.uid,
-        ])
+        await client.query(
+          'UPDATE favorite_folders SET is_default=false WHERE user_uid=$1 AND is_default',
+          [request.user.uid],
+        )
       const created = (
         await client.query(
           'INSERT INTO favorite_folders(user_uid,name,is_public,is_default) VALUES($1,$2,$3,$4) ON CONFLICT(user_uid,name) DO NOTHING RETURNING *',
@@ -158,14 +159,18 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
       return { saved: true }
     },
   )
-  app.delete('/api/me/favorite-folders/:id/posts/:postId', { preHandler: authenticate }, async (request) => {
-    const params = request.params as { id: string; postId: string }
-    await query(
-      'DELETE FROM favorites v USING favorite_folders f WHERE v.folder_id=f.id AND f.id=$1 AND f.user_uid=$2 AND v.post_id=$3',
-      [params.id, request.user.uid, params.postId],
-    )
-    return { removed: true }
-  })
+  app.delete(
+    '/api/me/favorite-folders/:id/posts/:postId',
+    { preHandler: authenticate },
+    async (request) => {
+      const params = request.params as { id: string; postId: string }
+      await query(
+        'DELETE FROM favorites v USING favorite_folders f WHERE v.folder_id=f.id AND f.id=$1 AND f.user_uid=$2 AND v.post_id=$3',
+        [params.id, request.user.uid, params.postId],
+      )
+      return { removed: true }
+    },
+  )
   app.patch(
     '/api/me/favorite-folders/:id/posts/:postId',
     { preHandler: authenticate },
@@ -186,10 +191,10 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
           params.postId,
         ])
         if (!source.rowCount) throw mediaError('收藏不存在', 404)
-        await client.query('INSERT INTO favorites(folder_id,post_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [
-          parsed.data.targetFolderId,
-          params.postId,
-        ])
+        await client.query(
+          'INSERT INTO favorites(folder_id,post_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+          [parsed.data.targetFolderId, params.postId],
+        )
         await client.query('DELETE FROM favorites WHERE folder_id=$1 AND post_id=$2', [
           params.id,
           params.postId,
@@ -204,7 +209,7 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
     const target = (request.params as { id: string }).id
     const user = (
       await query(
-        `SELECT uid,username,display_name,avatar_url,created_at,
+        `SELECT uid,uuid,username,display_name,avatar_url,created_at,experience,level_offset,
          EXISTS(SELECT 1 FROM user_follows WHERE follower_uid=$2 AND followed_uid=users.uid) AS following,
          (SELECT COUNT(*)::int FROM user_follows WHERE followed_uid=users.uid) AS follower_count
          FROM users WHERE uid=$1`,
@@ -212,6 +217,22 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
       )
     ).rows[0]
     if (!user) return reply.code(404).send({ error: '用户不存在' })
+    const publicLevel = await effectiveLevel(user.experience, user.level_offset)
+    const [groups, title] = await Promise.all([
+      query(
+        `SELECT g.id,g.name,g.group_type,gm.expires_at FROM group_memberships gm
+         JOIN user_groups g ON g.id=gm.group_id WHERE gm.user_uid=$1
+         AND (gm.expires_at IS NULL OR gm.expires_at>NOW()) ORDER BY g.name`,
+        [target],
+      ),
+      query(
+        'SELECT title,color FROM level_titles WHERE minimum_level<=$1 AND maximum_level>=$1 ORDER BY minimum_level DESC LIMIT 1',
+        [publicLevel],
+      ),
+    ])
+    delete user.level_offset
+    user.experience = Number(user.experience)
+    Object.assign(user, { level: publicLevel, groups: groups.rows, title: title.rows[0] ?? null })
     const level = uid ? await readerLevel(uid) : 0
     const posts = (
       await query(

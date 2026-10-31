@@ -2,15 +2,23 @@ import { z } from 'zod'
 import type { Pool, PoolClient } from 'pg'
 import { pool } from './db.js'
 
+export const homeContentSchema = z.object({
+  homeTitle: z.string().trim().min(1).max(64),
+  homeDescription: z.string().trim().max(500),
+  popularTitle: z.string().trim().min(1).max(64),
+  popularDescription: z.string().trim().max(500),
+})
+
 export const contentLimitsSchema = z.object({
   postCharacters: z.number().int().min(1).max(100000),
   postImages: z.number().int().min(0).max(50),
   replyCharacters: z.number().int().min(1).max(10000),
   replyImages: z.number().int().min(0).max(20),
   repliesPerPage: z.number().int().min(1).max(100),
+  postsPerPage: z.number().int().min(10).max(50).optional(),
   directLibraryUploads: z.boolean(),
 })
-export type ContentLimits = z.infer<typeof contentLimitsSchema>
+export type ContentLimits = z.infer<typeof contentLimitsSchema> & { postsPerPage: number }
 
 export async function contentLimits() {
   return (await readSettings(['content_limits'])).content_limits as ContentLimits
@@ -61,7 +69,10 @@ export async function saveSettings(settings: Record<string, unknown>, client: Po
     ])
 }
 
-export async function userMediaLimits(uid: string, client: Pool | PoolClient = pool): Promise<MediaLimits> {
+export async function userMediaLimits(
+  uid: string,
+  client: Pool | PoolClient = pool,
+): Promise<MediaLimits> {
   const settings = await readSettings(['media_limits'], client)
   const defaults = settings.media_limits as MediaLimits
   const groups = await client.query<{ media_limits: Partial<MediaLimits> }>(

@@ -51,7 +51,7 @@ async function start() {
   await registerSetupRoutes(app)
   await registerAuthRoutes(app)
   await registerForumRoutes(app, uploadRoot)
-  await registerAdminRoutes(app)
+  await registerAdminRoutes(app, uploadRoot)
   await registerInvitationRoutes(app)
   await registerNotificationRoutes(app)
   await registerReviewRoutes(app)

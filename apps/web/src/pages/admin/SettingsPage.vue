@@ -88,7 +88,12 @@ async function reset() {
       <section v-if="!loading" class="surface-card">
         <h2>基本信息</h2>
         <div class="setting-row">
-          <TextBox v-model:Text="data.site_title" Header="站点名称" aria-label="站点名称" :MaxLength="64" />
+          <TextBox
+            v-model:Text="data.site_title"
+            Header="站点名称"
+            aria-label="站点名称"
+            :MaxLength="64"
+          />
         </div>
         <TextBox
           v-model:Text="data.site_url"
@@ -101,7 +106,11 @@ async function reset() {
             <h3>站点图标</h3>
             <p class="secondary-text">用于应用标题栏和浏览器标签页。</p>
           </div>
-          <img class="site-icon-preview" :src="data.site_icon_url || '/brand-mark.png'" alt="当前站点图标" />
+          <img
+            class="site-icon-preview"
+            :src="data.site_icon_url || '/brand-mark.png'"
+            alt="当前站点图标"
+          />
         </div>
         <div class="row-actions">
           <WinButton

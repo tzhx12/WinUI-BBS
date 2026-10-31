@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { Category } from '../types'
-import { FontIcon } from 'winuionweb'
+import CategoryIcon from './CategoryIcon.vue'
 defineProps<{ item: Category }>()
 </script>
 <template>
   <div class="category-tree-item">
-    <FontIcon :Glyph="item.icon_glyph" FontFamily="Segoe Fluent Icons" :FontSize="20" /><strong>{{
+    <CategoryIcon :category="item" :size="20" /><strong>{{
       item.name
     }}</strong
     ><span class="secondary-text">{{ item.post_count || 0 }} 帖</span

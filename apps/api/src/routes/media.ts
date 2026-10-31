@@ -12,6 +12,7 @@ import {
   userMediaLimits,
 } from '../settings.js'
 import { registerRemoteEmojiRoutes } from './remoteEmoji.js'
+import { registerSiteAssetRoutes } from './siteAssets.js'
 import {
   checkEmojiPackLimit,
   personalEmojiPackCount,
@@ -36,6 +37,7 @@ export async function registerMediaRoutes(
   app: FastifyInstance,
   uploadRoot: string,
 ) {
+  await registerSiteAssetRoutes(app, uploadRoot)
   // Keep /uploads URLs stable for local files, private S3 buckets and old posts.
   app.addHook('onRequest', async (request, reply) => {
     const path = request.url.split('?')[0]!
@@ -333,7 +335,7 @@ export async function registerMediaRoutes(
           await query(
             `SELECT m.*,p.name AS pack_name,'/uploads/' || m.storage_key AS url FROM media_assets m
         LEFT JOIN emoji_packs p ON p.id=m.emoji_pack_id WHERE ($1::text IS NULL OR m.collection=$1)
-        AND ($2::bigint IS NULL OR m.created_by=$2) ORDER BY m.created_at DESC`,
+        AND ($2::bigint IS NULL OR (m.created_by=$2 AND m.collection<>'avatar')) ORDER BY m.created_at DESC`,
             [parsed.data.collection ?? null, admin ? null : request.user.uid],
           )
         ).rows

@@ -1,5 +1,12 @@
 export interface Overview {
-  stats: { users: string; posts: string; replies: string; checkins: string; pending: string; media: string }
+  stats: {
+    users: string
+    posts: string
+    replies: string
+    checkins: string
+    pending: string
+    media: string
+  }
   activity: Array<{ day: string; posts: number }>
   groups: Array<{ id: string; name: string; group_type: string; member_count: number }>
 }
@@ -144,6 +151,7 @@ export interface InvitationRule {
   is_enabled: boolean
 }
 export interface AuditEvent {
+  summary: { action: string; target: string; lines: string[] }
   id: string
   action_key: string
   target_type: string

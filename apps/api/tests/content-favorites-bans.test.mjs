@@ -115,6 +115,7 @@ test("content defaults, finite bounds and settings permission isolation", async 
     replyCharacters: 1000,
     replyImages: 5,
     repliesPerPage: 20,
+    postsPerPage: 20,
     directLibraryUploads: false,
   });
   for (const manager of f.managers)

@@ -24,6 +24,14 @@ Back up PostgreSQL, local uploads and deployment configuration before updating; 
 
 The migration protects active avatars, existing emoji and site icons. Newly uploaded avatars retain cleanup protection after replacement. Replaced avatars from older installations have no separate identity record and continue to be treated as ordinary library images.
 
+## Home and category images
+
+Use **Content management → Home settings** to edit the home and popular-discussion titles and descriptions, then save. Upload or remove the home banner in the same page. The home page retains its original scrolling hero background. Only category backgrounds stay in the upper half of the content viewport, fading to full transparency while scrolling. Equal-sized category cards stay in one horizontal row; use the side arrows or swipe to reveal more. Home and category headers share an open layout without an extra enclosing panel.
+
+Select a saved category under **Category structure** to upload, replace or remove its custom icon and header background. The custom icon appears in navigation, cards and the category header; removing it restores the built-in glyph. PNG, JPEG, WebP and GIF are supported, up to 2 MiB for icons and 10 MiB for backgrounds.
+
+`settings.manage` controls the home image and `categories.manage` controls category images. These public assets are stored only in `apps/api/data/site-assets/` and served under `/site-assets/`. They do not enter the image library, consume a personal media quota, use S3 or participate in automatic recycling. Changes apply immediately, and unused files are removed after replacement, removal or category deletion. Include the entire `apps/api/data/` directory in backups and migrations.
+
 ## Email verification and passwords
 
 The administration navigation groups pages under **用户与注册** (users and registration), **内容管理** (content), and **站点配置** (site configuration). Parent items expand their subtrees; only a child item navigates to a page. Groups and children are filtered by effective permissions. The pane toggle is on the left of the TitleBar: it expands or collapses the desktop navigation and opens or closes the drawer on narrow screens.
@@ -60,7 +68,7 @@ On phones, the title bar hides the site name and subtitle while keeping the logo
 - Image uploads, emoji packs and the site icon are managed in the admin interface.
 - Registration can be closed, open to everyone, or limited to invitations. Administrators create single-use or reusable codes; level rules grant each eligible user a reward once. Users open **我的邀请码** beside the group information in their dashboard to manage invitation links. The configured site URL is used when copying invitation and image links.
 - In **邀请码管理 → 等级奖励**, rules can be enabled, disabled or deleted. Deleting a rule stops future rewards and keeps already issued invitation codes available.
-- Users can upload an avatar, change their login username and edit their nickname from dashboard dialogs. Usernames must be unique without regard to letter case. A successful username change starts a 180-day waiting period; active members of management groups are exempt. Failed requests and saving the same username do not use the allowance. Nicknames can be edited independently and appear in the title bar, profiles and post bylines. Avatar uploads follow the user's image and storage limits. Existing avatars remain in personal uploads; the currently active avatar cannot be deleted. Changing a login username keeps the nickname, UID and other account data intact.
+- Users manage their avatar, nickname, login username and password, in that order, under **User dashboard → Profile management**. Clicking the dashboard avatar or the edit icon beside the nickname opens a quick-edit dialog. Usernames must be unique without regard to letter case. A successful username change starts a 180-day waiting period; active members of management groups are exempt. Failed requests and saving the same username do not use the allowance. Nicknames can be edited independently and appear in the title bar, profiles and post bylines. Avatar uploads follow the user's image and storage limits. Avatars are excluded from the personal gallery but remain visible to media administrators. Their storage accounting and deletion protection are unchanged. Changing a login username keeps the nickname, UID and other account data intact.
 
 ## Content limits, pagination and local drafts
 
@@ -73,6 +81,9 @@ Administrators with `settings.manage` configure **内容管理 → 发帖与回�
 | Reply characters     | 1000    | 1–10000       |
 | Reply normal images  | 5       | 0–20          |
 | Replies per page     | 20      | 1–100         |
+| Posts per page       | 20      | 10–50         |
+
+Home, popular discussions and category feeds use server-side pagination. Previous/next controls and a page-number field appear below the list; Enter also jumps to the entered page. The URL preserves the page and sort order on refresh and back navigation. Changing the sort returns to page 1, and links past the last page show the current last page. The heading count is the total readable posts, not only the current page. Configure posts per page under **Content management → Post and reply settings → Post list**.
 
 Visible Unicode characters count toward the body limit, including nested lists and captions; formatting markup does not. Image limits apply only to normal images. Uploaded emoji, remote inline emoji and community emoji share a fixed limit of 1000 per post or individual reply, including child replies. Each insertion counts, including repeated emoji. Replies are paginated by the server, including in recycle-bin details.
 
@@ -92,7 +103,7 @@ Ordinary users see a delete action only on their own replies and can delete only
 
 Choose **关注** beside a post's author or on the right of a public user space's profile card to follow them. **用户后台 → 我的关注** (`/account/following`) lists followed users, links to their public spaces and lets you unfollow. Home keeps pinned posts first, then prioritizes unread posts from followed authors. Opening a post while signed in marks it as read; it returns to the selected order, while later posts from that author remain eligible. Categories, search and popular discussions keep their own ordering.
 
-Public user space profile cards show the user's current follower count, including for guests. Following or unfollowing refreshes the count.
+Public spaces and personal profiles share the same identity fields: UID, UUID, level and total experience, followed by group memberships. Both show follower counts; public spaces retain posts and public favorites below the profile. Following or unfollowing refreshes the count. The personal profile links to the user dashboard.
 
 While composing a post, select text and choose **内容锁定…** from the context menu. Choose one condition for each selection: reply, like or follow the author. Selections can span paragraphs. Select locked text again to change its condition or remove the lock. Drafts preserve the text and condition. Reply editors do not offer content locking.
 

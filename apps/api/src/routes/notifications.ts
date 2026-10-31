@@ -60,54 +60,67 @@ export async function registerNotificationRoutes(app: FastifyInstance) {
         )
       ).rows,
   )
-  app.post('/api/admin/notifications', { preHandler: adminPermissions.settings }, async (request, reply) => {
-    const parsed = z
-      .object({
-        title: z.string().trim().min(1).max(180),
-        body: z.string().trim().min(1).max(10000),
-        audience: z.discriminatedUnion('type', [
-          z.object({ type: z.literal('all') }),
-          z.object({
-            type: z.literal('group'),
-            id: z.string().regex(/^\d+$/),
-          }),
-          z.object({
-            type: z.literal('user'),
-            id: z.string().regex(/^\d+$/),
-          }),
-        ]),
-      })
-      .safeParse(request.body)
-    if (!parsed.success) return reply.code(400).send({ error: '请填写通知标题、正文和接收范围' })
-    const result = await inTransaction(async (client) => {
-      const { title, body, audience } = parsed.data
-      const recipients = await client.query<{ uid: string }>(
-        `SELECT u.uid FROM users u WHERE u.status = 'active' AND
+  app.post(
+    '/api/admin/notifications',
+    { preHandler: adminPermissions.settings },
+    async (request, reply) => {
+      const parsed = z
+        .object({
+          title: z.string().trim().min(1).max(180),
+          body: z.string().trim().min(1).max(10000),
+          audience: z.discriminatedUnion('type', [
+            z.object({ type: z.literal('all') }),
+            z.object({
+              type: z.literal('group'),
+              id: z.string().regex(/^\d+$/),
+            }),
+            z.object({
+              type: z.literal('user'),
+              id: z.string().regex(/^\d+$/),
+            }),
+          ]),
+        })
+        .safeParse(request.body)
+      if (!parsed.success) return reply.code(400).send({ error: '请填写通知标题、正文和接收范围' })
+      const result = await inTransaction(async (client) => {
+        const { title, body, audience } = parsed.data
+        const recipients = await client.query<{ uid: string }>(
+          `SELECT u.uid FROM users u WHERE u.status = 'active' AND
           ($1 = 'all' OR ($1 = 'user' AND u.uid = $2) OR ($1 = 'group' AND EXISTS (
             SELECT 1 FROM group_memberships gm WHERE gm.user_uid = u.uid AND gm.group_id = $2
             AND (gm.expires_at IS NULL OR gm.expires_at > NOW())
           )))`,
-        [audience.type, 'id' in audience ? audience.id : null],
-      )
-      if (!recipients.rowCount) return null
-      const created = await client.query<{ id: string }>(
-        `INSERT INTO notifications (title, body, kind, sender_uid, audience)
+          [audience.type, 'id' in audience ? audience.id : null],
+        )
+        if (!recipients.rowCount) return null
+        const created = await client.query<{ id: string }>(
+          `INSERT INTO notifications (title, body, kind, sender_uid, audience)
          VALUES ($1, $2, 'announcement', $3, $4::jsonb) RETURNING id`,
-        [title, body, request.user.uid, JSON.stringify(audience)],
-      )
-      const id = created.rows[0]!.id
-      await client.query(
-        'INSERT INTO notification_recipients (notification_id, user_uid) SELECT $1, unnest($2::bigint[])',
-        [id, recipients.rows.map((row) => row.uid)],
-      )
-      await client.query(
-        `INSERT INTO audit_events (actor_uid, action_key, target_type, target_id, details)
+          [title, body, request.user.uid, JSON.stringify(audience)],
+        )
+        const id = created.rows[0]!.id
+        await client.query(
+          'INSERT INTO notification_recipients (notification_id, user_uid) SELECT $1, unnest($2::bigint[])',
+          [id, recipients.rows.map((row) => row.uid)],
+        )
+        await client.query(
+          `INSERT INTO audit_events (actor_uid, action_key, target_type, target_id, details)
          VALUES ($1, 'notification.send', 'notification', $2, $3::jsonb)`,
-        [request.user.uid, id, JSON.stringify({ audience, recipientCount: recipients.rowCount })],
-      )
-      return { id, recipientCount: recipients.rowCount }
-    })
-    if (!result) return reply.code(400).send({ error: '接收范围内没有可接收通知的用户' })
-    return reply.code(201).send(result)
-  })
+          [
+            request.user.uid,
+            id,
+            JSON.stringify({
+              title,
+              excerpt: body.slice(0, 240),
+              audience,
+              recipientCount: recipients.rowCount,
+            }),
+          ],
+        )
+        return { id, recipientCount: recipients.rowCount }
+      })
+      if (!result) return reply.code(400).send({ error: '接收范围内没有可接收通知的用户' })
+      return reply.code(201).send(result)
+    },
+  )
 }

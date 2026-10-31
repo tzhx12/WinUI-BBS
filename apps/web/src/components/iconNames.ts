@@ -1,5 +1,6 @@
 export type IconName =
   | 'home'
+  | 'fire'
   | 'search'
   | 'add'
   | 'edit'

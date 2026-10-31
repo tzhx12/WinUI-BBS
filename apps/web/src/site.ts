@@ -10,6 +10,7 @@ export const adminSections = [
   { id: 'registration', label: '注册管理', icon: '\ue8d4', permission: 'settings.manage' },
   { id: 'groups', label: '用户组与权限', icon: '\ue72e', permission: 'groups.manage' },
   { id: 'levels', label: '等级与经验', icon: '\ue734', permission: 'levels.manage' },
+  { id: 'home-settings', label: '主页设置', icon: '\ue80f', permission: 'settings.manage' },
   { id: 'categories', label: '板块结构', icon: '\ue8b7', permission: 'categories.manage' },
   { id: 'posts', label: '发帖管理', icon: '\ue8bd', permission: 'posts.manage' },
   { id: 'deleted-posts', label: '删除记录', icon: '\ue74d', permission: 'posts.manage' },
@@ -36,6 +37,7 @@ export const adminNavigationGroups = [
     label: '内容管理',
     icon: '\ue8bd',
     sections: [
+      'home-settings',
       'categories',
       'posts',
       'reviews',
@@ -61,6 +63,13 @@ export function createSite() {
   const settings = reactive({
     title: projectInfo.name,
     icon: '',
+    homeBackground: '',
+    homeContent: {
+      homeTitle: '社区首页',
+      homeDescription: '浏览社区中的新话题，参与感兴趣的讨论。',
+      popularTitle: '热门讨论',
+      popularDescription: '浏览社区中的新话题，参与感兴趣的讨论。',
+    },
     url: '',
     registrationEnabled: true,
     registrationMode: 'open' as 'open' | 'invite',
@@ -71,6 +80,7 @@ export function createSite() {
       replyCharacters: 1000,
       replyImages: 5,
       repliesPerPage: 20,
+      postsPerPage: 20,
       directLibraryUploads: false,
     },
     emailSecurity: {
@@ -83,7 +93,9 @@ export function createSite() {
       passwordChangeSeconds: 60,
     },
   })
-  const theme = ref<'light' | 'dark'>((localStorage.getItem('forum-theme') as 'light' | 'dark') || 'light')
+  const theme = ref<'light' | 'dark'>(
+    (localStorage.getItem('forum-theme') as 'light' | 'dark') || 'light',
+  )
   const compactNavigation = ref(localStorage.getItem('forum-compact-navigation') === 'true')
   const fontScale = ref(Number(localStorage.getItem('forum-font-scale') || 100))
   const accent = ref(localStorage.getItem('forum-accent') || 'blue')
@@ -125,6 +137,8 @@ export function createSite() {
   function updateSettings(value: {
     title?: string
     icon?: string
+    homeBackground?: string
+    homeContent?: typeof settings.homeContent
     url?: string
     registrationEnabled?: boolean
     registrationMode?: 'open' | 'invite'
@@ -174,6 +188,8 @@ export function createSite() {
       api<{
         site_title: string
         site_icon_url: string
+        home_background_url: string
+        home_content: typeof settings.homeContent
         site_url: string
         registration_enabled: boolean
         registration_mode: 'open' | 'invite'
@@ -187,6 +203,8 @@ export function createSite() {
     updateSettings({
       title: value.site_title,
       icon: value.site_icon_url,
+      homeBackground: value.home_background_url,
+      homeContent: value.home_content,
       url: value.site_url,
       registrationEnabled: value.registration_enabled,
       registrationMode: value.registration_mode,

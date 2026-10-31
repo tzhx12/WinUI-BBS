@@ -56,7 +56,10 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         .send({ error: '用户名需为 3–32 位字母、数字、下划线、点或连字符，昵称需为 1–48 个字符' })
     try {
       return await inTransaction(async (client) => {
-        const current = await client.query<{ username: string; username_change_available_at: Date | null }>(
+        const current = await client.query<{
+          username: string
+          username_change_available_at: Date | null
+        }>(
           `SELECT u.username, ${usernameChangeAvailableAtSql} AS username_change_available_at
            FROM users u WHERE u.uid = $1 FOR UPDATE`,
           [request.user.uid],
@@ -242,9 +245,11 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       level_offset: number
       avatar_url: string | null
       username_change_available_at: Date | null
+      follower_count: number
     }>(
       `SELECT u.uid, u.uuid, u.username, u.email, u.display_name, u.experience, u.level_offset, u.avatar_url,
-              ${usernameChangeAvailableAtSql} AS username_change_available_at
+              ${usernameChangeAvailableAtSql} AS username_change_available_at,
+              (SELECT COUNT(*)::int FROM user_follows WHERE followed_uid=u.uid) AS follower_count
        FROM users u WHERE u.uid = $1`,
       [request.user.uid],
     )
@@ -289,6 +294,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       experience: Number(user.experience),
       level,
       avatarUrl: user.avatar_url,
+      followerCount: user.follower_count,
       groups: groups.rows,
       permissions: request.user.isBanned ? [] : permissionRows.rows.map((row) => row.permission_key),
       isBanned: request.user.isBanned,

@@ -44,6 +44,8 @@ export interface Category {
   description: string
   accent_color: string
   icon_glyph: string
+  icon_image_url: string
+  header_background_url: string
   show_notification: boolean
   requires_review: boolean
   minimum_reader_level: number
@@ -59,6 +61,7 @@ export interface User {
   usernameChangeAvailableAt?: string | null
   email?: string
   displayName: string
+  followerCount?: number
   experience: number
   level: number
   avatarUrl?: string | null
@@ -95,6 +98,14 @@ export interface PostSummary {
   review_reason?: string
   deleted_at?: string | null
   purge_after?: string | null
+}
+
+export interface PostFeedPage {
+  posts: PostSummary[]
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
 }
 
 export interface SiteNotification {

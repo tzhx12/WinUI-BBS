@@ -32,6 +32,8 @@ import ContentSettingsPage from './pages/admin/ContentSettingsPage.vue'
 import FavoritesPage from './pages/FavoritesPage.vue'
 import UserSpacePage from './pages/UserSpacePage.vue'
 import FollowingPage from './pages/FollowingPage.vue'
+import HomeSettingsPage from './pages/admin/HomeSettingsPage.vue'
+import AccountProfilePage from './pages/AccountProfilePage.vue'
 
 export const router = createRouter({
   history: createWebHashHistory(),
@@ -51,6 +53,7 @@ export const router = createRouter({
     { path: '/about', component: AboutPage },
     { path: '/reset-password', component: ResetPasswordPage },
     { path: '/account', component: UserDashboardPage },
+    { path: '/account/profile', component: AccountProfilePage },
     { path: '/account/favorites', component: FavoritesPage },
     { path: '/account/following', component: FollowingPage },
     { path: '/account/favorites/:id', component: FavoritesPage },
@@ -65,6 +68,7 @@ export const router = createRouter({
       ['invitations', InvitationsPage],
       ['groups', GroupsPage],
       ['levels', LevelsPage],
+      ['home-settings', HomeSettingsPage],
       ['categories', CategoriesPage],
       ['posts', PostsPage],
       ['deleted-posts', DeletedPostsPage],

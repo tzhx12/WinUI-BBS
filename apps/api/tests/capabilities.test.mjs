@@ -865,10 +865,12 @@ test("avatar uploads persist, reject invalid uploads and protect the active avat
     null,
   );
   const images = (
-    await request("GET", "/api/me/media", undefined, member)
+    await request("GET", "/api/admin/media", undefined, admin)
   ).json();
   const firstImage = images.find((image) => image.url === firstUrl);
   assert.ok(firstImage);
+  const personalImages = (await request("GET", "/api/me/media", undefined, member)).json();
+  assert.ok(!personalImages.some((image) => image.url === firstUrl));
   assert.equal(
     (
       await request(

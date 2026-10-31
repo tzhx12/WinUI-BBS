@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   computed,
+  h,
   nextTick,
   onMounted,
   onBeforeUnmount,
@@ -15,6 +16,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   Frame,
   InfoBar,
+  ImageIcon,
   NavigationView,
   ProgressRing,
   TitleBar,
@@ -70,7 +72,9 @@ function categoryItems(parent: string | null): unknown[] {
     .map((item: Category) => ({
       Tag: `/category/${item.id}`,
       Content: item.name,
-      Icon: item.icon_glyph,
+      Icon: item.icon_image_url
+        ? h(ImageIcon, { Source: item.icon_image_url, Width: 20, Height: 20 })
+        : item.icon_glyph,
       MenuItems: categoryItems(item.id),
       InfoBadge:
         item.show_notification && Number(item.post_count) ? { Value: Number(item.post_count) } : null,
@@ -103,7 +107,7 @@ const menuItems = computed(() =>
       ]
     : [
         { Tag: '/home', Content: '社区首页', Icon: '\ue80f' },
-        { Tag: '/popular', Content: '热门讨论', Icon: '\ue8e5' },
+        { Tag: '/popular', Content: '热门讨论', Icon: '\uecad' },
         { Type: 'Header', Content: '板块' },
         ...categoryItems(null),
         { Type: 'Separator' },
