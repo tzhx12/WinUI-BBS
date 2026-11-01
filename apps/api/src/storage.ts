@@ -8,8 +8,10 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { Pool, PoolClient } from 'pg'
 import { z } from 'zod'
 import { pool, query, inTransaction } from './db.js'
@@ -20,26 +22,47 @@ import { replaceDeletedImages } from './media.js'
 const storageError = (message: string, statusCode = 503) =>
   Object.assign(new Error(message), { statusCode })
 const bytes = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
+const s3Schema = z.object({
+  enabled: z.boolean(),
+  endpoint: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]),
+  region: z.string().trim().min(1).max(80),
+  bucket: z.string().trim().max(255),
+  prefix: z
+    .string()
+    .max(255)
+    .regex(/^[\w./-]*$/),
+  accessKeyId: z.string().trim().max(500),
+  secretAccessKey: z.string().max(2000),
+  capacityBytes: bytes,
+  forcePathStyle: z.boolean(),
+  accessMode: z.enum(['proxy', 'presigned', 'public']),
+  publicBaseUrl: z.union([
+    z
+      .url({ protocol: /^https?$/ })
+      .max(2048)
+      .refine((value) => {
+        const url = URL.parse(value)
+        return Boolean(
+          url &&
+          !url.username &&
+          !url.password &&
+          !value.includes('?') &&
+          !value.includes('#'),
+        )
+      }),
+    z.literal(''),
+  ]),
+})
 export const storageSchema = z.object({
   localMaxBytes: bytes,
   preference: z.enum(['local', 's3']),
   recycleBytes: bytes.min(1),
-  s3: z.object({
-    enabled: z.boolean(),
-    endpoint: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]),
-    region: z.string().trim().min(1).max(80),
-    bucket: z.string().trim().max(255),
-    prefix: z
-      .string()
-      .max(255)
-      .regex(/^[\w./-]*$/),
-    accessKeyId: z.string().trim().max(500),
-    secretAccessKey: z.string().max(2000),
-    capacityBytes: bytes,
-    forcePathStyle: z.boolean(),
-  }),
+  // Older callers can keep saving their original settings without resetting access mode.
+  s3: s3Schema.partial({ accessMode: true, publicBaseUrl: true }),
 })
-export type StorageSettings = z.infer<typeof storageSchema>
+export type StorageSettings = Omit<z.infer<typeof storageSchema>, 's3'> & {
+  s3: z.infer<typeof s3Schema>
+}
 type S3Settings = StorageSettings['s3']
 export type StoredFile = {
   storage_key: string
@@ -63,10 +86,11 @@ export function publicStorageSettings(value: StorageSettings) {
   }
 }
 export async function mergeStorageSettings(
-  value: StorageSettings,
+  value: z.infer<typeof storageSchema>,
   previous: StorageSettings,
 ) {
   const s3 = {
+    ...previous.s3,
     ...value.s3,
     accessKeyId: value.s3.accessKeyId
       ? encryptStorageSecret(value.s3.accessKeyId)
@@ -86,6 +110,8 @@ export async function mergeStorageSettings(
     throw storageError('启用对象存储需要端点、存储桶、凭据和本站容量配额', 400)
   if (value.preference === 's3' && !s3.enabled)
     throw storageError('请先启用对象存储，或选择优先使用本地存储', 400)
+  if (s3.accessMode === 'public' && !s3.publicBaseUrl)
+    throw storageError('使用自定义域名公开访问时，请填写公开访问地址', 400)
   return { ...value, s3 }
 }
 function s3Client(config: S3Settings) {
@@ -573,4 +599,29 @@ export async function getObjectFile(file: StoredFile) {
     client.destroy()
     throw storageError('对象存储暂时不可用', 502)
   }
+}
+
+export async function objectAccessUrl(
+  file: StoredFile,
+  method: 'GET' | 'HEAD',
+) {
+  const config = await locationConfig(file.storage_location!)
+  const key = file.storage_location!.key
+  if (config.accessMode === 'public') {
+    const url = new URL(config.publicBaseUrl)
+    url.pathname = `${url.pathname.replace(/\/+$/, '')}/${key.split('/').map(encodeURIComponent).join('/')}`
+    return url.href
+  }
+  if (config.accessMode === 'presigned')
+    return withS3(config, (client) => {
+      const input = { Bucket: config.bucket, Key: key }
+      return getSignedUrl(
+        client,
+        method === 'HEAD'
+          ? new HeadObjectCommand(input)
+          : new GetObjectCommand(input),
+        { expiresIn: 15 * 60 },
+      )
+    })
+  return null
 }

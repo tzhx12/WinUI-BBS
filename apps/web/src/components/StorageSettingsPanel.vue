@@ -237,6 +237,36 @@ onUnmounted(() => clearInterval(timer))
           OnContent="路径式"
           OffContent="虚拟主机式"
         />
+        <WinSelect
+          v-model="data!.settings.s3.accessMode"
+          label="对象存储图片访问方式"
+          :options="[
+            { value: 'proxy', label: '服务器转发（默认）' },
+            { value: 'presigned', label: '预签名 URL 直连' },
+            { value: 'public', label: '自定义域名公开访问' },
+          ]"
+        />
+        <p v-if="data!.settings.s3.accessMode === 'proxy'" class="secondary-text">
+          网站服务器读取对象存储并返回图片，可用于私有存储桶。
+        </p>
+        <p v-else-if="data!.settings.s3.accessMode === 'presigned'" class="secondary-text">
+          浏览器使用有效期 15 分钟的预签名链接直接读取图片，可用于私有存储桶。S3 API 端点须能被用户访问。
+        </p>
+        <template v-else>
+          <TextBox
+            v-model:Text="data!.settings.s3.publicBaseUrl"
+            Header="公开访问地址"
+            aria-label="公开访问地址"
+            PlaceholderText="https://images.example.com"
+          />
+          <p class="secondary-text">
+            填写映射到此存储桶根目录的域名或地址，可包含路径。请先在存储服务中启用公开读取或配置
+            CDN；对象路径前缀会自动附加。
+          </p>
+        </template>
+        <p v-if="data!.settings.s3.accessMode !== 'proxy'" class="secondary-text">
+          图片数据直接传输给浏览器，不占用网站服务器的图片转发带宽。已有图片链接继续有效；保存后应用于当前端点和存储桶中的图片。
+        </p>
         <div class="form-actions">
           <WinButton label="测试对象存储连接" :disabled="saving" @click="testConnection" /><span
             v-if="testing"

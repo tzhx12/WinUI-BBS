@@ -116,6 +116,8 @@ export interface StorageSettings {
     hasCredentials?: boolean
     capacityBytes: number
     forcePathStyle: boolean
+    accessMode: 'proxy' | 'presigned' | 'public'
+    publicBaseUrl: string
   }
 }
 export interface StorageCapacity {

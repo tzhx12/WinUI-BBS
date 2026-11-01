@@ -56,7 +56,12 @@ async function clear() {
     localMaxBytes: 0,
     preference: 'local',
     recycleBytes: 100,
-    s3: { enabled: false },
+    s3: {
+      enabled: false,
+      accessMode: 'proxy',
+      publicBaseUrl: '',
+      prefix: 'forum/',
+    },
   })
 }
 before(async () => {
@@ -67,7 +72,7 @@ before(async () => {
     done(null, body),
   )
   s3.route({
-    method: ['PUT', 'GET', 'DELETE'],
+    method: ['PUT', 'GET', 'HEAD', 'DELETE'],
     url: '/*',
     handler: async (req, reply) => {
       const key = new URL(req.url, 'http://fixture').pathname
@@ -124,6 +129,49 @@ before(async () => {
 after(async () => {
   await s3?.close()
   await f?.close()
+})
+
+test('access migration preserves legacy settings and locations and defaults to proxy', async () => {
+  const original = (
+    await f.query(
+      "SELECT setting_value FROM app_settings WHERE setting_key='media_storage'",
+    )
+  ).rows[0].setting_value
+  assert.equal(original.s3.accessMode, 'proxy')
+  assert.equal(original.s3.publicBaseUrl, '')
+  const legacyS3 = { ...original.s3 }
+  delete legacyS3.accessMode
+  delete legacyS3.publicBaseUrl
+  const location = (
+    await f.query(
+      'INSERT INTO storage_locations(config) VALUES($1) RETURNING id',
+      [legacyS3],
+    )
+  ).rows[0]
+  await f.query(
+    "UPDATE app_settings SET setting_value=$1 WHERE setting_key='media_storage'",
+    [{ ...original, s3: legacyS3 }],
+  )
+  await f.query(
+    await readFile('migrations/024_object_storage_access.sql', 'utf8'),
+  )
+  assert.deepEqual(
+    (
+      await f.query(
+        "SELECT setting_value FROM app_settings WHERE setting_key='media_storage'",
+      )
+    ).rows[0].setting_value,
+    original,
+  )
+  assert.deepEqual(
+    (
+      await f.query('SELECT config FROM storage_locations WHERE id=$1', [
+        location.id,
+      ])
+    ).rows[0].config,
+    original.s3,
+  )
+  await f.query('DELETE FROM storage_locations WHERE id=$1', [location.id])
 })
 
 test('storage permissions, encrypted credentials, keep existing media-settings contract and probe cleanup', async () => {
@@ -262,6 +310,219 @@ test('S3 preference falls back to local; disabled or changed config preserves ex
     200,
   )
   await configure({ s3: { bucket: 'test' } })
+})
+
+test('presigned reads redirect GET and HEAD without proxying bytes and preserve recorded object keys', async () => {
+  await clear()
+  await configure({
+    preference: 's3',
+    s3: { enabled: true, capacityBytes: 10000 },
+  })
+  const image = (await upload()).json()
+  await configure({ s3: { accessMode: 'presigned', prefix: 'new-prefix/' } })
+  const before = requests.length
+  const get = await f.app.inject({ method: 'GET', url: image.url })
+  const head = await f.app.inject({ method: 'HEAD', url: image.url })
+  assert.equal(
+    requests.length,
+    before,
+    'issuing redirects must not fetch from S3',
+  )
+  for (const response of [get, head]) {
+    assert.equal(response.statusCode, 302, response.body)
+    assert.equal(response.headers['cache-control'], 'no-store')
+    assert.equal(response.rawPayload.length, 0)
+    const url = new URL(response.headers.location)
+    assert.equal(url.origin, endpoint)
+    assert.equal(url.pathname, `/test/forum/${image.storage_key}`)
+    assert.equal(url.searchParams.get('X-Amz-Algorithm'), 'AWS4-HMAC-SHA256')
+    assert.equal(url.searchParams.get('X-Amz-Expires'), '900')
+    assert.ok(
+      url.searchParams.get('X-Amz-Credential').startsWith('fixture-access/'),
+    )
+    assert.match(url.searchParams.get('X-Amz-Signature'), /^[a-f0-9]{64}$/)
+    assert.ok(!url.href.includes('fixture-secret'))
+  }
+  assert.notEqual(
+    new URL(get.headers.location).searchParams.get('X-Amz-Signature'),
+    new URL(head.headers.location).searchParams.get('X-Amz-Signature'),
+    'HEAD must be signed for its actual method',
+  )
+  assert.deepEqual(
+    Buffer.from(await (await fetch(get.headers.location)).arrayBuffer()),
+    png,
+  )
+  assert.equal(
+    (await fetch(head.headers.location, { method: 'HEAD' })).status,
+    200,
+  )
+  await configure({ preference: 'local', s3: { enabled: false } })
+  assert.equal(
+    (await f.app.inject({ method: 'GET', url: image.url })).statusCode,
+    302,
+  )
+  await configure({ s3: { accessMode: 'proxy' } })
+  const proxy = await f.app.inject({ method: 'GET', url: image.url })
+  assert.equal(proxy.statusCode, 200)
+  assert.deepEqual(proxy.rawPayload, png)
+})
+
+test('public domain reads append the recorded key, support paths, and retain other buckets access modes', async () => {
+  await clear()
+  await configure({
+    preference: 's3',
+    s3: { enabled: true, capacityBytes: 10000 },
+  })
+  const image = (await upload()).json()
+  await configure({
+    s3: { accessMode: 'public', publicBaseUrl: `${endpoint}/test/` },
+  })
+  const before = requests.length
+  const get = await f.app.inject({ method: 'GET', url: image.url })
+  const head = await f.app.inject({ method: 'HEAD', url: image.url })
+  assert.equal(requests.length, before)
+  for (const response of [get, head]) {
+    assert.equal(response.statusCode, 302, response.body)
+    assert.equal(
+      response.headers.location,
+      `${endpoint}/test/forum/${image.storage_key}`,
+    )
+    assert.equal(response.headers['cache-control'], 'no-store')
+    assert.equal(response.rawPayload.length, 0)
+  }
+  assert.deepEqual(
+    Buffer.from(await (await fetch(get.headers.location)).arrayBuffer()),
+    png,
+  )
+  const specialKey = '图片/space #+?.png'
+  const encodedKey = specialKey.split('/').map(encodeURIComponent).join('/')
+  objects.delete(`/test/forum/${image.storage_key}`)
+  objects.set(`/test/${encodedKey}`, png)
+  await f.query(
+    "UPDATE media_assets SET storage_location=jsonb_set(storage_location,'{key}',$2::jsonb) WHERE id=$1",
+    [image.id, JSON.stringify(specialKey)],
+  )
+  const encoded = await f.app.inject({ method: 'GET', url: image.url })
+  assert.equal(encoded.headers.location, `${endpoint}/test/${encodedKey}`)
+  assert.deepEqual(
+    Buffer.from(await (await fetch(encoded.headers.location)).arrayBuffer()),
+    png,
+  )
+  await configure({
+    s3: { bucket: 'another', accessMode: 'presigned', publicBaseUrl: '' },
+  })
+  const another = (await upload()).json()
+  assert.ok(
+    new URL(
+      (await f.app.inject({ method: 'GET', url: another.url })).headers
+        .location,
+    ).pathname.startsWith('/another/'),
+  )
+  assert.equal(
+    (await f.app.inject({ method: 'GET', url: image.url })).headers.location,
+    encoded.headers.location,
+  )
+  await configure({
+    preference: 'local',
+    s3: {
+      enabled: false,
+      bucket: 'test',
+      accessMode: 'public',
+      publicBaseUrl: `${endpoint}/test`,
+    },
+  })
+  assert.equal(
+    (await f.app.inject({ method: 'GET', url: image.url })).headers.location,
+    encoded.headers.location,
+  )
+})
+
+test('access settings validate URLs and preserve mode when original API callers omit new fields', async () => {
+  await clear()
+  for (const changes of [
+    { accessMode: 'unknown' },
+    { accessMode: 'public', publicBaseUrl: '' },
+    ...[
+      'javascript:alert(1)',
+      'ftp://images.example.test',
+      'https://user:password@images.example.test',
+      'https://images.example.test/?token=x',
+      'https://images.example.test/#fragment',
+      'https://images.example.test/?',
+      'https://images.example.test/#',
+    ].map((publicBaseUrl) => ({ accessMode: 'public', publicBaseUrl })),
+  ]) {
+    const response = await f.request(
+      'PATCH',
+      '/api/admin/storage',
+      { ...config, s3: { ...config.s3, ...changes } },
+      f.owner,
+    )
+    assert.equal(response.statusCode, 400, response.body)
+  }
+  await configure({
+    s3: {
+      accessMode: 'public',
+      publicBaseUrl: 'https://images.example.test/bucket',
+    },
+  })
+  const legacy = structuredClone(config)
+  delete legacy.s3.accessMode
+  delete legacy.s3.publicBaseUrl
+  const response = await f.request(
+    'PATCH',
+    '/api/admin/storage',
+    legacy,
+    f.owner,
+  )
+  assert.equal(response.statusCode, 200, response.body)
+  const read = (
+    await f.request('GET', '/api/admin/storage', undefined, f.owner)
+  ).json().settings
+  assert.equal(read.s3.accessMode, 'public')
+  assert.equal(read.s3.publicBaseUrl, 'https://images.example.test/bucket')
+  const audit = (await f.request('GET', '/api/admin/audit', undefined, f.owner))
+    .json()
+    .find((entry) => entry.action_key === 'media.storage_settings')
+  assert.ok(
+    audit.summary.lines.includes('对象存储图片访问方式：自定义域名公开访问'),
+  )
+  assert.ok(!JSON.stringify(audit).includes('fixture-secret'))
+})
+
+test('access mode changes roll back for both stored locations and current settings if audit fails', async () => {
+  await clear()
+  await configure({
+    preference: 's3',
+    s3: { enabled: true, capacityBytes: 10000 },
+  })
+  const image = (await upload()).json()
+  await f.query(
+    `CREATE FUNCTION fail_storage_access_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action_key='media.storage_settings' THEN RAISE EXCEPTION 'fixture audit failure'; END IF; RETURN NEW; END $$`,
+  )
+  await f.query(
+    'CREATE TRIGGER fail_storage_access_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION fail_storage_access_audit()',
+  )
+  try {
+    const response = await f.request(
+      'PATCH',
+      '/api/admin/storage',
+      { ...config, s3: { ...config.s3, accessMode: 'presigned' } },
+      f.owner,
+    )
+    assert.equal(response.statusCode, 500)
+    assert.equal(
+      (await f.request('GET', '/api/admin/storage', undefined, f.owner)).json()
+        .settings.s3.accessMode,
+      'proxy',
+    )
+    const read = await f.app.inject({ method: 'GET', url: image.url })
+    assert.equal(read.statusCode, 200, read.body)
+    assert.deepEqual(read.rawPayload, png)
+  } finally {
+    await f.query('DROP TRIGGER fail_storage_access_audit ON audit_events')
+    await f.query('DROP FUNCTION fail_storage_access_audit()')
+  }
 })
 
 test('95% alerts reach only active media managers, deduplicate and rearm after recovery', async () => {

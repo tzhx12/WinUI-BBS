@@ -28,6 +28,7 @@ import {
   testObjectStorage,
   monitorStorage,
   getObjectFile,
+  objectAccessUrl,
   queueStorageDeletion,
   flushStorageDeletions,
   type StoredFile,
@@ -54,6 +55,12 @@ export async function registerMediaRoutes(
     )
     const asset = result.rows[0]
     if (!asset) return
+    const directUrl = await objectAccessUrl(
+      asset,
+      request.method as 'GET' | 'HEAD',
+    )
+    if (directUrl)
+      return reply.header('Cache-Control', 'no-store').redirect(directUrl)
     reply
       .type(asset.mime_type)
       .header('Cache-Control', 'public, max-age=0, must-revalidate')
@@ -75,14 +82,16 @@ export async function registerMediaRoutes(
     async (request, reply) => {
       const parsed = storageSchema.safeParse(request.body)
       if (!parsed.success)
-        return reply.code(400).send({ error: '请检查存储地址、容量和回收大小' })
+        return reply
+          .code(400)
+          .send({ error: '请检查存储地址、图片访问方式、容量和回收大小' })
       await withStorageLock(async () => {
         const settings = await mergeStorageSettings(
           parsed.data,
           await readStorageSettings(),
         )
         await inTransaction(async (client) => {
-          // Existing object URLs keep their original bucket; credentials can be rotated in place.
+          // Apply access mode and credential changes only to this endpoint/bucket's files.
           if (settings.s3.accessKeyId && settings.s3.secretAccessKey)
             await client.query(
               `UPDATE storage_locations SET config=config || $1::jsonb
@@ -91,6 +100,8 @@ export async function registerMediaRoutes(
                 JSON.stringify({
                   accessKeyId: settings.s3.accessKeyId,
                   secretAccessKey: settings.s3.secretAccessKey,
+                  accessMode: settings.s3.accessMode,
+                  publicBaseUrl: settings.s3.publicBaseUrl,
                 }),
                 settings.s3.endpoint,
                 settings.s3.bucket,
@@ -107,6 +118,8 @@ export async function registerMediaRoutes(
                 localMaxBytes: settings.localMaxBytes,
                 recycleBytes: settings.recycleBytes,
                 objectStorageEnabled: settings.s3.enabled,
+                objectAccessMode: settings.s3.accessMode,
+                publicBaseUrl: settings.s3.publicBaseUrl,
               }),
             ],
           )

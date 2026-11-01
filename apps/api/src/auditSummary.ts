@@ -135,6 +135,8 @@ const fields: Record<string, string> = {
   localMaxBytes: '本地容量（字节）',
   recycleBytes: '回收容量（字节）',
   objectStorageEnabled: '启用对象存储',
+  objectAccessMode: '对象存储图片访问方式',
+  publicBaseUrl: '公开访问地址',
   kind: '图片用途',
   height: '背景显示范围',
   url: '图片地址',
@@ -194,6 +196,8 @@ const values: Record<string, string> = {
   prerelease: '预发布版',
 }
 function scalar(value: unknown, key: string): string {
+  if (key === 'objectAccessMode')
+    return ({ proxy: '服务器转发', presigned: '预签名 URL 直连', public: '自定义域名公开访问' } as Record<string, string>)[String(value)] || String(value)
   if (key === 'height' && (value === 50 || value === 75)) return value === 50 ? '固定半屏渐变' : '固定 3/4 屏渐变'
   if (value === null) return key === 'banMinutes' ? '解除封禁' : key === 'expiresAt' ? '永久' : '无'
   if (value === '') return '已清空'
