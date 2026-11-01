@@ -176,7 +176,7 @@ async function removeMember(member: GroupMember) {
 <template>
   <div class="page-scroll">
     <div class="page-content">
-      <PageHeader title="用户组与权限" description="配置用户组权限、公开加入规则和临时成员关系。"
+      <PageHeader title="用户组与权限"
         ><WinButton label="新建用户组" icon="add" accent @click="edit()" /></PageHeader
       ><ResourceState :loading="loading" :error="dialog || membersOpen ? '' : error" />
       <div v-if="!loading" class="group-grid">

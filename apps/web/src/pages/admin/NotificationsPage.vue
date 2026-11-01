@@ -71,7 +71,7 @@ function audience(notice: Announcement) {
 <template>
   <div class="page-scroll">
     <div class="page-content notifications-page">
-      <PageHeader title="公告与通知" description="向全体用户、指定用户组或某位用户发送站内消息。"
+      <PageHeader title="公告与通知"
         ><WinButton label="发送通知" icon="mail" accent @click="compose"
       /></PageHeader>
       <ResourceState :loading="loading" :error="dialog ? '' : error" />

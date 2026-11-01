@@ -4,6 +4,7 @@ import { adminPermissions, requirePermission } from '../auth.js'
 import { inTransaction, query } from '../db.js'
 import { readSettings, saveSettings } from '../settings.js'
 import { sendReviewNotification } from '../notifications.js'
+import { adminPostList, adminPostListQuery, adminPostSearch } from '../adminPostLists.js'
 
 export async function registerReviewRoutes(app: FastifyInstance) {
   app.get('/api/admin/review-settings', { preHandler: adminPermissions.settings }, async () =>
@@ -28,27 +29,27 @@ export async function registerReviewRoutes(app: FastifyInstance) {
   )
   const guard = requirePermission('posts.review')
   app.get('/api/admin/reviews', { preHandler: guard }, async (request, reply) => {
-    const parsed = z
-      .object({
+    const parsed = adminPostListQuery
+      .extend({
         status: z.enum(['pending', 'published', 'rejected']).default('pending'),
       })
       .safeParse(request.query)
     if (!parsed.success) return reply.code(400).send({ error: '审核筛选无效' })
-    return (
-      await query(
-        `SELECT p.id, p.title, p.status, p.created_at, host(p.author_ip) AS author_ip,
+    return adminPostList(
+      `SELECT p.id, p.title, p.status, p.created_at, host(p.author_ip) AS author_ip,
               p.review_reason, p.reviewed_at, c.name AS category_name,
               u.uid AS author_uid, u.username, u.display_name,
               reviewer.display_name AS reviewer_name,
               ARRAY(SELECT g.name FROM group_memberships gm JOIN user_groups g ON g.id = gm.group_id
-                    WHERE gm.user_uid = u.uid AND (gm.expires_at IS NULL OR gm.expires_at > NOW()) ORDER BY g.name) AS groups
-       FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
+                    WHERE gm.user_uid = u.uid AND (gm.expires_at IS NULL OR gm.expires_at > NOW()) ORDER BY g.name) AS groups`,
+      `FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
        LEFT JOIN users reviewer ON reviewer.uid = p.reviewed_by
-       WHERE p.deleted_at IS NULL AND p.status = $1 AND ($1 = 'pending' OR p.reviewed_at IS NOT NULL)
-       ORDER BY p.created_at DESC LIMIT 200`,
-        [parsed.data.status],
-      )
-    ).rows
+       WHERE p.deleted_at IS NULL AND p.status = $2 AND ($2 = 'pending' OR p.reviewed_at IS NOT NULL)
+       AND ${adminPostSearch}`,
+      'p.created_at DESC, p.id DESC',
+      [parsed.data.q, parsed.data.status],
+      parsed.data.page,
+    )
   })
   app.get('/api/admin/reviews/:id', { preHandler: guard }, async (request, reply) => {
     const result = await query(

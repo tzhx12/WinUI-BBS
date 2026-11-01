@@ -9,8 +9,7 @@ import WinButton from '../../components/ui/WinButton.vue'
 defineOptions({ inheritAttrs: false })
 const site = useSite()
 const { data, loading, error, saving, run } = useResource(
-  () =>
-    api<typeof site.settings.contentLimits>('/api/admin/content-settings', { token: site.token.value }),
+  () => api<typeof site.settings.contentLimits>('/api/admin/content-settings', { token: site.token.value }),
   { ...site.settings.contentLimits },
 )
 async function save() {
@@ -92,10 +91,6 @@ async function save() {
             SpinButtonPlacementMode="Inline"
           />
         </div>
-        <p class="field-hint">
-          图片上限只计算普通图片。每篇帖子、每条回复的表情合计固定最多 1000
-          个，包含用户上传、远端和社区表情。字数按可见文字计数，格式标记不占字数。
-        </p>
       </section>
       <section class="surface-card settings-form">
         <h2>个人图床</h2>

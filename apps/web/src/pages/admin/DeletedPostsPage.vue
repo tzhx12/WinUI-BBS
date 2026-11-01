@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { api } from '../../api'
-import { useResource } from '../../composables/useResource'
+import { useAdminPostList } from '../../composables/useAdminPostList'
+import AdminPostSearch from '../../components/AdminPostSearch.vue'
+import AdminPostPagination from '../../components/AdminPostPagination.vue'
 import { useSite } from '../../site'
 import type { DeletedPost } from '../../types/admin'
 import { formatDateTime } from '../../utils'
@@ -11,14 +13,8 @@ import WinButton from '../../components/ui/WinButton.vue'
 defineOptions({ inheritAttrs: false })
 const site = useSite(),
   router = useRouter()
-const {
-  data: posts,
-  loading,
-  error,
-  saving,
-  reload,
-  run,
-} = useResource(() => api<DeletedPost[]>('/api/admin/deleted-posts', { token: site.token.value }), [])
+const { data, posts, search, applySearch, goPage, loading, error, saving, reload, run } =
+  useAdminPostList<DeletedPost>('/api/admin/deleted-posts')
 const names = { published: '已发布', pending: '待审核', hidden: '已隐藏', rejected: '未通过' }
 async function restore(post: DeletedPost) {
   if (!(await site.confirm(`恢复“${post.title}”？`, `恢复后保持原状态：${names[post.status]}。`, '恢复帖子')))
@@ -35,9 +31,13 @@ async function restore(post: DeletedPost) {
 <template>
   <div class="page-scroll">
     <div class="page-content">
-      <PageHeader title="删除记录" description="管理员删除的帖子保留在这里，仅管理员可以恢复。"
+      <PageHeader title="删除记录"
         ><WinButton label="返回发帖管理" icon="back" @click="router.push('/admin/posts')"
       /></PageHeader>
+      <div class="section-toolbar">
+        <AdminPostSearch v-model="search" :loading="loading" @search="applySearch" />
+        <span class="secondary-text">{{ data.total }} 篇帖子</span>
+      </div>
       <ResourceState :loading="loading" :error="error" />
       <div v-if="!loading" class="table-surface">
         <table class="data-table">
@@ -66,11 +66,18 @@ async function restore(post: DeletedPost) {
               <td><WinButton label="恢复帖子" icon="refresh" :disabled="saving" @click="restore(post)" /></td>
             </tr>
             <tr v-if="!posts.length">
-              <td colspan="6" class="table-empty">暂无删除记录</td>
+              <td colspan="6" class="table-empty">{{ search ? '没有匹配的帖子' : '暂无删除记录' }}</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <AdminPostPagination
+        v-if="!error && data.totalPages > 1"
+        :page="data.page"
+        :total-pages="data.totalPages"
+        :loading="loading"
+        @change="goPage"
+      />
     </div>
   </div>
 </template>

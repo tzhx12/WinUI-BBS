@@ -67,7 +67,7 @@ async function save() {
 <template>
   <div class="page-scroll">
     <div class="page-content">
-      <PageHeader title="等级与经验" description="设置升级所需经验、活动奖励和等级头衔。"
+      <PageHeader title="等级与经验"
         ><WinButton
           label="保存设置"
           icon="check"

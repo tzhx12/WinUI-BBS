@@ -2,7 +2,9 @@
 import { ref, watch } from 'vue'
 import { NumberBox, TextBox } from 'winuionweb'
 import { api } from '../../api'
-import { useResource } from '../../composables/useResource'
+import { useAdminPostList } from '../../composables/useAdminPostList'
+import AdminPostSearch from '../../components/AdminPostSearch.vue'
+import AdminPostPagination from '../../components/AdminPostPagination.vue'
 import { useSite } from '../../site'
 import type { ReviewPost } from '../../types/admin'
 import { formatDateTime } from '../../utils'
@@ -20,20 +22,10 @@ const dialog = ref(false),
   decision = ref<'reject' | 'ban'>('reject'),
   reason = ref(''),
   banMinutes = ref(1440)
-const {
-  data: posts,
-  loading,
-  error,
-  saving,
-  reload,
-  run,
-} = useResource(
-  () => api<ReviewPost[]>(`/api/admin/reviews?status=${status.value}`, { token: site.token.value }),
-  [],
-)
+const { data, posts, search, applySearch, goPage, loading, error, saving, reload, run } =
+  useAdminPostList<ReviewPost>('/api/admin/reviews', status)
 watch(status, () => {
   selected.value = null
-  void reload()
 })
 async function read(post: ReviewPost) {
   await run(async () => {
@@ -76,10 +68,7 @@ async function decide(action: 'approve' | 'reject' | 'ban') {
 <template>
   <div class="page-scroll">
     <div class="page-content">
-      <PageHeader
-        :title="selected ? '阅读与审核' : '发帖审核'"
-        :description="selected ? selected.category_name : '阅读待审核帖子，决定是否公开。'"
-      >
+      <PageHeader :title="selected ? '阅读与审核' : '发帖审核'" :description="selected?.category_name">
         <WinButton
           v-if="selected"
           label="返回审核列表"
@@ -129,7 +118,9 @@ async function decide(action: 'approve' | 'reject' | 'ban') {
               { value: 'published', label: '已通过' },
               { value: 'rejected', label: '未通过' },
             ]"
-          /><span class="secondary-text">{{ posts.length }} 篇帖子</span>
+          />
+          <AdminPostSearch v-model="search" :loading="loading" @search="applySearch" />
+          <span class="secondary-text">{{ data.total }} 篇帖子</span>
         </div>
         <div v-if="!loading" class="table-surface">
           <table class="data-table">
@@ -169,12 +160,19 @@ async function decide(action: 'approve' | 'reject' | 'ban') {
               </tr>
               <tr v-if="!posts.length">
                 <td colspan="5" class="table-empty">
-                  {{ status === 'pending' ? '暂无待审核帖子' : '暂无审核记录' }}
+                  {{ search ? '没有匹配的帖子' : status === 'pending' ? '暂无待审核帖子' : '暂无审核记录' }}
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+        <AdminPostPagination
+          v-if="!error && data.totalPages > 1"
+          :page="data.page"
+          :total-pages="data.totalPages"
+          :loading="loading"
+          @change="goPage"
+        />
       </template>
       <WinDialog
         v-model:open="dialog"

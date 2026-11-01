@@ -219,7 +219,7 @@ async function removePack(pack: EmojiPack) {
 <template>
   <div class="page-scroll">
     <div class="page-content">
-      <PageHeader title="图床与表情" description="统一管理图片、表情包和站点图标资源。"
+      <PageHeader title="图床与表情"
         ><WinButton label="新建表情包" icon="emoji" @click="editPack()" /><WinButton
           label="上传图片"
           icon="upload"
@@ -240,9 +240,6 @@ async function removePack(pack: EmojiPack) {
       <SelectorPage :selected="view">
         <section v-if="view !== 'storage'" class="surface-card form-stack">
           <h2>社区表情包</h2>
-          <p class="secondary-text">
-            固定显示在选择器第一组。有发帖或回复权限即可在对应编辑器中使用，不占个人组数限额。
-          </p>
           <div class="row-actions">
             <WinSelect
               v-model="communityTarget"

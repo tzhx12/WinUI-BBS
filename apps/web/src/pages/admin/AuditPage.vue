@@ -25,8 +25,7 @@ function showDetails(entry: AuditEvent) {
 <template>
   <div class="page-scroll">
     <div class="page-content">
-      <PageHeader title="管理记录" description="查看最近的后台管理操作。"
-        ><WinButton label="刷新" icon="refresh" @click="reload" /></PageHeader
+      <PageHeader title="管理记录"><WinButton label="刷新" icon="refresh" @click="reload" /></PageHeader
       ><ResourceState :loading="loading" :error="error" />
       <div v-if="!loading" class="table-surface">
         <table class="data-table">

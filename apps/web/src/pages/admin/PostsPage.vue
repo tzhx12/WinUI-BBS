@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { postPath } from '../../utils'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../../api'
-import { useResource } from '../../composables/useResource'
+import { useAdminPostList } from '../../composables/useAdminPostList'
+import AdminPostSearch from '../../components/AdminPostSearch.vue'
+import AdminPostPagination from '../../components/AdminPostPagination.vue'
 import { useSite } from '../../site'
 import type { AdminPost } from '../../types/admin'
 import { formatDate } from '../../utils'
@@ -15,21 +17,8 @@ defineOptions({ inheritAttrs: false })
 const site = useSite(),
   router = useRouter(),
   status = ref('all')
-const {
-  data: posts,
-  loading,
-  error,
-  saving,
-  reload,
-  run,
-} = useResource(
-  () =>
-    api<AdminPost[]>(`/api/admin/posts${status.value === 'all' ? '' : `?status=${status.value}`}`, {
-      token: site.token.value,
-    }),
-  [],
-)
-watch(status, reload)
+const { data, posts, search, applySearch, goPage, loading, error, saving, reload, run } =
+  useAdminPostList<AdminPost>('/api/admin/posts', status)
 const names = { published: '已发布', pending: '待审核', hidden: '已隐藏', rejected: '未通过' }
 async function remove(post: AdminPost) {
   if (
@@ -57,7 +46,7 @@ async function update(post: AdminPost, changes: { status?: string; isPinned?: bo
 <template>
   <div class="page-scroll">
     <div class="page-content">
-      <PageHeader title="发帖管理" description="管理置顶、列表可见性与帖子删除。"
+      <PageHeader title="发帖管理"
         ><WinButton label="删除记录" icon="delete" @click="router.push('/admin/deleted-posts')"
       /></PageHeader>
       <div class="section-toolbar">
@@ -71,10 +60,11 @@ async function update(post: AdminPost, changes: { status?: string; isPinned?: bo
             { value: 'hidden', label: '已隐藏' },
             { value: 'rejected', label: '未通过' },
           ]"
-        /><span class="secondary-text">{{ posts.length }} 篇帖子</span>
+        />
+        <AdminPostSearch v-model="search" :loading="loading" @search="applySearch" />
+        <span class="secondary-text">{{ data.total }} 篇帖子</span>
       </div>
       <ResourceState :loading="loading" :error="error" />
-      <p class="field-hint">隐藏后不出现在首页、热门、搜索和板块列表中，仍可通过帖子链接阅读。</p>
       <div v-if="!loading" class="table-surface">
         <table class="data-table">
           <thead>
@@ -140,11 +130,18 @@ async function update(post: AdminPost, changes: { status?: string; isPinned?: bo
               </td>
             </tr>
             <tr v-if="!posts.length">
-              <td colspan="7" class="table-empty">暂无帖子</td>
+              <td colspan="7" class="table-empty">{{ search ? '没有匹配的帖子' : '暂无帖子' }}</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <AdminPostPagination
+        v-if="!error && data.totalPages > 1"
+        :page="data.page"
+        :total-pages="data.totalPages"
+        :loading="loading"
+        @change="goPage"
+      />
     </div>
   </div>
 </template>

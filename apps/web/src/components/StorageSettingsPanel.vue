@@ -169,16 +169,8 @@ onUnmounted(() => clearInterval(timer))
             SpinButtonPlacementMode="Inline"
           />
         </div>
-        <p class="secondary-text">
-          本地容量设为 0 时使用所在磁盘的可用空间。优先存储空间不足时自动切换到另一处存储。
-        </p>
-        <p class="secondary-text">
-          全部存储都满后，继续上传会从最早的普通图片开始回收，每批至少释放设定容量；可回收图片不足时释放剩余可回收空间。表情包、头像和站点图标始终保留。
-        </p>
-        <p class="secondary-text">
-          未启用对象存储时，本地存储或所在磁盘使用率达到 95% 会发站内信；对象存储配额达到 95%
-          也会提醒拥有图床管理权限的管理员。
-        </p>
+        <p class="secondary-text">本地容量设为 0 时使用磁盘可用空间。</p>
+        <p class="secondary-text">存储空间满后，继续上传会自动回收最早的普通图片。</p>
       </section>
       <section class="surface-card form-stack">
         <h2>兼容 S3 的对象存储</h2>
@@ -228,9 +220,7 @@ onUnmounted(() => clearInterval(timer))
             SpinButtonPlacementMode="Inline"
           />
         </div>
-        <p class="secondary-text">
-          填写为本站分配的配额。容量统计包含本站上传文件；其他应用或手动上传到存储桶的文件不计入此配额。
-        </p>
+        <p class="secondary-text">仅统计本站上传的图片。</p>
         <ToggleSwitch
           v-model:IsOn="data!.settings.s3.forcePathStyle"
           Header="使用路径式寻址"
@@ -246,27 +236,18 @@ onUnmounted(() => clearInterval(timer))
             { value: 'public', label: '自定义域名公开访问' },
           ]"
         />
-        <p v-if="data!.settings.s3.accessMode === 'proxy'" class="secondary-text">
-          网站服务器读取对象存储并返回图片，可用于私有存储桶。
+        <p v-if="data!.settings.s3.accessMode === 'presigned'" class="secondary-text">
+          S3 API 端点须能被用户访问。
         </p>
-        <p v-else-if="data!.settings.s3.accessMode === 'presigned'" class="secondary-text">
-          浏览器使用有效期 15 分钟的预签名链接直接读取图片，可用于私有存储桶。S3 API 端点须能被用户访问。
-        </p>
-        <template v-else>
+        <template v-else-if="data!.settings.s3.accessMode === 'public'">
           <TextBox
             v-model:Text="data!.settings.s3.publicBaseUrl"
             Header="公开访问地址"
             aria-label="公开访问地址"
             PlaceholderText="https://images.example.com"
           />
-          <p class="secondary-text">
-            填写映射到此存储桶根目录的域名或地址，可包含路径。请先在存储服务中启用公开读取或配置
-            CDN；对象路径前缀会自动附加。
-          </p>
+          <p class="secondary-text">填写存储桶根目录对应的公开地址，并先启用公开读取或配置 CDN。</p>
         </template>
-        <p v-if="data!.settings.s3.accessMode !== 'proxy'" class="secondary-text">
-          图片数据直接传输给浏览器，不占用网站服务器的图片转发带宽。已有图片链接继续有效；保存后应用于当前端点和存储桶中的图片。
-        </p>
         <div class="form-actions">
           <WinButton label="测试对象存储连接" :disabled="saving" @click="testConnection" /><span
             v-if="testing"

@@ -30,7 +30,7 @@ async function save() {
 <template>
   <div class="page-scroll">
     <div class="page-content settings-page">
-      <PageHeader title="审核设置" description="设置新帖是否需要审核后公开。"
+      <PageHeader title="审核设置"
         ><WinButton label="保存设置" icon="check" accent :disabled="loading || saving" @click="save"
       /></PageHeader>
       <ResourceState :loading="loading" :error="error" />
@@ -41,24 +41,7 @@ async function save() {
           OnContent="新帖需审核"
           OffContent="新帖直接发布"
         />
-        <p class="field-hint">板块可以单独开启审核。此设置只影响之后提交的新帖，队列中的帖子仍需处理。</p>
-      </section>
-      <section class="surface-card">
-        <h2>审核规则的优先顺序</h2>
-        <ol class="review-rules">
-          <li>
-            <strong>发帖必须审核</strong>
-            <p>拥有此权限的用户始终需要审核；同时拥有免审核权限时，以必须审核为准。</p>
-          </li>
-          <li>
-            <strong>发帖全局免审核</strong>
-            <p>其余拥有此权限的用户可直接发布，包括开启审核的板块。</p>
-          </li>
-          <li>
-            <strong>全站与板块设置</strong>
-            <p>其余用户在全站或当前板块开启审核时进入待审核队列。</p>
-          </li>
-        </ol>
+        <p class="field-hint">仅影响之后提交的新帖，待审核队列不变。</p>
       </section>
     </div>
   </div>

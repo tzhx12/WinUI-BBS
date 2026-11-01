@@ -100,7 +100,7 @@ async function save() {
 <template>
   <div class="page-scroll">
     <div class="page-content">
-      <PageHeader title="用户管理" description="查看用户身份、用户组与等级，管理账号状态。" />
+      <PageHeader title="用户管理" />
       <form class="section-toolbar" @submit.prevent="reload">
         <div class="toolbar-search">
           <TextBox

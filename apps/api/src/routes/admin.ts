@@ -9,6 +9,7 @@ import { grantLevelInvitations } from '../invitations.js'
 import { groupPermissionError, permissionKeys } from '../permissions.js'
 import { auditSummary } from '../auditSummary.js'
 import { replyExcerpt } from '../content.js'
+import { adminPostList, adminPostListQuery, adminPostSearch } from '../adminPostLists.js'
 
 const groupTypes = ['management', 'public', 'normal', 'temporary', 'special'] as const
 
@@ -737,22 +738,23 @@ export async function registerAdminRoutes(
     return { saved: true }
   })
 
-  app.get('/api/admin/posts', { preHandler: adminPermissions.posts }, async (request) => {
-    const parsed = z
-      .object({
+  app.get('/api/admin/posts', { preHandler: adminPermissions.posts }, async (request, reply) => {
+    const parsed = adminPostListQuery
+      .extend({
         status: z.enum(['published', 'pending', 'hidden', 'rejected']).optional(),
       })
       .safeParse(request.query)
-    const status = parsed.success ? (parsed.data.status ?? null) : null
-    const result = await query(
+    if (!parsed.success) return reply.code(400).send({ error: '帖子筛选无效' })
+    return adminPostList(
       `SELECT p.id, p.title, p.status, p.is_pinned, p.minimum_reader_level, p.created_at,
               c.id AS category_id, c.slug AS category_slug, c.name AS category_name, u.uid AS author_uid, u.display_name,
-              (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL)::int AS reply_count
-       FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
-       WHERE p.deleted_at IS NULL AND ($1::text IS NULL OR p.status = $1) ORDER BY p.created_at DESC LIMIT 200`,
-      [status],
+              (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.deleted_at IS NULL)::int AS reply_count`,
+      `FROM posts p JOIN categories c ON c.id = p.category_id JOIN users u ON u.uid = p.author_uid
+       WHERE p.deleted_at IS NULL AND ($2::text IS NULL OR p.status = $2) AND ${adminPostSearch}`,
+      'p.created_at DESC, p.id DESC',
+      [parsed.data.q, parsed.data.status ?? null],
+      parsed.data.page,
     )
-    return result.rows
   })
 
   app.patch('/api/admin/posts/:id', { preHandler: adminPermissions.posts }, async (request, reply) => {
@@ -819,20 +821,20 @@ export async function registerAdminRoutes(
     if (!result) return reply.code(404).send({ error: '帖子不存在或已删除' })
     return { id: result.id }
   })
-  app.get(
-    '/api/admin/deleted-posts',
-    { preHandler: adminPermissions.posts },
-    async () =>
-      (
-        await query(
-          `SELECT p.id, p.title, p.status, p.deleted_at, p.created_at, c.name AS category_name,
-              u.uid AS author_uid, u.display_name, d.display_name AS deleted_by_name
-       FROM posts p JOIN users u ON u.uid = p.author_uid JOIN categories c ON c.id = p.category_id
+  app.get('/api/admin/deleted-posts', { preHandler: adminPermissions.posts }, async (request, reply) => {
+    const parsed = adminPostListQuery.safeParse(request.query)
+    if (!parsed.success) return reply.code(400).send({ error: '删除记录筛选无效' })
+    return adminPostList(
+      `SELECT p.id, p.title, p.status, p.deleted_at, p.created_at, c.name AS category_name,
+              u.uid AS author_uid, u.display_name, d.display_name AS deleted_by_name`,
+      `FROM posts p JOIN users u ON u.uid = p.author_uid JOIN categories c ON c.id = p.category_id
        LEFT JOIN users d ON d.uid = p.deleted_by
-       WHERE p.deleted_at IS NOT NULL AND p.deletion_source = 'admin' ORDER BY p.deleted_at DESC LIMIT 200`,
-        )
-      ).rows,
-  )
+       WHERE p.deleted_at IS NOT NULL AND p.deletion_source = 'admin' AND ${adminPostSearch}`,
+      'p.deleted_at DESC, p.id DESC',
+      [parsed.data.q],
+      parsed.data.page,
+    )
+  })
   app.post(
     '/api/admin/deleted-posts/:id/restore',
     { preHandler: adminPermissions.posts },

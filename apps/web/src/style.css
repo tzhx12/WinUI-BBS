@@ -18,17 +18,6 @@
 .inbox-notice h2 {
   margin-top: 20px;
 }
-.review-rules {
-  padding-inline-start: 24px;
-}
-.review-rules li {
-  padding-inline-start: 8px;
-  margin-bottom: 20px;
-}
-.review-rules p {
-  margin: 6px 0 0;
-  color: var(--text-secondary);
-}
 .review-author-meta {
   display: flex;
   flex-wrap: wrap;
@@ -854,6 +843,17 @@ html.theme-dark {
 }
 .editor-composer {
   min-width: 0;
+}
+/* CJK fonts often have no italic face; allow synthesis for authored italics. */
+.editor-holder i,
+.editor-holder em,
+.post-body i,
+.post-body em {
+  font-style: italic;
+  font-synthesis: style;
+}
+.admin-post-search {
+  width: min(520px, 100%);
 }
 .editor-composer .codex-editor__redactor {
   padding-bottom: 80px !important;
@@ -1798,6 +1798,10 @@ html.theme-dark {
 .theme-dark .ce-popover,
 .theme-dark .ce-inline-toolbar,
 .theme-dark .ce-conversion-toolbar {
+  --color-background: #2c2c2c;
+  --color-text-primary: var(--text-primary);
+  --color-background-item-hover: #383838;
+  --color-border: #444;
   background: #2c2c2c;
   color: var(--text-primary);
   border-color: #444;

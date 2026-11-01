@@ -65,7 +65,7 @@ async function testImap() {
 <template>
   <div class="page-scroll">
     <div class="page-content settings-page">
-      <PageHeader title="发信设置" description="通过 SMTP 发送验证邮件，使用 IMAP 检查收信连接。"
+      <PageHeader title="发信设置"
         ><WinButton label="保存设置" accent :disabled="loading || saving" @click="save"
       /></PageHeader>
       <ResourceState :loading="loading" :error="error" />

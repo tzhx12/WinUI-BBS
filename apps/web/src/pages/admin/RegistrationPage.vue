@@ -47,7 +47,7 @@ async function save() {
 <template>
   <div class="page-scroll">
     <div class="page-content settings-page">
-      <PageHeader title="注册管理" description="配置注册验证、找回密码与账号安全。"
+      <PageHeader title="注册管理"
         ><WinButton label="保存设置" accent :disabled="loading || saving" @click="save"
       /></PageHeader>
       <ResourceState :loading="loading" :error="error" />
@@ -135,7 +135,6 @@ async function save() {
             SpinButtonPlacementMode="Inline"
             AutomationProperties.Name="两次改密最短间隔（秒）"
           />
-          <p class="field-hint">用户通过已绑定邮箱的验证码更改密码；成功后使旧登录凭证失效。</p>
         </section>
       </template>
     </div>

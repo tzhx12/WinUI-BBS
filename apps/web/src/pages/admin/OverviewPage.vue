@@ -31,8 +31,7 @@ const stats = computed(() =>
 <template>
   <div class="page-scroll">
     <div class="page-content">
-      <PageHeader title="管理概览" description="查看社区运行情况和近期动态。"
-        ><WinButton label="刷新" icon="refresh" @click="reload" /></PageHeader
+      <PageHeader title="管理概览"><WinButton label="刷新" icon="refresh" @click="reload" /></PageHeader
       ><ResourceState :loading="loading" :error="error" />
       <template v-if="data"
         ><div class="stats-grid">

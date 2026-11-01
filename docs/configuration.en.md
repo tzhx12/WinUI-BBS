@@ -74,6 +74,19 @@ On phones, the title bar hides the site name and subtitle while keeping the logo
 - In **邀请码管理 → 等级奖励**, rules can be enabled, disabled or deleted. Deleting a rule stops future rewards and keeps already issued invitation codes available.
 - Users manage their avatar, nickname, login username and password, in that order, under **User dashboard → Profile management**. Clicking the dashboard avatar or the edit icon beside the nickname opens a quick-edit dialog. Usernames must be unique without regard to letter case. A successful username change starts a 180-day waiting period; active members of management groups are exempt. Failed requests and saving the same username do not use the allowance. Nicknames can be edited independently and appear in the title bar, profiles and post bylines. Avatar uploads follow the user's image and storage limits. Avatars are excluded from the personal gallery but remain visible to media administrators. Their storage accounting and deletion protection are unchanged. Changing a login username keeps the nickname, UID and other account data intact.
 
+## Administration pages
+
+| Page | Purpose |
+| --- | --- |
+| Overview | View community activity and recent changes. |
+| Users, groups and permissions, levels and experience | Manage accounts, groups, temporary memberships, permissions and experience rewards. |
+| Posts, post review, deleted posts | Pin, hide and delete posts, read and decide review submissions, and restore administrator-deleted posts. |
+| Review settings | Configure whether new posts require review; see the review precedence rules below. |
+| Images and emoji | Manage images, emoji packs, storage and site-icon resources. |
+| Announcements and notifications | Send messages to all users, a group or an individual user. |
+| Registration and mail settings | Configure verification, password recovery and account security, send mail through SMTP and check IMAP connections. |
+| Audit history | View recent administration actions. |
+
 ## Content limits, pagination and local drafts
 
 Administrators with `settings.manage` configure **内容管理 → 发帖与回复设置**. Both the editor and API enforce the limits for new submissions; existing content is retained.
@@ -90,6 +103,8 @@ Administrators with `settings.manage` configure **内容管理 → 发帖与回�
 Home, popular discussions and category feeds use server-side pagination. Previous/next controls and a page-number field appear below the list; Enter also jumps to the entered page. The URL preserves the page and sort order on refresh and back navigation. Changing the sort returns to page 1, and links past the last page show the current last page. The heading count is the total readable posts, not only the current page. Configure posts per page under **Content management → Post and reply settings → Post list**.
 
 Visible Unicode characters count toward the body limit, including nested lists and captions; formatting markup does not. Image limits apply only to normal images. Uploaded emoji, remote inline emoji and community emoji share a fixed limit of 1000 per post or individual reply, including child replies. Each insertion counts, including repeated emoji. Replies are paginated by the server, including in recycle-bin details.
+
+Select text to apply italics or use the crossed-eye icon to mark a spoiler. The post editor also shows a lock icon when the author has permission to lock content; replies do not offer content locks. Insert emoji using the button below the editor.
 
 Unsent bodies, titles, categories and selected image blobs stay in the current browser's IndexedDB, isolated by user and reply target. Refreshing or revisiting restores the draft; clearing site data removes it. Images use local previews until the post or reply is submitted. Validation or storage failures roll back files and database records and preserve the draft. Successful submission clears the draft. New attachments are limited to 100 MiB per submission and the user's media allowance.
 
@@ -125,6 +140,10 @@ Avatars on post lists, post bylines and replies open `/users/:uid`. Public space
 
 ## Posts and personal recycle bin
 
+**发帖管理**, **发帖审核** and **删除记录** search titles and author UIDs, UUIDs, nicknames and usernames. Post management and review also combine search with a status filter. Titles and names use case-insensitive literal substring matching; UIDs and UUIDs match exactly. Each page contains up to 25 posts. Previous/next controls and a page-number field support direct navigation, including Enter. A new search or status returns to page 1; requests beyond the last page show the current last page.
+
+These three administration list APIs accept `q` and an optional `page`. Requests with `page` return `{ posts, page, pageSize, total, totalPages }`; older requests without it retain the array response and 200-record limit.
+
 The user dashboard can move an author's own posts into **回收站**. Only that author can list or read recycled posts, including their existing replies; they are hidden from public feeds and admin post management. Restoring a post preserves its original moderation status, likes and replies and does not grant posting experience again.
 
 The default retention is 30 days. Change it under **站点设置 → 回收站**; new deletions use the configured duration and existing expiration times stay fixed. Expired posts become inaccessible immediately. The API removes expired records on startup and every hour while running. Uploaded images remain separately managed in personal media.
@@ -139,7 +158,8 @@ In **发帖管理**, hiding a post removes it from home, popular, search and cat
 
 Enable **审核设置 → 全站发帖审核** to queue new posts for review. Individual categories can also require review in **板块结构**. Existing posts and pending queues keep their state when these settings change.
 
-- `posts.require_review` always requires review, including when another group grants an exemption.
+- Global administrators bypass post review.
+- Other users with `posts.require_review` always require review, including when another group grants an exemption.
 - `posts.bypass_review` exempts other users from both site and category review requirements.
 - Other users require review when either the site or the selected category requires it.
 - `posts.review` grants access to **发帖审核**, including reading the body, author, creation time, current groups and submission IP. Historical posts have no recorded submission IP. Reviewers can approve, reject with a reason, or reject and temporarily ban the author. Rejection and bans create private notifications. Temporarily banned accounts retain read-only access until expiry.
@@ -156,7 +176,7 @@ In **图床与表情 → 上传与远端设置**, configure default storage and 
 
 In **图床与表情 → 存储设置**, administrators can see used, remaining and total capacity for each backend and free space on every logical server disk. Configure the local maximum, the preferred local or S3-compatible object-storage backend, this site's object-storage quota and the amount released by each automatic cleanup batch (500 MiB by default). A local maximum of 0 follows the free space on the upload directory's disk; when the preferred backend cannot fit an upload, the other enabled backend is selected automatically.
 
-Object-storage credentials are encrypted with `STORAGE_ENCRYPTION_KEY`, or `MAIL_ENCRYPTION_KEY` when the storage-specific key is not set. Each file records the configuration used for its upload, so changing or disabling the current endpoint does not break existing URLs. The quota is a site-local accounting limit and excludes unrelated objects in the same bucket. At 95% usage, active administrators with `media.manage` receive an in-site notification. If all enabled backends are full, the oldest ordinary images are reclaimed in batches and their post references are replaced with the deleted-image placeholder. Emoji packs, avatars and the site icon are never automatically reclaimed; failed S3 deletions remain queued for retry.
+Object-storage credentials are encrypted with `STORAGE_ENCRYPTION_KEY`, or `MAIL_ENCRYPTION_KEY` when the storage-specific key is not set. Each file records the configuration used for its upload, so changing or disabling the current endpoint does not break existing URLs. The quota is a site-local accounting limit and excludes unrelated objects in the same bucket. Active administrators with `media.manage` receive an in-site notification at 95% object-storage quota usage, or at 95% local-storage or upload-disk usage when object storage is disabled. If all enabled backends are full, the oldest ordinary images are reclaimed in batches and their post references are replaced with the deleted-image placeholder. Each batch releases at least the configured amount, or all remaining reclaimable space if less is available. Emoji packs, avatars and the site icon are never automatically reclaimed; failed S3 deletions remain queued for retry.
 
 **对象存储图片访问方式** offers three modes. Server proxy remains the default:
 

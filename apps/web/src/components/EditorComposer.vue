@@ -56,41 +56,31 @@ class EmojiBlockTool {
   }
 }
 
-class EmojiInlineTool {
-  static isInline = true
-  static title = '表情'
-  static sanitize = { img: { src: true, alt: true, title: true, 'data-remote-emoji': true } }
-  render() {
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = 'ce-inline-tool'
-    button.textContent = '表情'
-    button.setAttribute('aria-label', '插入表情')
-    return button
-  }
-  surround(range: Range | null) {
-    if (range) savedEmojiRange = range.cloneRange()
-    emojiTrigger.value?.closest('button')?.click()
-  }
-  checkState() {
-    return false
-  }
-}
-
 const forumSpanSanitize = { class: true, 'data-spoiler': true, 'data-content-lock': true }
+// Keep inline emoji markup when saving, even without its former toolbar tool.
+const inlineEmojiSanitize = { src: true, alt: true, title: true, 'data-remote-emoji': true }
+
+function inlineIconButton(label: string, paths: string) {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'ce-inline-tool'
+  button.setAttribute('aria-label', label)
+  button.title = label
+  button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`
+  return button
+}
 
 class SpoilerInlineTool {
   static isInline = true
   static title = '剧透'
-  static sanitize = { span: forumSpanSanitize }
+  static sanitize = { span: forumSpanSanitize, img: inlineEmojiSanitize }
   private button?: HTMLButtonElement
 
   render() {
-    this.button = document.createElement('button')
-    this.button.type = 'button'
-    this.button.className = 'ce-inline-tool'
-    this.button.textContent = '剧透'
-    this.button.setAttribute('aria-label', '遮蔽所选文字')
+    this.button = inlineIconButton(
+      '剧透：遮蔽所选文字',
+      '<path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A11 11 0 0 1 12 5c7 0 10 7 10 7a16 16 0 0 1-3.1 4.1M6.2 6.2A17 17 0 0 0 2 12s3 7 10 7a11 11 0 0 0 5.1-1.2"/>',
+    )
     return this.button
   }
 
@@ -133,12 +123,10 @@ class ContentLockInlineTool {
   // Keep markers in restored drafts even after permission is revoked.
   static sanitize = { span: forumSpanSanitize }
   render() {
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = 'ce-inline-tool'
-    button.textContent = '锁定'
-    button.setAttribute('aria-label', '内容锁定')
-    return button
+    return inlineIconButton(
+      '内容锁定',
+      '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>',
+    )
   }
   surround(range: Range | null) {
     if (range) openLockDialog(range)
@@ -242,7 +230,6 @@ const limits = computed(() => ({
     props.kind === 'reply' ? site.settings.contentLimits.replyImages : site.settings.contentLimits.postImages,
 }))
 const holder = ref<HTMLElement | null>(null)
-const emojiTrigger = ref<HTMLElement | null>(null)
 let savedEmojiRange: Range | null = null
 const editor = shallowRef<EditorJS | null>(null)
 const emojiPacks = ref<EmojiPack[]>([])
@@ -339,7 +326,6 @@ async function initializeEditor() {
         'marker',
         'inlineCode',
         'spoiler',
-        'emojiInline',
         ...(canLock.value ? ['contentLock'] : []),
       ],
       tools: {
@@ -355,7 +341,6 @@ async function initializeEditor() {
         inlineCode: codeModule.default,
         spoiler: SpoilerInlineTool,
         emoji: EmojiBlockTool,
-        emojiInline: EmojiInlineTool,
         contentLock: ContentLockInlineTool,
         image: {
           class: imageModule.default,
@@ -607,7 +592,7 @@ defineExpose({ save, submission, clearDraft })
           @click="uploadInput?.click()"
         />
         <Button :Flyout="emojiFlyout" Style="{StaticResource SubtleButtonStyle}" aria-label="插入表情包"
-          ><span ref="emojiTrigger" class="button-content"
+          ><span class="button-content"
             ><IconGlyph name="emoji" :size="16" /><span>表情</span></span
           ></Button
         >
