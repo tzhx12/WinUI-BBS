@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.en.md)
 
-[![版本 0.3.0](https://img.shields.io/badge/version-0.3.0-0078D4)](package.json)
+[![版本 0.4.0](https://img.shields.io/badge/version-0.4.0-0078D4)](package.json)
 [![GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-2d7d46)](LICENSE)
 
 一个采用 **WinUI 风格**的开源论坛系统。项目使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL，提供图文讨论、用户空间、细粒度权限和可视化管理后台。界面默认使用简体中文。
@@ -98,7 +98,7 @@ npm run dev
 | `npm run dev`                          | 同时启动前后端开发服务   |
 | `npm run check`                        | 检查类型和图标映射       |
 | `npm run build`                        | 构建前后端               |
-| `npm run version:set -- 0.3.0`         | 设置下次正式发布版本     |
+| `npm run version:set -- 0.4.0`         | 设置下次正式发布版本     |
 | `npm run test:integration -w apps/api` | 运行 PostgreSQL 集成测试 |
 | `npm run format -w apps/web`           | 格式化前端代码           |
 

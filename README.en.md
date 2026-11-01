@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | English
 
-[![Version 0.3.0](https://img.shields.io/badge/version-0.3.0-0078D4)](package.json)
+[![Version 0.4.0](https://img.shields.io/badge/version-0.4.0-0078D4)](package.json)
 [![GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-2d7d46)](LICENSE)
 
 An open-source discussion forum with a **WinUI-style interface**, built with Vue 3, WinUIonWeb, Fastify and PostgreSQL. It provides rich discussions, user spaces, fine-grained permissions and a visual administration panel. The interface is currently in Simplified Chinese.
@@ -98,7 +98,7 @@ Open <http://127.0.0.1:5173/>. The API listens on <http://127.0.0.1:4000/> by de
 | `npm run dev`                          | Start both development servers   |
 | `npm run check`                        | Check types and icon mappings    |
 | `npm run build`                        | Build both workspaces            |
-| `npm run version:set -- 0.3.0`         | Set the next stable version      |
+| `npm run version:set -- 0.4.0`         | Set the next stable version      |
 | `npm run test:integration -w apps/api` | Run PostgreSQL integration tests |
 | `npm run format -w apps/web`           | Format the frontend              |
 
