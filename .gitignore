@@ -12,4 +12,5 @@ apps/web/public/uploads/
 Thumbs.db
 *.lnk
 HANDOFF.md
+apps/web/AGENTS.md
 release/
