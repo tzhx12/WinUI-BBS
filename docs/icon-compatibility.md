@@ -16,7 +16,7 @@ Windows 访问者继续使用本机的 Segoe Fluent Icons；macOS、Linux、Andr
 单层图形，并沿用控件的主题语义色。
 
 板块的 `icon_glyph` / `iconGlyph` 仍保存原有 Segoe 字符，无需数据库迁移。
-映射覆盖项目现有图标、16 个板块选项和 WinUIonWeb 0.1.0 的内置字面量图标。
+映射覆盖项目现有图标、16 个板块选项和 WinUIonWeb 0.2.0 的内置字面量图标。
 通过 API 设置其他自定义字符码时，需要先补充对应映射。
 
 ## 新增图标时同时补齐两套系统

@@ -2,6 +2,10 @@
   "package": "@fluentui/svg-icons",
   "version": "1.1.344",
   "glyphs": {
+    "e921": "subtract_24_regular",
+    "e922": "square_24_regular",
+    "e923": "square_multiple_24_regular",
+    "e8bb": "dismiss_24_regular",
     "e0b8": "subtract_24_regular",
     "e627": "skip_back_10_24_regular",
     "e628": "skip_forward_10_24_regular",

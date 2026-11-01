@@ -10,6 +10,8 @@ import PageHeader from '../components/ui/PageHeader.vue'
 import ResourceState from '../components/ui/ResourceState.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import WinButton from '../components/ui/WinButton.vue'
+import SelectorSwitch from '../components/ui/SelectorSwitch.vue'
+import SelectorPage from '../components/ui/SelectorPage.vue'
 import PostListItem from '../components/PostListItem.vue'
 import FollowButton from '../components/FollowButton.vue'
 import UserProfileDetails from '../components/UserProfileDetails.vue'
@@ -78,28 +80,31 @@ async function followChanged(following: boolean) {
               @error="error = $event" /></template
         ></UserProfileDetails>
         <div class="section-toolbar">
-          <div class="row-actions">
-            <WinButton label="已发布的帖子" :accent="tab === 'posts'" @click="tab = 'posts'" /><WinButton
-              label="公开收藏夹"
-              :accent="tab === 'folders'"
-              @click="tab = 'folders'"
-            />
-          </div>
+          <SelectorSwitch
+            v-model="tab"
+            aria-label="用户空间内容类型"
+            :options="[
+              { value: 'posts', label: '已发布的帖子' },
+              { value: 'folders', label: '公开收藏夹' },
+            ]"
+          />
         </div>
-        <template v-if="tab === 'posts'"
-          ><EmptyState v-if="!data.posts.length" title="暂无可阅读的帖子" icon="chat" />
-          <section v-for="post in data.posts" :key="post.id" class="surface-card favorite-post">
-            <PostListItem :item="post" @click="router.push(postPath(post))" /></section
-        ></template>
-        <template v-else
-          ><EmptyState v-if="!data.folders.length" title="暂无公开收藏夹" icon="favorite" />
-          <section v-for="folder in data.folders" :key="folder.id" class="surface-card setting-row">
-            <div>
-              <h2>{{ folder.name }}</h2>
-              <p class="secondary-text">{{ folder.post_count }} 篇可阅读的收藏</p>
-            </div>
-            <WinButton label="打开收藏夹" @click="router.push(`/favorites/${folder.id}`)" /></section
-        ></template>
+        <SelectorPage :selected="tab">
+          <template v-if="tab === 'posts'"
+            ><EmptyState v-if="!data.posts.length" title="暂无可阅读的帖子" icon="chat" />
+            <section v-for="post in data.posts" :key="post.id" class="surface-card favorite-post">
+              <PostListItem :item="post" @click="router.push(postPath(post))" /></section
+          ></template>
+          <template v-else
+            ><EmptyState v-if="!data.folders.length" title="暂无公开收藏夹" icon="favorite" />
+            <section v-for="folder in data.folders" :key="folder.id" class="surface-card setting-row">
+              <div>
+                <h2>{{ folder.name }}</h2>
+                <p class="secondary-text">{{ folder.post_count }} 篇可阅读的收藏</p>
+              </div>
+              <WinButton label="打开收藏夹" @click="router.push(`/favorites/${folder.id}`)" /></section
+          ></template>
+        </SelectorPage>
       </template>
     </div>
   </div>

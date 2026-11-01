@@ -2,6 +2,11 @@
 
 WinUI-BBS 0.3.0 is distributed under GPL-3.0-only. WinUIonWeb is also GPL-3.0-only; its full license is in `LICENSE` and its upstream-specific notices are in `licenses/WinUIonWeb-THIRD_PARTY_NOTICES.md`.
 
+WinUIonWeb 0.2.0-forum.1 is built from upstream commit
+`692d0a76dad3fa92515bc50db44ed626d83b695e` with native-context-menu and TreeView
+touch-scrolling compatibility patches. The archive, patches and rebuild instructions are in `vendor/winuionweb/`;
+the archive includes corresponding library source and the locked build toolchain.
+
 Editor.js is Apache-2.0. The license text is in `licenses/editorjs/Apache-2.0.txt`. The Editor.js tool packages used by the editor identify their licenses in their npm package metadata; the MIT-licensed tool packages remain separate dependencies in `package-lock.json`.
 
 The frontend includes Vue and Vue Router under MIT (`licenses/vue-MIT.txt` and `licenses/vue-router-MIT.txt`), and DOMPurify under MPL-2.0 or Apache-2.0 (`licenses/dompurify/`). WinUIonWeb also lists its MathLive and rtf.js runtime dependencies and their notices in its upstream notice file.

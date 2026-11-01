@@ -8,7 +8,8 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "check": "vue-tsc -b --pretty false && npm run check:icons",
+    "check": "vue-tsc -b --pretty false && npm run check:icons && npm run check:components",
+    "check:components": "node --test tests/winuionweb-compatibility.test.mjs",
     "check:icons": "node --import tsx --test tests/icon-compatibility.test.mjs",
     "build:icons": "python scripts/build-icon-font.py",
     "format": "prettier --write src vite.config.ts"
@@ -25,7 +26,7 @@
     "dompurify": "^3.2.6",
     "vue": "^3.5.44",
     "vue-router": "^4.6.4",
-    "winuionweb": "^0.1.0"
+    "winuionweb": "file:../../vendor/winuionweb/winuionweb-0.2.0-forum.1.tgz"
   },
   "devDependencies": {
     "@fluentui/svg-icons": "1.1.344",

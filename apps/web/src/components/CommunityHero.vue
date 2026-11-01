@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Button, FontIcon, SystemBackdropElement } from 'winuionweb'
+import { Button, createAcrylicResource, FontIcon, useAcrylicBrushStyle, vAcrylicBrush } from 'winuionweb'
 import { categoryPath } from '../utils'
 import type { Category } from '../types'
 import { useSite } from '../site'
@@ -23,11 +23,16 @@ const viewport = ref<HTMLElement | null>(null)
 const canGoPrevious = ref(false),
   canGoNext = ref(false),
   overflowing = ref(false)
-const material = computed(() => ({
-  Type: 'Mica',
-  Kind: 'Base',
+const materialSettings = computed(() => ({
+  TintColor: site.theme.value === 'dark' ? '#202020' : '#ffffff',
+  TintOpacity: 0.08,
+  TintLuminosityOpacity: site.theme.value === 'dark' ? 0.55 : 0.45,
   FallbackColor: site.theme.value === 'dark' ? '#292929' : '#f3f3f3',
+  TintTransitionDuration: 200,
 }))
+const material = useAcrylicBrushStyle(
+  createAcrylicResource((name) => materialSettings.value[name as keyof typeof materialSettings.value]),
+)
 let observer: ResizeObserver | undefined
 let animation = 0
 let targetLeft = 0
@@ -99,7 +104,7 @@ function onWheel(event: WheelEvent) {
 }
 function movePage(direction: number) {
   const element = viewport.value
-  const card = element?.querySelector<HTMLElement>('.category-mica-card')
+  const card = element?.querySelector<HTMLElement>('.category-acrylic-card')
   if (!element || !card) return
   const stride = card.getBoundingClientRect().width + 16
   const step = Math.max(1, Math.floor((element.clientWidth + 16) / stride)) * stride
@@ -161,7 +166,10 @@ onBeforeUnmount(() => {
         <Button
           v-for="item in categories"
           :key="item.id"
-          class="category-mica-card"
+          class="category-acrylic-card"
+          Background="Transparent"
+          :BorderThickness="0"
+          :CornerRadius="8"
           HorizontalAlignment="Stretch"
           VerticalAlignment="Stretch"
           HorizontalContentAlignment="Stretch"
@@ -169,20 +177,19 @@ onBeforeUnmount(() => {
           :aria-label="`进入${item.name}`"
           @Click="router.push(categoryPath(item))"
         >
-          <SystemBackdropElement
-            class="category-mica-material"
-            :SystemBackdrop="material"
-            :CornerRadius="8"
-            :RequestedTheme="site.theme.value === 'dark' ? 'Dark' : 'Light'"
-            :IsHitTestVisible="false"
+          <div
+            v-acrylic-brush.host-backdrop="material"
+            :style="material"
+            class="category-acrylic-material"
+            aria-hidden="true"
           />
-          <div class="category-mica-content">
-            <span class="category-mica-icon" :style="{ color: item.accent_color }"
+          <div class="category-acrylic-content">
+            <span class="category-acrylic-icon" :style="{ color: item.accent_color }"
               ><CategoryIcon :category="item" :size="36"
             /></span>
             <strong>{{ item.name }}</strong>
             <p>{{ item.description }}</p>
-            <div class="category-mica-footer">
+            <div class="category-acrylic-footer">
               <small
                 >{{ item.post_count || 0 }} 个帖子<span v-if="item.minimum_reader_level">
                   · Lv.{{ item.minimum_reader_level }}+</span

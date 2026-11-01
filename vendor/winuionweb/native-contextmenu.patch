@@ -1,0 +1,55 @@
+--- a/src/components/pointerInput.ts
++++ b/src/components/pointerInput.ts
+@@ -46,14 +46,7 @@
+   }
+   press.timer = window.setTimeout(() => {
+     if (touchPress !== press || !press.target.isConnected || press.contextRequested) return
+-    press.contextRequested = true
+-    suppressedClick = {
+-      target: press.target,
+-      clientX: press.clientX,
+-      clientY: press.clientY,
+-      expiresAt: Date.now() + 1200
+-    }
+-    press.target.dispatchEvent(new MouseEvent('contextmenu', {
++    const handled = !press.target.dispatchEvent(new MouseEvent('contextmenu', {
+       bubbles: true,
+       cancelable: true,
+       composed: true,
+@@ -64,6 +57,14 @@
+       screenX: event.screenX,
+       screenY: event.screenY
+     }))
++    if (!handled) return
++    press.contextRequested = true
++    suppressedClick = {
++      target: press.target,
++      clientX: press.clientX,
++      clientY: press.clientY,
++      expiresAt: Date.now() + 1200
++    }
+   }, longPressDelay)
+   touchPress = press
+ }
+@@ -82,10 +83,8 @@
+ }
+ 
+ const onContextMenu = (event: MouseEvent) => {
+-  // WinUI flyouts replace the platform/browser context menu. Capture this
+-  // before Safari or Chromium can show its own menu, while allowing component
+-  // contextmenu handlers to receive the event normally.
+-  event.preventDefault()
++  // Custom flyouts cancel their own event; leave native menus available elsewhere.
++  if (!event.defaultPrevented) return
+ 
+   const press = touchPress
+   if (!event.isTrusted || !press || !relatedTargets(press.target, event.target as Node)) return
+@@ -125,7 +124,7 @@
+   document.addEventListener('pointermove', onTouchPointerMove, true)
+   document.addEventListener('pointerup', onTouchPointerEnd, true)
+   document.addEventListener('pointercancel', onTouchPointerEnd, true)
+-  document.addEventListener('contextmenu', onContextMenu, true)
++  document.addEventListener('contextmenu', onContextMenu)
+   document.addEventListener('click', onClick, true)
+   document.addEventListener('keydown', event => {
+     if (['Tab', 'Enter', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) {

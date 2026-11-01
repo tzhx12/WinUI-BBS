@@ -15,6 +15,7 @@ try {
     'LICENSE',
     'THIRD_PARTY_NOTICES.md',
     'licenses',
+    'vendor',
     'docs',
     'scripts',
     'apps/api/package.json',

@@ -229,6 +229,7 @@ onBeforeUnmount(() => clearInterval(unreadTimer))
   <div id="forum-root" class="forum-app">
     <TitleBar
       class="app-titlebar"
+      :Height="48"
       :Title="site.settings.title"
       :Subtitle="isAdmin ? '管理后台' : '社区'"
       :IsPaneToggleButtonVisible="mode === 'ready'"

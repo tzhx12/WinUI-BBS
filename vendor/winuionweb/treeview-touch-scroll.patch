@@ -1,0 +1,75 @@
+--- a/src/components/pointerDragTouchScroll.ts
++++ b/src/components/pointerDragTouchScroll.ts
+@@ -6,7 +6,7 @@
+   scrollTops: number[]
+ }
+ 
+-const scrollableAncestors = (target: EventTarget | null): HTMLElement[] => {
++export const scrollableAncestors = (target: EventTarget | null): HTMLElement[] => {
+   let element: HTMLElement | null = null
+   if (target instanceof HTMLElement) element = target
+   else if (target instanceof Element || target instanceof Node) element = target.parentElement
+@@ -28,7 +28,7 @@
+   return chain
+ }
+ 
+-const scrollByTouchDelta = (chain: HTMLElement[], deltaY: number) => {
++export const scrollByTouchDelta = (chain: HTMLElement[], deltaY: number) => {
+   let remaining = deltaY
+ 
+   for (const element of chain) {
+--- a/src/components/TreeView.vue
++++ b/src/components/TreeView.vue
+@@ -241,7 +241,7 @@
+ import { xamlResourceDictionaryKey } from './Page.vue'
+ import { useAcrylicBrushStyle } from './AcrylicBrush'
+ import { vAcrylicBrush } from './acrylicBrushVisual'
+-import { attachSecondaryTouchScrollDuringDrag } from './pointerDragTouchScroll'
++import { attachSecondaryTouchScrollDuringDrag, scrollableAncestors, scrollByTouchDelta } from './pointerDragTouchScroll'
+ import {
+   materializeXamlVNode,
+   resolveXamlHandler,
+@@ -2313,6 +2313,7 @@
+ let edgeScrollViewport: HTMLElement | null = null
+ 
+ const pointerDrag = shallowRef<{
++  touchScroll?: { clientY: number; chain: HTMLElement[] }
+   pointerId: number
+   pointerType: string
+   index: number
+@@ -2876,6 +2877,12 @@
+ const onRowPointerMove = (event: PointerEvent, entry: TreeRow) => {
+   const pending = pointerDrag.value
+   if (!pending || pending.pointerId !== event.pointerId || !canDragItems.value) return
++  if (pending.touchScroll) {
++    scrollByTouchDelta(pending.touchScroll.chain, pending.touchScroll.clientY - event.clientY)
++    pending.touchScroll.clientY = event.clientY
++    event.preventDefault()
++    return
++  }
+   if (!pointerDragActive.value && pending.pointerType === 'touch') {
+     const deltaX = event.clientX - pending.startX
+     const deltaY = event.clientY - pending.startY
+@@ -2883,8 +2890,12 @@
+       startPointerDrag(event, entry)
+     } else if (Math.abs(deltaY) >= DRAG_THRESHOLD) {
+       clearTouchDragTimer()
+-      releasePointerCapture()
+-      pointerDrag.value = null
++      // touch-action:none cannot resume native panning mid-gesture. Keep
++      // capture and forward this gesture through the existing scroll chain.
++      const chain = scrollableAncestors(pending.source)
++      pending.touchScroll = { clientY: event.clientY, chain }
++      scrollByTouchDelta(chain, pending.startY - event.clientY)
++      event.preventDefault()
+     }
+     if (!pointerDragActive.value) return
+   }
+@@ -2936,6 +2947,7 @@
+     }
+     return
+   }
++  if (pointerDrag.value?.touchScroll) suppressClickUntil = Date.now() + 250
+   pointerDrag.value = null
+   pointerDragActive.value = false
+ }

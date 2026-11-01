@@ -10,6 +10,8 @@ import { formatBytes } from '../utils'
 import PageHeader from '../components/ui/PageHeader.vue'
 import ResourceState from '../components/ui/ResourceState.vue'
 import WinButton from '../components/ui/WinButton.vue'
+import SelectorSwitch from '../components/ui/SelectorSwitch.vue'
+import SelectorPage from '../components/ui/SelectorPage.vue'
 import WinDialog from '../components/ui/WinDialog.vue'
 import WinSelect from '../components/ui/WinSelect.vue'
 import RemoteEmojiBrowser from '../components/RemoteEmojiBrowser.vue'
@@ -179,9 +181,7 @@ async function removePack(pack: EmojiPack) {
       await reload()
 }
 async function copy(image: MediaAsset) {
-  await navigator.clipboard.writeText(
-    new URL(image.url, site.settings.url || window.location.origin).href,
-  )
+  await navigator.clipboard.writeText(new URL(image.url, site.settings.url || window.location.origin).href)
   site.notify('图片链接已复制')
 }
 </script>
@@ -205,8 +205,7 @@ async function copy(image: MediaAsset) {
         <div class="section-toolbar">
           <h2>图床容量</h2>
           <span
-            >{{ formatBytes(data.usage.usedBytes) }} /
-            {{ formatBytes(data.usage.limits.storageBytes) }}</span
+            >{{ formatBytes(data.usage.usedBytes) }} / {{ formatBytes(data.usage.limits.storageBytes) }}</span
           >
         </div>
         <ProgressBar
@@ -225,122 +224,113 @@ async function copy(image: MediaAsset) {
         />
       </section>
       <div class="section-toolbar">
-        <div class="row-actions">
-          <WinButton
-            label="个人上传"
-            :accent="tab === 'images'"
-            subtle
-            @click="tab = 'images'"
-          /><WinButton
-            label="我的表情包"
-            :accent="tab === 'packs'"
-            subtle
-            @click="tab = 'packs'"
-          /><WinButton
-            v-if="data.usage?.remoteEmoji.enabled && !site.user.value?.isBanned"
-            label="远端表情包"
-            :accent="tab === 'remote'"
-            subtle
-            @click="tab = 'remote'"
-          />
-        </div>
+        <SelectorSwitch
+          v-model="tab"
+          aria-label="图片内容类型"
+          :options="[
+            { value: 'images', label: '个人上传' },
+            { value: 'packs', label: '我的表情包' },
+            ...(data.usage?.remoteEmoji.enabled && !site.user.value?.isBanned
+              ? [{ value: 'remote', label: '远端表情包' }]
+              : []),
+          ]"
+        />
       </div>
-      <template v-if="tab === 'images'"
-        ><EmptyState v-if="!loading && !data.images.length" title="还没有上传图片" icon="image" />
-        <div class="media-grid">
-          <article v-for="image in data.images" :key="image.id" class="media-card">
-            <button
-              class="media-preview"
-              type="button"
-              :aria-label="`查看 ${image.original_name}`"
-              @click="show(image)"
-            >
-              <img :src="image.url" :alt="image.alt_text" loading="lazy" />
-            </button>
-            <div class="media-card-info">
-              <strong>{{ image.original_name }}</strong
-              ><small
-                >{{ formatBytes(Number(image.byte_size))
-                }}<template v-if="image.pack_name"> · {{ image.pack_name }}</template></small
+      <SelectorPage :selected="tab">
+        <template v-if="tab === 'images'"
+          ><EmptyState v-if="!loading && !data.images.length" title="还没有上传图片" icon="image" />
+          <div class="media-grid">
+            <article v-for="image in data.images" :key="image.id" class="media-card">
+              <button
+                class="media-preview"
+                type="button"
+                :aria-label="`查看 ${image.original_name}`"
+                @click="show(image)"
               >
+                <img :src="image.url" :alt="image.alt_text" loading="lazy" />
+              </button>
+              <div class="media-card-info">
+                <strong>{{ image.original_name }}</strong
+                ><small
+                  >{{ formatBytes(Number(image.byte_size))
+                  }}<template v-if="image.pack_name"> · {{ image.pack_name }}</template></small
+                >
+                <div class="row-actions">
+                  <WinButton label="复制链接" icon="copy" subtle @click="copy(image)" /><WinButton
+                    v-if="!site.user.value?.isBanned"
+                    label="删除"
+                    icon="delete"
+                    subtle
+                    @click="removeImage(image)"
+                  />
+                </div>
+              </div>
+            </article></div
+        ></template>
+        <template v-else-if="tab === 'packs'"
+          ><EmptyState v-if="!data.packs.length" title="还没有个人表情包" icon="emoji" />
+          <section v-for="pack in data.packs" :key="pack.id" class="surface-card personal-emoji-pack">
+            <div class="setting-row">
+              <div class="pack-summary">
+                <button
+                  class="pack-cover"
+                  type="button"
+                  :aria-label="`预览 ${pack.name}`"
+                  @click="previewPack(pack)"
+                >
+                  <img
+                    v-for="(url, index) in pack.preview_urls || []"
+                    :key="url"
+                    :src="url"
+                    :alt="`${pack.name} 预览 ${index + 1}`"
+                    loading="lazy"
+                  />
+                  <span v-if="!pack.preview_urls?.length" class="secondary-text">暂无表情</span>
+                </button>
+                <div>
+                  <h2>{{ pack.name }}</h2>
+                  <small
+                    >{{ pack.emoji_count }} 张 ·
+                    {{
+                      pack.is_community
+                        ? '社区表情 · 固定置顶'
+                        : pack.remote_source
+                          ? pack.variant === 'animated'
+                            ? '远端动态'
+                            : '远端静态'
+                          : '个人上传'
+                    }}</small
+                  >
+                </div>
+              </div>
               <div class="row-actions">
-                <WinButton label="复制链接" icon="copy" subtle @click="copy(image)" /><WinButton
-                  v-if="!site.user.value?.isBanned"
-                  label="删除"
+                <template v-if="!pack.is_community && !site.user.value?.isBanned">
+                  <WinButton
+                    label="上移"
+                    subtle
+                    :disabled="saving || personalPacks[0]?.id === pack.id"
+                    @click="movePack(pack, -1)"
+                  />
+                  <WinButton
+                    label="下移"
+                    subtle
+                    :disabled="saving || personalPacks[personalPacks.length - 1]?.id === pack.id"
+                    @click="movePack(pack, 1)"
+                  />
+                </template>
+                <WinButton label="查看表情" icon="emoji" @click="previewPack(pack)" /><WinButton
+                  v-if="!pack.is_community && !site.user.value?.isBanned"
+                  label="移除"
                   icon="delete"
                   subtle
-                  @click="removeImage(image)"
+                  :disabled="saving"
+                  @click="removePack(pack)"
                 />
               </div>
-            </div>
-          </article></div
-      ></template>
-      <template v-else-if="tab === 'packs'"
-        ><EmptyState v-if="!data.packs.length" title="还没有个人表情包" icon="emoji" />
-        <section v-for="pack in data.packs" :key="pack.id" class="surface-card personal-emoji-pack">
-          <div class="setting-row">
-            <div class="pack-summary">
-              <button
-                class="pack-cover"
-                type="button"
-                :aria-label="`预览 ${pack.name}`"
-                @click="previewPack(pack)"
-              >
-                <img
-                  v-for="(url, index) in pack.preview_urls || []"
-                  :key="url"
-                  :src="url"
-                  :alt="`${pack.name} 预览 ${index + 1}`"
-                  loading="lazy"
-                />
-                <span v-if="!pack.preview_urls?.length" class="secondary-text">暂无表情</span>
-              </button>
-              <div>
-                <h2>{{ pack.name }}</h2>
-                <small
-                  >{{ pack.emoji_count }} 张 ·
-                  {{
-                    pack.is_community
-                      ? '社区表情 · 固定置顶'
-                      : pack.remote_source
-                        ? pack.variant === 'animated'
-                          ? '远端动态'
-                          : '远端静态'
-                        : '个人上传'
-                  }}</small
-                >
-              </div>
-            </div>
-            <div class="row-actions">
-              <template v-if="!pack.is_community && !site.user.value?.isBanned">
-                <WinButton
-                  label="上移"
-                  subtle
-                  :disabled="saving || personalPacks[0]?.id === pack.id"
-                  @click="movePack(pack, -1)"
-                />
-                <WinButton
-                  label="下移"
-                  subtle
-                  :disabled="saving || personalPacks[personalPacks.length - 1]?.id === pack.id"
-                  @click="movePack(pack, 1)"
-                />
-              </template>
-              <WinButton label="查看表情" icon="emoji" @click="previewPack(pack)" /><WinButton
-                v-if="!pack.is_community && !site.user.value?.isBanned"
-                label="移除"
-                icon="delete"
-                subtle
-                :disabled="saving"
-                @click="removePack(pack)"
-              />
-            </div>
-          </div></section
-      ></template>
-      <RemoteEmojiBrowser
-        v-else-if="tab === 'remote' && data.usage?.remoteEmoji.enabled"
-        @added="reload"
-      />
+            </div></section
+        ></template>
+        <RemoteEmojiBrowser v-else-if="tab === 'remote' && data.usage?.remoteEmoji.enabled" @added="reload" />
+      </SelectorPage>
       <WinDialog
         v-model:open="uploadOpen"
         title="上传图片"

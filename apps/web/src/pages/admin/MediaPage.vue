@@ -11,6 +11,8 @@ import PageHeader from '../../components/ui/PageHeader.vue'
 import ResourceState from '../../components/ui/ResourceState.vue'
 import EmptyState from '../../components/ui/EmptyState.vue'
 import WinButton from '../../components/ui/WinButton.vue'
+import SelectorSwitch from '../../components/ui/SelectorSwitch.vue'
+import SelectorPage from '../../components/ui/SelectorPage.vue'
 import WinDialog from '../../components/ui/WinDialog.vue'
 import WinSelect from '../../components/ui/WinSelect.vue'
 import MediaSettingsPanel from '../../components/MediaSettingsPanel.vue'
@@ -225,152 +227,147 @@ async function removePack(pack: EmojiPack) {
           @click="showUpload"
       /></PageHeader>
       <div class="section-toolbar">
-        <div class="row-actions">
-          <WinButton
-            label="图片管理"
-            :accent="view === 'library'"
-            subtle
-            @click="view = 'library'"
-          /><WinButton
-            label="存储设置"
-            :accent="view === 'storage'"
-            subtle
-            @click="view = 'storage'"
-          /><WinButton
-            label="上传与远端设置"
-            :accent="view === 'settings'"
-            subtle
-            @click="view = 'settings'"
-          />
-        </div>
+        <SelectorSwitch
+          v-model="view"
+          aria-label="图床管理类型"
+          :options="[
+            { value: 'library', label: '图片管理' },
+            { value: 'storage', label: '存储设置' },
+            { value: 'settings', label: '上传与远端设置' },
+          ]"
+        />
       </div>
-      <section v-if="view !== 'storage'" class="surface-card form-stack">
-        <h2>社区表情包</h2>
-        <p class="secondary-text">
-          固定显示在选择器第一组。有发帖或回复权限即可在对应编辑器中使用，不占个人组数限额。
-        </p>
-        <div class="row-actions">
-          <WinSelect
-            v-model="communityTarget"
-            label="共享分组"
-            :options="[
-              { value: '', label: '不设置社区表情包' },
-              ...data.packs.filter((p) => p.created_by === null).map((p) => ({ value: p.id, label: p.name })),
-            ]"
-          />
-          <WinButton label="保存社区分组" :disabled="saving" @click="saveCommunity" />
-        </div>
-      </section>
-      <StorageSettingsPanel v-if="view === 'storage'" />
-      <MediaSettingsPanel v-else-if="view === 'settings'" @added="reload" />
-      <template v-else>
-        <div class="section-toolbar">
-          <div class="toolbar-filters">
+      <SelectorPage :selected="view">
+        <section v-if="view !== 'storage'" class="surface-card form-stack">
+          <h2>社区表情包</h2>
+          <p class="secondary-text">
+            固定显示在选择器第一组。有发帖或回复权限即可在对应编辑器中使用，不占个人组数限额。
+          </p>
+          <div class="row-actions">
             <WinSelect
-              v-model="collection"
-              label="资源类型"
+              v-model="communityTarget"
+              label="共享分组"
               :options="[
-                { value: 'all', label: '全部图片' },
-                { value: 'library', label: '图床' },
-                { value: 'emoji', label: '表情' },
-                { value: 'avatar', label: '头像' },
-                { value: 'site_icon', label: '站点图标' },
-              ]"
-            /><WinSelect
-              v-if="collection === 'emoji'"
-              v-model="packFilter"
-              label="表情包"
-              :options="[
-                { value: 'all', label: '全部表情包' },
-                ...data.packs.map((p) => ({ value: p.id, label: p.name })),
+                { value: '', label: '不设置社区表情包' },
+                ...data.packs
+                  .filter((p) => p.created_by === null)
+                  .map((p) => ({ value: p.id, label: p.name })),
               ]"
             />
-          </div>
-          <form class="toolbar-search" @submit.prevent="findImages">
-            <TextBox
-              v-model:Text="search"
-              PlaceholderText="文件名、图片说明或表情包名称"
-              AutomationProperties.Name="搜索图片"
-              :MaxLength="160"
-            />
-            <WinButton label="搜索图片" icon="search" :disabled="loading" @click="findImages" />
-          </form>
-          <span class="secondary-text">{{ data.media.total }} 张图片</span>
-        </div>
-        <ResourceState :loading="loading" :error="uploadOpen || assetOpen || packOpen ? '' : error" />
-        <section v-if="collection === 'emoji' && data.packs.length" class="surface-card pack-management">
-          <div v-for="pack in data.packs" :key="pack.id" class="setting-row">
-            <div>
-              <strong>{{ pack.name }}</strong
-              ><small
-                >{{ pack.emoji_count }} 个表情 ·
-                {{ pack.is_community ? '社区表情 · 固定置顶' : `排序 ${pack.sort_order}` }}</small
-              >
-            </div>
-            <div class="row-actions">
-              <WinButton
-                v-if="!pack.remote_source"
-                label="编辑"
-                icon="edit"
-                subtle
-                @click="editPack(pack)"
-              /><WinButton
-                v-if="!pack.remote_source"
-                label="删除"
-                icon="delete"
-                subtle
-                @click="removePack(pack)"
-              />
-            </div>
+            <WinButton label="保存社区分组" :disabled="saving" @click="saveCommunity" />
           </div>
         </section>
-        <EmptyState v-if="!loading && !visibleMedia.length" title="这里还没有图片" icon="image"
-          ><WinButton label="上传图片" icon="upload" @click="showUpload"
-        /></EmptyState>
-        <div v-else class="media-grid">
-          <article v-for="asset in visibleMedia" :key="asset.id" class="media-card">
-            <button
-              type="button"
-              class="media-preview"
-              :aria-label="`查看 ${asset.original_name}`"
-              @click="showAsset(asset)"
-            >
-              <img :src="asset.url" :alt="asset.alt_text || asset.original_name" loading="lazy" />
-            </button>
-            <div class="media-card-info">
-              <strong :title="asset.original_name">{{ asset.original_name }}</strong
-              ><small
-                >{{ formatBytes(asset.byte_size)
-                }}<template v-if="asset.pack_name"> · {{ asset.pack_name }}</template></small
-              >
+        <StorageSettingsPanel v-if="view === 'storage'" />
+        <MediaSettingsPanel v-else-if="view === 'settings'" @added="reload" />
+        <template v-else>
+          <div class="section-toolbar">
+            <div class="toolbar-filters">
+              <WinSelect
+                v-model="collection"
+                label="资源类型"
+                :options="[
+                  { value: 'all', label: '全部图片' },
+                  { value: 'library', label: '图床' },
+                  { value: 'emoji', label: '表情' },
+                  { value: 'avatar', label: '头像' },
+                  { value: 'site_icon', label: '站点图标' },
+                ]"
+              /><WinSelect
+                v-if="collection === 'emoji'"
+                v-model="packFilter"
+                label="表情包"
+                :options="[
+                  { value: 'all', label: '全部表情包' },
+                  ...data.packs.map((p) => ({ value: p.id, label: p.name })),
+                ]"
+              />
+            </div>
+            <form class="toolbar-search" @submit.prevent="findImages">
+              <TextBox
+                v-model:Text="search"
+                PlaceholderText="文件名、图片说明或表情包名称"
+                AutomationProperties.Name="搜索图片"
+                :MaxLength="160"
+              />
+              <WinButton label="搜索图片" icon="search" :disabled="loading" @click="findImages" />
+            </form>
+            <span class="secondary-text">{{ data.media.total }} 张图片</span>
+          </div>
+          <ResourceState :loading="loading" :error="uploadOpen || assetOpen || packOpen ? '' : error" />
+          <section v-if="collection === 'emoji' && data.packs.length" class="surface-card pack-management">
+            <div v-for="pack in data.packs" :key="pack.id" class="setting-row">
+              <div>
+                <strong>{{ pack.name }}</strong
+                ><small
+                  >{{ pack.emoji_count }} 个表情 ·
+                  {{ pack.is_community ? '社区表情 · 固定置顶' : `排序 ${pack.sort_order}` }}</small
+                >
+              </div>
               <div class="row-actions">
-                <WinButton label="复制链接" icon="copy" subtle @click="copy(asset)" /><WinButton
+                <WinButton
+                  v-if="!pack.remote_source"
                   label="编辑"
                   icon="edit"
                   subtle
-                  @click="showAsset(asset)"
+                  @click="editPack(pack)"
+                /><WinButton
+                  v-if="!pack.remote_source"
+                  label="删除"
+                  icon="delete"
+                  subtle
+                  @click="removePack(pack)"
                 />
               </div>
             </div>
-          </article>
-        </div>
-        <nav v-if="data.media.totalPages > 1" class="reply-pagination" aria-label="图片翻页">
-          <WinButton
-            label="上一页"
-            :disabled="loading || data.media.page <= 1"
-            @click="page = data.media.page - 1"
-          />
-          <span
-            >第 {{ data.media.page }} / {{ data.media.totalPages }} 页 · 每页
-            {{ data.media.pageSize }} 张</span
-          >
-          <WinButton
-            label="下一页"
-            :disabled="loading || data.media.page >= data.media.totalPages"
-            @click="page = data.media.page + 1"
-          />
-        </nav>
-      </template>
+          </section>
+          <EmptyState v-if="!loading && !visibleMedia.length" title="这里还没有图片" icon="image"
+            ><WinButton label="上传图片" icon="upload" @click="showUpload"
+          /></EmptyState>
+          <div v-else class="media-grid">
+            <article v-for="asset in visibleMedia" :key="asset.id" class="media-card">
+              <button
+                type="button"
+                class="media-preview"
+                :aria-label="`查看 ${asset.original_name}`"
+                @click="showAsset(asset)"
+              >
+                <img :src="asset.url" :alt="asset.alt_text || asset.original_name" loading="lazy" />
+              </button>
+              <div class="media-card-info">
+                <strong :title="asset.original_name">{{ asset.original_name }}</strong
+                ><small
+                  >{{ formatBytes(asset.byte_size)
+                  }}<template v-if="asset.pack_name"> · {{ asset.pack_name }}</template></small
+                >
+                <div class="row-actions">
+                  <WinButton label="复制链接" icon="copy" subtle @click="copy(asset)" /><WinButton
+                    label="编辑"
+                    icon="edit"
+                    subtle
+                    @click="showAsset(asset)"
+                  />
+                </div>
+              </div>
+            </article>
+          </div>
+          <nav v-if="data.media.totalPages > 1" class="reply-pagination" aria-label="图片翻页">
+            <WinButton
+              label="上一页"
+              :disabled="loading || data.media.page <= 1"
+              @click="page = data.media.page - 1"
+            />
+            <span
+              >第 {{ data.media.page }} / {{ data.media.totalPages }} 页 · 每页
+              {{ data.media.pageSize }} 张</span
+            >
+            <WinButton
+              label="下一页"
+              :disabled="loading || data.media.page >= data.media.totalPages"
+              @click="page = data.media.page + 1"
+            />
+          </nav>
+        </template>
+      </SelectorPage>
       <WinDialog
         v-model:open="uploadOpen"
         title="上传图片"

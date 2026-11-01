@@ -230,6 +230,54 @@ small {
 .surface-card p:last-child {
   margin-bottom: 0;
 }
+.selector-switch {
+  min-width: 0;
+  max-width: 100%;
+}
+.selector-switch .win-selector-bar-item-container-root {
+  transition:
+    background-color 83ms linear,
+    border-color 83ms linear,
+    color 83ms linear !important;
+}
+.selector-switch .win-selector-bar-item-text {
+  white-space: nowrap !important;
+}
+.selector-switch .win-selector-bar-item-content {
+  margin-inline: 15px !important;
+}
+.selector-switch .win-selector-bar-item.is-selected .win-selector-bar-item-content {
+  animation: selector-switch-select 167ms cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+@keyframes selector-switch-select {
+  from {
+    opacity: 0.6;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .selector-switch .win-selector-bar-item.is-selected .win-selector-bar-item-content {
+    animation: none;
+  }
+  .selector-switch .win-selector-bar-item-container-root {
+    transition: none !important;
+  }
+}
+/* Keep the elevation edge subtle, including controls portaled outside the app. */
+html.theme-light {
+  --ButtonControlElevationBorderBrush: linear-gradient(0deg, #00000014 1px, #0000000f 1px);
+  --ButtonControlElevationBorderBrushBottom: #00000014;
+  --ButtonAccentControlElevationBorderBrush: linear-gradient(0deg, #00000024 1px, #ffffff14 1px);
+  --ButtonAccentControlElevationBorderBrushBottom: #00000024;
+}
+html.theme-dark {
+  --ButtonAccentControlElevationBorderBrush: linear-gradient(0deg, #0000001f 1px, #ffffff14 1px);
+  --ButtonAccentControlElevationBorderBrushBottom: #0000001f;
+}
 .secondary-text,
 .field-hint {
   color: var(--text-secondary);
@@ -422,30 +470,71 @@ small {
 .category-carousel-viewport::-webkit-scrollbar {
   display: none;
 }
-.category-mica-card.win-btn {
+.category-acrylic-card.win-btn {
+  --category-card-border: #e4e4e4;
+  --category-card-border-hover: #cacbcb;
   position: relative;
   width: 260px;
   height: 210px;
   min-width: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   text-align: left;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--card-bg) 80%, transparent);
-  border: 1px solid var(--card-stroke);
-  backdrop-filter: blur(22px) saturate(0.8);
+  background: transparent;
+  border: 0;
 }
-.category-mica-card > .win-button-content-presenter {
+.theme-dark .category-acrylic-card.win-btn {
+  --category-card-border: #454545;
+  --category-card-border-hover: #606060;
+}
+/* Paint one continuous stroke above the clipped material and button states. */
+.category-acrylic-card.win-btn::after {
+  border: 1px solid var(--category-card-border);
+  border-radius: inherit;
+  padding: 0;
+  background: none;
+  mask: none;
+}
+.category-acrylic-card.win-btn:not(:disabled):hover:where(:not(.winui-touch-input *))::after {
+  border-color: var(--category-card-border-hover);
+}
+.category-acrylic-card > .win-button-content-presenter {
   width: 100%;
   height: 100%;
   padding: 0 !important;
+  border-radius: inherit;
+  overflow: hidden;
+  background: transparent !important;
 }
-.category-mica-material {
+.category-acrylic-card.win-btn.is-pressed .category-acrylic-content {
+  background: var(--subtle-secondary);
+}
+.category-acrylic-material {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
 }
-.category-mica-content {
+.category-acrylic-material::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgb(0 0 0 / 4.5%);
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+.category-acrylic-card.win-btn:not(:disabled):hover:where(:not(.winui-touch-input *))
+  .category-acrylic-material::after {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .category-acrylic-material::after {
+    transition: none;
+  }
+}
+.category-acrylic-content {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -454,21 +543,21 @@ small {
   height: 100%;
   padding: 22px;
 }
-.category-mica-icon {
+.category-acrylic-icon {
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
   margin-bottom: 14px;
 }
-.category-mica-content strong {
+.category-acrylic-content strong {
   width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 17px;
 }
-.category-mica-content p {
+.category-acrylic-content p {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -480,7 +569,7 @@ small {
   line-height: 1.5;
   text-align: left;
 }
-.category-mica-footer {
+.category-acrylic-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1778,7 +1867,7 @@ small {
   .category-carousel-viewport {
     grid-auto-columns: min(260px, calc(100% - 24px));
   }
-  .category-mica-card.win-btn {
+  .category-acrylic-card.win-btn {
     width: 100%;
   }
   .category-carousel {
@@ -2120,11 +2209,6 @@ small {
 }
 .settings-form > h2 {
   margin-bottom: 16px;
-}
-.dashboard-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
 }
 @media (max-width: 640px) {
   .dashboard-posts .post-list-item {

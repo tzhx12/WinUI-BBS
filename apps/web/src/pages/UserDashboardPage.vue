@@ -12,6 +12,8 @@ import PageHeader from '../components/ui/PageHeader.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import ResourceState from '../components/ui/ResourceState.vue'
 import WinButton from '../components/ui/WinButton.vue'
+import SelectorSwitch from '../components/ui/SelectorSwitch.vue'
+import SelectorPage from '../components/ui/SelectorPage.vue'
 import PostListItem from '../components/PostListItem.vue'
 import AccountProfileEditor from '../components/AccountProfileEditor.vue'
 
@@ -133,31 +135,34 @@ const profileEditor = ref<InstanceType<typeof AccountProfileEditor> | null>(null
           <h2>
             我的发帖 <span class="count">{{ filtered.length }}</span>
           </h2>
-          <div class="dashboard-filters">
-            <WinButton label="全部" :accent="filter === 'all'" subtle @click="filter = 'all'" /><WinButton
-              label="待审核"
-              :accent="filter === 'pending'"
-              subtle
-              @click="filter = 'pending'"
-            /><WinButton label="未通过" :accent="filter === 'rejected'" subtle @click="filter = 'rejected'" />
-            <WinButton label="隐藏" :accent="filter === 'hidden'" subtle @click="filter = 'hidden'" />
-          </div>
+          <SelectorSwitch
+            v-model="filter"
+            aria-label="我的发帖筛选"
+            :options="[
+              { value: 'all', label: '全部' },
+              { value: 'pending', label: '待审核' },
+              { value: 'rejected', label: '未通过' },
+              { value: 'hidden', label: '隐藏' },
+            ]"
+          />
         </div>
-        <ResourceState :loading="loading" :error="error" /><EmptyState
-          v-if="!loading && !filtered.length"
-          title="还没有帖子"
-          description="发布一个话题，它会出现在这里。"
-          icon="chat"
-        /><ListView
-          v-else
-          :ItemsSource="filtered"
-          :ItemTemplate="template"
-          SelectionMode="None"
-          :IsItemClickEnabled="true"
-          :ItemContainerStyle="{ Padding: '0', HorizontalContentAlignment: 'Stretch' }"
-          class="post-list"
-          @ItemClick="openPost"
-        />
+        <SelectorPage :selected="filter">
+          <ResourceState :loading="loading" :error="error" /><EmptyState
+            v-if="!loading && !filtered.length"
+            title="还没有帖子"
+            description="发布一个话题，它会出现在这里。"
+            icon="chat"
+          /><ListView
+            v-else
+            :ItemsSource="filtered"
+            :ItemTemplate="template"
+            SelectionMode="None"
+            :IsItemClickEnabled="true"
+            :ItemContainerStyle="{ Padding: '0', HorizontalContentAlignment: 'Stretch' }"
+            class="post-list"
+            @ItemClick="openPost"
+          />
+        </SelectorPage>
       </section>
       <AccountProfileEditor ref="profileEditor" @updated="reload" />
     </div>
