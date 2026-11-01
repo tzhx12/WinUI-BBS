@@ -46,8 +46,26 @@ const canManageGlobal = computed(() =>
 )
 const isManagement = computed(() => form.groupType === 'management')
 const isOrdinary = computed(() => form.groupType === 'normal' || form.groupType === 'public')
-const userPermissions = permissions.filter(([key]) => !managementPermissionKeys.includes(key))
-const managementPermissions = permissions.filter(([key]) => managementPermissionKeys.includes(key))
+const lockPermissions = permissions.filter(([key]) => key.startsWith('posts.hide_content.'))
+const lockKeys: string[] = lockPermissions.map(([key]) => key)
+const lockState = computed(() => {
+  const count = lockKeys.filter((key) => form.permissions.includes(key)).length
+  return count === lockKeys.length ? true : count ? null : false
+})
+const userPermissions = permissions.filter(
+  ([key]) => !managementPermissionKeys.includes(key) && !lockKeys.includes(key),
+)
+const managementPermissions = permissions.filter(
+  ([key]) => managementPermissionKeys.includes(key) && key !== 'posts.review.ban',
+)
+function toggleLocks() {
+  if (isGlobal.value) return
+  const checked = lockState.value !== true
+  form.permissions = [
+    ...form.permissions.filter((key) => !lockKeys.includes(key)),
+    ...(checked ? lockKeys : []),
+  ]
+}
 watch(
   () => form.groupType,
   () => {
@@ -70,7 +88,7 @@ function edit(group?: Group) {
     groupType: group?.group_type || 'normal',
     description: group?.description || '',
     isJoinable: group?.is_joinable || false,
-    permissions: [...(group?.permissions || ['posts.hide_content'])],
+    permissions: [...(group?.permissions || lockKeys)],
     mediaLimits: { ...(group?.media_limits || {}) },
   })
   error.value = ''
@@ -83,7 +101,11 @@ function togglePermission(key: string, checked: boolean | null) {
     (isOrdinary.value && managementPermissionKeys.includes(key))
   )
     return
-  form.permissions = checked ? [...form.permissions, key] : form.permissions.filter((item) => item !== key)
+  form.permissions = checked
+    ? [...new Set([...form.permissions, key])]
+    : form.permissions.filter(
+        (item) => item !== key && !(key === 'posts.review' && item === 'posts.review.ban'),
+      )
 }
 async function save() {
   if (isManagement.value && !form.permissions.some((key) => managementPermissionKeys.includes(key))) {
@@ -250,6 +272,24 @@ async function removeMember(member: GroupMember) {
               :IsEnabled="!isGlobal && !(isManagement && basicUserPermissionKeys.includes(key))"
               @update:IsChecked="togglePermission(key, $event)"
             />
+            <div class="permission-tree">
+              <CheckBox
+                Content="隐藏段落"
+                :IsThreeState="true"
+                :IsChecked="lockState"
+                :IsEnabled="!isGlobal"
+                @update:IsChecked="toggleLocks"
+              />
+              <CheckBox
+                v-for="[key, label] in lockPermissions"
+                :key="key"
+                :Content="label"
+                :IsChecked="form.permissions.includes(key)"
+                :IsEnabled="!isGlobal"
+                Margin="24,0,0,0"
+                @update:IsChecked="togglePermission(key, $event)"
+              />
+            </div>
           </div>
         </fieldset>
         <p v-if="isGlobal" class="field-hint">全局管理员固定拥有全部权限。</p>
@@ -258,14 +298,22 @@ async function removeMember(member: GroupMember) {
           <legend>管理类权限</legend>
           <p v-if="isManagement" class="field-hint">至少选择一项。</p>
           <div class="permission-grid">
-            <CheckBox
-              v-for="[key, label] in managementPermissions"
-              :key="key"
-              :Content="label"
-              :IsChecked="form.permissions.includes(key)"
-              :IsEnabled="!isGlobal"
-              @update:IsChecked="togglePermission(key, $event)"
-            />
+            <div v-for="[key, label] in managementPermissions" :key="key" class="permission-tree">
+              <CheckBox
+                :Content="label"
+                :IsChecked="form.permissions.includes(key)"
+                :IsEnabled="!isGlobal"
+                @update:IsChecked="togglePermission(key, $event)"
+              />
+              <CheckBox
+                v-if="key === 'posts.review'"
+                Content="封禁发帖账号"
+                :IsChecked="form.permissions.includes('posts.review.ban')"
+                :IsEnabled="!isGlobal && form.permissions.includes('posts.review')"
+                Margin="24,0,0,0"
+                @update:IsChecked="togglePermission('posts.review.ban', $event)"
+              />
+            </div>
           </div>
         </fieldset>
         <p v-else class="field-hint">普通用户组和公开用户组不能拥有管理类权限。</p>

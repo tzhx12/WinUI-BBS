@@ -1997,6 +1997,45 @@ html.theme-dark {
   --forum-accent-light: #0067c0;
   --forum-accent-dark: #4cc2ff;
 }
+.permission-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.post-body .previewable-image {
+  cursor: zoom-in;
+}
+.post-body .previewable-image:focus-visible {
+  outline: 2px solid var(--accent-base);
+  outline-offset: 4px;
+}
+@media (max-width: 640px) {
+  #hevue-img-preview-container .he-bottom-wrap {
+    left: 12px;
+    width: calc(100vw - 24px);
+    bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  #hevue-img-preview-container .he-control-bar {
+    height: auto;
+    min-height: 44px;
+    max-width: 100%;
+    padding: 0 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #hevue-img-preview-container .he-control-btn {
+    flex: 0 0 44px;
+    box-sizing: border-box;
+    padding: 0;
+  }
+  #hevue-img-preview-container .he-imglist-wrap {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+}
 :root[data-accent='teal'] {
   --forum-accent-light: #008272;
   --forum-accent-dark: #74d3c3;
@@ -2008,6 +2047,38 @@ html.theme-dark {
 :root[data-accent='orange'] {
   --forum-accent-light: #ca5010;
   --forum-accent-dark: #ffb68c;
+}
+:root[data-accent='red'] {
+  --forum-accent-light: #c42b1c;
+  --forum-accent-dark: #ff9999;
+}
+:root[data-accent='pink'] {
+  --forum-accent-light: #bf3768;
+  --forum-accent-dark: #ffadd0;
+}
+:root[data-accent='magenta'] {
+  --forum-accent-light: #a4269b;
+  --forum-accent-dark: #f2a7ed;
+}
+:root[data-accent='indigo'] {
+  --forum-accent-light: #4f4eb5;
+  --forum-accent-dark: #b6b5ff;
+}
+:root[data-accent='cyan'] {
+  --forum-accent-light: #007c91;
+  --forum-accent-dark: #70d9ed;
+}
+:root[data-accent='green'] {
+  --forum-accent-light: #107c10;
+  --forum-accent-dark: #8cdb8c;
+}
+:root[data-accent='lime'] {
+  --forum-accent-light: #587600;
+  --forum-accent-dark: #c3d977;
+}
+:root[data-accent='gold'] {
+  --forum-accent-light: #946200;
+  --forum-accent-dark: #f5cf70;
 }
 /* WinUI theme scopes declare their own palette, including those portaled to body. */
 :root[data-accent],

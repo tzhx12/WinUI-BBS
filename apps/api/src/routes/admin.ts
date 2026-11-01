@@ -6,7 +6,12 @@ import { adminPermissions, isGlobalAdministrator } from '../auth.js'
 import { effectiveLevel, inTransaction, query } from '../db.js'
 import { homeContentSchema, httpUrl, mediaLimitsSchema, readSettings, saveSettings } from '../settings.js'
 import { grantLevelInvitations } from '../invitations.js'
-import { groupPermissionError, permissionKeys } from '../permissions.js'
+import {
+  contentLockPermissions,
+  expandLegacyPermissions,
+  groupPermissionError,
+  permissionKeys,
+} from '../permissions.js'
 import { auditSummary } from '../auditSummary.js'
 import { replyExcerpt } from '../content.js'
 import { adminPostList, adminPostListQuery, adminPostSearch } from '../adminPostLists.js'
@@ -83,24 +88,32 @@ export async function registerAdminRoutes(
     }
   })
 
-  app.get('/api/admin/users', { preHandler: adminPermissions.users }, async (request) => {
-    const parsed = z.object({ q: z.string().trim().max(80).optional() }).safeParse(request.query)
-    const search = parsed.success ? (parsed.data.q ?? null) : null
+  app.get('/api/admin/users', { preHandler: adminPermissions.users }, async (request, reply) => {
+    const parsed = z
+      .object({
+        q: z.string().trim().max(80).optional(),
+        status: z.enum(['all', 'active', 'banned', 'suspended']).default('all'),
+      })
+      .safeParse(request.query)
+    if (!parsed.success) return reply.code(400).send({ error: '用户筛选无效' })
+    const search = parsed.data.q || null
     const setting = await query<{ points_per_level: number }>(
       "SELECT setting_value::text::integer AS points_per_level FROM app_settings WHERE setting_key = 'points_per_level'",
     )
     const perLevel = Math.max(1, setting.rows[0]?.points_per_level ?? 100)
     const result = await query(
-      `SELECT u.uid, u.uuid, u.username, u.email, u.display_name, u.experience, u.level_offset, u.status, u.created_at,
+      `SELECT u.uid, u.uuid, u.username, u.email, u.display_name, u.avatar_url, u.experience, u.level_offset, u.status, u.created_at,
               u.banned_until, COALESCE(u.banned_until > NOW(), FALSE) AS is_banned,
               GREATEST(1, FLOOR(u.experience::numeric / $2)::int + 1 + u.level_offset) AS level,
               COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE g.id IS NOT NULL), '{}') AS groups
        FROM users u
        LEFT JOIN group_memberships gm ON gm.user_uid = u.uid AND (gm.expires_at IS NULL OR gm.expires_at > NOW())
        LEFT JOIN user_groups g ON g.id = gm.group_id
-       WHERE $1::text IS NULL OR u.username ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%' OR u.display_name ILIKE '%' || $1 || '%'
+       WHERE ($1::text IS NULL OR u.uid::text = $1 OR u.username ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%' OR u.display_name ILIKE '%' || $1 || '%')
+         AND ($3 = 'all' OR ($3 = 'active' AND u.status = 'active' AND (u.banned_until IS NULL OR u.banned_until <= NOW()))
+              OR ($3 = 'banned' AND u.status = 'active' AND u.banned_until > NOW()) OR ($3 = 'suspended' AND u.status = 'suspended'))
        GROUP BY u.uid ORDER BY u.uid DESC LIMIT 200`,
-      [search, perLevel],
+      [search, perLevel, parsed.data.status],
     )
     return result.rows
   })
@@ -123,13 +136,13 @@ export async function registerAdminRoutes(
       .safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '请提供需要调整的用户字段' })
     const { uid } = request.params as { uid: string }
-    const current = await query<{ experience: string; level_offset: number }>(
-      'SELECT experience, level_offset FROM users WHERE uid = $1',
+    const current = await query<{ uid: string; experience: string; level_offset: number }>(
+      'SELECT uid, experience, level_offset FROM users WHERE uid = $1',
       [uid],
     )
     if (!current.rows[0]) return reply.code(404).send({ error: '用户不存在' })
     const changes = parsed.data
-    if (uid === '1' && (changes.status === 'suspended' || changes.banMinutes != null))
+    if (current.rows[0].uid === '1' && (changes.status === 'suspended' || changes.banMinutes != null))
       return reply.code(403).send({ error: '不可停用或封禁首位管理员' })
     if (changes.status === 'suspended' || changes.banMinutes != null) {
       const access = await query<{
@@ -213,13 +226,16 @@ export async function registerAdminRoutes(
         groupType: z.enum(groupTypes),
         description: z.string().max(500).default(''),
         isJoinable: z.boolean().default(false),
-        permissions: z.array(z.enum(permissionKeys)).optional(),
+        permissions: z
+          .array(z.enum([...permissionKeys, 'posts.hide_content']))
+          .transform(expandLegacyPermissions)
+          .optional(),
         mediaLimits: mediaLimitsSchema.partial().default({}),
       })
       .safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '用户组资料无效' })
     const permissions =
-      parsed.data.permissions ?? (parsed.data.groupType === 'normal' ? ['posts.hide_content'] : [])
+      parsed.data.permissions ?? (parsed.data.groupType === 'normal' ? [...contentLockPermissions] : [])
     const permissionError = groupPermissionError(parsed.data.groupType, permissions)
     if (permissionError) return reply.code(400).send({ error: permissionError })
     try {
@@ -263,7 +279,10 @@ export async function registerAdminRoutes(
         groupType: z.enum(['global', ...groupTypes]).optional(),
         description: z.string().max(500).optional(),
         isJoinable: z.boolean().optional(),
-        permissions: z.array(z.enum(permissionKeys)).optional(),
+        permissions: z
+          .array(z.enum([...permissionKeys, 'posts.hide_content']))
+          .transform(expandLegacyPermissions)
+          .optional(),
         mediaLimits: mediaLimitsSchema.partial().optional(),
       })
       .refine((value) => Object.keys(value).length > 0)

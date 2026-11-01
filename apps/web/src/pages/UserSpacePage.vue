@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { postPath } from '../utils'
 import { computed, ref, watch } from 'vue'
+import { InfoBar } from 'winuionweb'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
 import { useSite } from '../site'
@@ -35,6 +36,7 @@ const { data, loading, error, reload } = useResource(
         avatar_url: string | null
         following: boolean
         follower_count: number
+        banned_until: string | null
       }
       posts: PostSummary[]
       folders: Array<{ id: string; name: string; post_count: number }>
@@ -57,6 +59,19 @@ const profile = computed<User | null>(() =>
       }
     : null,
 )
+const banMessage = computed(() => {
+  if (!data.value?.user.banned_until) return ''
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(data.value.user.banned_until))
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)!.value
+  return `该用户已被封禁至${part('year')}-${part('month')}-${part('day')}-${part('hour')}:${part('minute')}`
+})
 watch(site.token, reload)
 async function followChanged(following: boolean) {
   if (data.value) data.value.user.following = following
@@ -71,6 +86,13 @@ async function followChanged(following: boolean) {
       /></PageHeader>
       <ResourceState :loading="loading" :error="error" />
       <template v-if="data">
+        <InfoBar
+          v-if="banMessage"
+          :IsOpen="true"
+          Severity="Error"
+          :IsClosable="false"
+          :Message="banMessage"
+        />
         <UserProfileDetails v-if="profile" :user="profile"
           ><template #action
             ><FollowButton

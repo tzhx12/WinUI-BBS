@@ -85,6 +85,10 @@ export async function registerReviewRoutes(app: FastifyInstance) {
       })
     const { id } = request.params as { id: string }
     const { action, reason, banMinutes } = parsed.data
+    if (action === 'ban') {
+      await requirePermission('posts.review.ban')(request, reply)
+      if (reply.sent) return
+    }
     const result = await inTransaction(async (client) => {
       const post = await client.query<{ author_uid: string; title: string }>(
         "SELECT author_uid, title FROM posts WHERE id = $1 AND status = 'pending' AND deleted_at IS NULL FOR UPDATE",

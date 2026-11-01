@@ -63,10 +63,13 @@ export const permissions = [
   ['settings.manage', '管理站点设置'],
   ['posts.create', '发帖'],
   ['posts.set_reader_level', '发帖阅读等级设置'],
-  ['posts.hide_content', '隐藏段落（回复、点赞或关注后解锁）'],
+  ['posts.hide_content.reply', '回复后解锁'],
+  ['posts.hide_content.like', '点赞后解锁'],
+  ['posts.hide_content.follow', '关注后解锁'],
   ['posts.bypass_review', '发帖全局免审核'],
   ['posts.require_review', '发帖必须审核'],
-  ['posts.review', '发帖审核（通过、拒绝、封禁）'],
+  ['posts.review', '发帖审核'],
+  ['posts.review.ban', '封禁发帖账号'],
   ['replies.create', '回复帖子'],
 ] as const
 
@@ -76,6 +79,7 @@ export const managementPermissionKeys: readonly string[] = [
   'levels.manage',
   'posts.manage',
   'posts.review',
+  'posts.review.ban',
   'categories.manage',
   'media.manage',
   'settings.manage',

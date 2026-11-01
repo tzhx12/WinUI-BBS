@@ -50,7 +50,8 @@ after(async () => {
 
 test("normal groups default to hidden-content permission; explicit choices and other group types are preserved", async () => {
   const me = (await f.request("GET", "/api/auth/me", undefined, author)).json();
-  assert.ok(me.permissions.includes("posts.hide_content"));
+  for (const condition of ["reply", "like", "follow"])
+    assert.ok(me.permissions.includes(`posts.hide_content.${condition}`));
   for (const [name, groupType, permissions, expected] of [
     ["默认隐藏段落", "normal", undefined, true],
     ["明确关闭隐藏段落", "normal", [], false],
@@ -69,7 +70,7 @@ test("normal groups default to hidden-content permission; explicit choices and o
     assert.equal(
       groups
         .find((g) => g.id === result.json().id)
-        .permissions.includes("posts.hide_content"),
+        .permissions.includes("posts.hide_content.reply"),
       expected,
     );
   }
@@ -371,7 +372,7 @@ test("permission revocation, expiry, invalid locks, reply locks and hidden text 
     [reader.user.uid],
   );
   await f.query(
-    "DELETE FROM group_permissions WHERE permission_key='posts.hide_content' AND group_id IN (SELECT id FROM user_groups WHERE group_type <> 'global')",
+    "DELETE FROM group_permissions WHERE permission_key LIKE 'posts.hide_content.%' AND group_id IN (SELECT id FROM user_groups WHERE group_type <> 'global')",
   );
   const result = await f.request(
     "POST",

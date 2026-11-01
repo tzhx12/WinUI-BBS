@@ -35,7 +35,7 @@ function visit(node: Tree.Node, action: (element: Tree.Element) => boolean | voi
 }
 
 export async function validateContentLocks(body: Body, uid: string, kind: 'post' | 'reply') {
-  let count = 0
+  const conditions = new Set<Condition>()
   mapBodyHtml(body, (text) => {
     if (!text.includes('<')) return text
     visit(parseFragment(text), (element) => {
@@ -54,19 +54,22 @@ export async function validateContentLocks(body: Body, uid: string, kind: 'post'
         }),
       )
       if (nested || !serialize(element).trim()) throw mediaError('锁定内容不能为空或互相嵌套')
-      count++
+      conditions.add(lock.value as Condition)
     })
     return text
   })
-  if (!count) return
+  if (!conditions.size) return
   if (kind !== 'post') throw mediaError('仅帖子正文支持内容锁定')
-  const permission = await query(
-    `SELECT 1 FROM group_memberships gm JOIN group_permissions gp ON gp.group_id=gm.group_id
-     WHERE gm.user_uid=$1 AND gp.permission_key='posts.hide_content'
-       AND (gm.expires_at IS NULL OR gm.expires_at>NOW()) LIMIT 1`,
+  const permission = await query<{ permission_key: string }>(
+    `SELECT DISTINCT gp.permission_key FROM group_memberships gm JOIN group_permissions gp ON gp.group_id=gm.group_id
+     WHERE gm.user_uid=$1 AND gp.permission_key LIKE 'posts.hide_content.%'
+       AND (gm.expires_at IS NULL OR gm.expires_at>NOW())`,
     [uid],
   )
-  if (!permission.rowCount) throw mediaError('当前用户组没有隐藏段落权限', 403)
+  for (const condition of conditions) {
+    if (!permission.rows.some((row) => row.permission_key === `posts.hide_content.${condition}`))
+      throw mediaError(`当前用户组没有${labels[condition]}的隐藏段落权限`, 403)
+  }
 }
 
 // Remove the protected subtree, including attributes, before content leaves the API.
@@ -90,7 +93,11 @@ export function visibleBody<T extends Body>(body: T, unlocked: Partial<Record<Co
         { name: 'class', value: 'forum-content-locked' },
       ]
       element.childNodes = [
-        { nodeName: '#text', value: `[${labels[condition] || '内容已锁定'}]`, parentNode: element },
+        {
+          nodeName: '#text',
+          value: `[${labels[condition] || '内容已锁定'}]`,
+          parentNode: element,
+        },
       ]
       return false
     })

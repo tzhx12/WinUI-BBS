@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { NumberBox, PersonPicture, TextBox } from 'winuionweb'
 import { api } from '../../api'
 import { useResource } from '../../composables/useResource'
@@ -13,7 +13,8 @@ import WinDialog from '../../components/ui/WinDialog.vue'
 import WinSelect from '../../components/ui/WinSelect.vue'
 defineOptions({ inheritAttrs: false })
 const site = useSite(),
-  search = ref('')
+  search = ref(''),
+  statusFilter = ref<string | number>('all')
 const {
   data: users,
   loading,
@@ -23,9 +24,12 @@ const {
   run,
 } = useResource(
   () =>
-    api<AdminUser[]>(`/api/admin/users?q=${encodeURIComponent(search.value)}`, { token: site.token.value }),
+    api<AdminUser[]>(`/api/admin/users?q=${encodeURIComponent(search.value)}&status=${statusFilter.value}`, {
+      token: site.token.value,
+    }),
   [],
 )
+watch(statusFilter, reload)
 const dialog = ref(false),
   selected = ref<AdminUser | null>(null),
   level = ref(1),
@@ -102,6 +106,16 @@ async function save() {
     <div class="page-content">
       <PageHeader title="用户管理" />
       <form class="section-toolbar" @submit.prevent="reload">
+        <WinSelect
+          v-model="statusFilter"
+          label="账号状态筛选"
+          :options="[
+            { value: 'all', label: '全部状态' },
+            { value: 'active', label: '正常' },
+            { value: 'banned', label: '已封禁' },
+            { value: 'suspended', label: '已停用' },
+          ]"
+        />
         <div class="toolbar-search">
           <TextBox
             v-model:Text="search"
@@ -129,7 +143,14 @@ async function save() {
             <tr v-for="user in users" :key="user.uid">
               <td>
                 <div class="table-person">
-                  <PersonPicture :DisplayName="user.display_name" :Width="32" :Height="32" />
+                  <PersonPicture
+                    :DisplayName="user.display_name"
+                    :ProfilePicture="user.avatar_url || undefined"
+                    :Width="32"
+                    :Height="32"
+                    :MinWidth="32"
+                    :MinHeight="32"
+                  />
                   <div>
                     <strong>{{ user.display_name }}</strong
                     ><small>@{{ user.username }}</small>
@@ -170,7 +191,7 @@ async function save() {
                     label="封禁"
                     icon="lock"
                     subtle
-                    :disabled="saving"
+                    :disabled="saving || user.uid === '1'"
                     @click="openBan(user)"
                   />
                 </div>
@@ -209,14 +230,19 @@ async function save() {
             Header="用户等级"
             :Minimum="1"
             SpinButtonPlacementMode="Inline"
-            AutomationProperties.Name="用户等级" /><WinSelect
+            AutomationProperties.Name="用户等级"
+          /><WinSelect
             v-model="status"
             label="账号状态"
+            :disabled="selected.uid === '1'"
             :options="[
               { value: 'active', label: '正常' },
               { value: 'suspended', label: '停用' },
-            ]" /></template
-      ></WinDialog>
+            ]"
+          />
+          <p v-if="selected.uid === '1'" class="field-hint">UID 1 的账号不可停用或封禁。</p></template
+        ></WinDialog
+      >
       <WinDialog
         v-model:open="banDialog"
         title="封禁用户"

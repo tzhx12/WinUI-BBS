@@ -105,7 +105,13 @@ async function decide(action: 'approve' | 'reject' | 'ban') {
         <div v-if="selected.status === 'pending'" class="review-decision-bar">
           <WinButton label="通过审核" icon="check" accent :disabled="saving" @click="decide('approve')" />
           <WinButton label="拒绝通过" icon="close" :disabled="saving" @click="openDecision('reject')" />
-          <WinButton label="封禁发帖账号" icon="lock" :disabled="saving" @click="openDecision('ban')" />
+          <WinButton
+            v-if="site.user.value?.permissions?.includes('posts.review.ban')"
+            label="封禁发帖账号"
+            icon="lock"
+            :disabled="saving"
+            @click="openDecision('ban')"
+          />
         </div>
       </template>
       <template v-else>

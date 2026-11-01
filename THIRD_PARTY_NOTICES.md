@@ -23,6 +23,8 @@ and generator are in `apps/web/icons/fluent-system-icons.json` and
 
 ## Project links
 
+[hevue-img-preview](https://github.com/heyongsheng/hevue-img-preview) 7.1.3 provides post and reply image previews. Its package metadata declares MIT; the upstream LICENSE file is empty. Attribution, provenance and the standard MIT text are included in `licenses/hevue-img-preview-MIT.txt`.
+
 The application has an About page with links to these projects and their roles:
 
 | Project                                                                                  | Role                                    | License                             |

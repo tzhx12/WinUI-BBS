@@ -532,6 +532,22 @@ test("rejection and account bans notify the author atomically; duplicate decisio
     ),
   );
   const banned = (await post()).json().post;
+  const deniedBan = await request(
+    "POST",
+    `/api/admin/reviews/${banned.id}/decision`,
+    { action: "ban", reason: "未授权", banMinutes: 30 },
+    reviewer,
+  );
+  assert.equal(deniedBan.statusCode, 403, deniedBan.body);
+  assert.equal(
+    (await query("SELECT status FROM posts WHERE id=$1", [banned.id])).rows[0]
+      .status,
+    "pending",
+  );
+  await query(
+    "INSERT INTO group_permissions(group_id,permission_key) SELECT group_id,'posts.review.ban' FROM group_memberships WHERE user_uid=$1 AND group_id IN (SELECT group_id FROM group_permissions WHERE permission_key='posts.review')",
+    [reviewer.user.uid],
+  );
   const banResponse = await request(
     "POST",
     `/api/admin/reviews/${banned.id}/decision`,

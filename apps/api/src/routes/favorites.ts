@@ -210,6 +210,7 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
     const user = (
       await query(
         `SELECT uid,uuid,username,display_name,avatar_url,created_at,experience,level_offset,
+         CASE WHEN banned_until > NOW() THEN banned_until ELSE NULL END AS banned_until,
          EXISTS(SELECT 1 FROM user_follows WHERE follower_uid=$2 AND followed_uid=users.uid) AS following,
          (SELECT COUNT(*)::int FROM user_follows WHERE followed_uid=users.uid) AS follower_count
          FROM users WHERE uid=$1`,

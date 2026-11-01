@@ -1,12 +1,65 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount } from 'vue'
+import { previewImages } from 'hevue-img-preview/v3'
 import type { EditorData } from '../types'
 import { inlineHtml as html, inlineRemoteEmojiBlocks, type ListItem } from '../content'
 import RichList from './RichList.vue'
 
-const props = defineProps<{ data: EditorData | null | undefined }>()
+const props = withDefaults(
+  defineProps<{ data: EditorData | null | undefined; previewMode?: 'gallery' | 'single' }>(),
+  { previewMode: 'gallery' },
+)
 const emit = defineEmits<{ unlock: [condition: string] }>()
 const blocks = computed(() => inlineRemoteEmojiBlocks(props.data ?? { blocks: [] }).blocks)
+const images = computed(() =>
+  blocks.value.flatMap((block, index) => {
+    const url = block.type === 'image' ? (block.data.file as { url?: string })?.url : undefined
+    return url && url !== '/deleted-image.png' ? [{ url, index }] : []
+  }),
+)
+let preview: ReturnType<typeof previewImages> | undefined
+function openPreview(index: number, event: Event) {
+  const selected = images.value.find((image) => image.index === index)
+  if (!selected) return
+  const trigger = event.currentTarget as HTMLElement
+  const single = props.previewMode === 'single'
+  preview = previewImages({
+    imgList: single ? [selected.url] : images.value.map((image) => image.url),
+    nowImgIndex: single ? 0 : images.value.indexOf(selected),
+    thumbnail: !single && images.value.length > 1,
+    arrowBtn: !single && images.value.length > 1,
+    disableTransition: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    closeFn: () => {
+      preview = undefined
+      if (trigger.isConnected) trigger.focus({ preventScroll: true })
+    },
+  })
+  void nextTick(() => {
+    const overlay = document.querySelector<HTMLElement>('.hevue-imgpreview-wrap')!
+    overlay.setAttribute('role', 'dialog')
+    overlay.setAttribute('aria-modal', 'true')
+    overlay.setAttribute('aria-label', '图片预览')
+    overlay.tabIndex = -1
+    overlay.focus({ preventScroll: true })
+    overlay.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        preview?.close()
+      } else if (event.key === 'Tab') {
+        const controls = [...overlay.querySelectorAll<HTMLElement>('button, input, [tabindex="0"]')].filter(
+          (element) => element.getClientRects().length,
+        )
+        const edge = event.shiftKey ? controls[0] : controls.at(-1)
+        if (!controls.length || document.activeElement === edge || document.activeElement === overlay) {
+          event.preventDefault()
+          ;(event.shiftKey ? controls.at(-1) : controls[0])?.focus()
+        }
+      }
+    })
+  })
+}
+onBeforeUnmount(() => preview?.close())
 
 function revealSpoiler(event: MouseEvent | KeyboardEvent) {
   if (event instanceof KeyboardEvent && !['Enter', ' '].includes(event.key)) return
@@ -53,8 +106,21 @@ function revealSpoiler(event: MouseEvent | KeyboardEvent) {
               ? '作者已删除图片，阿卡林消失了'
               : String(block.data.caption ?? '')
           "
-          :class="{ 'deleted-image': (block.data.file as { url: string }).url === '/deleted-image.png' }"
+          :class="{
+            'deleted-image': (block.data.file as { url: string }).url === '/deleted-image.png',
+            'previewable-image': (block.data.file as { url: string }).url !== '/deleted-image.png',
+          }"
           loading="lazy"
+          :tabindex="(block.data.file as { url: string }).url !== '/deleted-image.png' ? 0 : undefined"
+          :role="(block.data.file as { url: string }).url !== '/deleted-image.png' ? 'button' : undefined"
+          :aria-label="
+            (block.data.file as { url: string }).url !== '/deleted-image.png'
+              ? `预览图片${block.data.caption ? `：${block.data.caption}` : ''}`
+              : undefined
+          "
+          @click.stop="openPreview(index, $event)"
+          @keydown.enter.stop.prevent="openPreview(index, $event)"
+          @keydown.space.stop.prevent="openPreview(index, $event)"
         />
         <figcaption v-if="block.data.caption" v-html="html(block.data.caption)" />
       </figure>

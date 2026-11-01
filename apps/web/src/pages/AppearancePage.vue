@@ -16,6 +16,14 @@ const accentOptions = [
   { value: 'teal', label: '青绿色' },
   { value: 'purple', label: '紫色' },
   { value: 'orange', label: '橙色' },
+  { value: 'red', label: '红色' },
+  { value: 'pink', label: '玫瑰色' },
+  { value: 'magenta', label: '洋红色' },
+  { value: 'indigo', label: '靛蓝色' },
+  { value: 'cyan', label: '青色' },
+  { value: 'green', label: '绿色' },
+  { value: 'lime', label: '黄绿色' },
+  { value: 'gold', label: '金色' },
 ]
 const scaleLabel = computed(() => `${fontScale.value}%`)
 const lightTheme = computed({

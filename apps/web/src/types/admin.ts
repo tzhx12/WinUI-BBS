@@ -11,6 +11,7 @@ export interface Overview {
   groups: Array<{ id: string; name: string; group_type: string; member_count: number }>
 }
 export interface AdminUser {
+  avatar_url: string | null
   uid: string
   uuid: string
   username: string

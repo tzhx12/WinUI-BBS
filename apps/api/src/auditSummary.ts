@@ -160,6 +160,10 @@ const fields: Record<string, string> = {
   'media.use': '使用图床',
   'posts.set_reader_level': '设置阅读等级',
   'posts.hide_content': '使用隐藏内容',
+  'posts.hide_content.reply': '隐藏段落：回复后解锁',
+  'posts.hide_content.like': '隐藏段落：点赞后解锁',
+  'posts.hide_content.follow': '隐藏段落：关注后解锁',
+  'posts.review.ban': '审核时封禁发帖账号',
   'posts.bypass_review': '免审核',
   'posts.require_review': '强制审核',
 }

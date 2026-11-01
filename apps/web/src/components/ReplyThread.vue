@@ -112,7 +112,7 @@ async function childDeleted(result: { removedCount: number }) {
           <strong>{{ entry.display_name }}</strong
           ><span>UID {{ entry.author_uid }}</span>
         </header>
-        <PostBody :data="entry.body"
+        <PostBody :data="entry.body" preview-mode="single"
       /></template>
       <p v-else class="deleted-reply-text">
         {{ entry.deletion_source === 'admin' ? '该回复已被管理员删除' : '原回复已删除' }}
@@ -167,7 +167,7 @@ async function childDeleted(result: { removedCount: number }) {
                 ></span
               >
             </header>
-            <PostBody :data="child.body" />
+            <PostBody :data="child.body" preview-mode="single" />
             <footer class="reply-footer">
               <span class="reply-floor">第{{ child.floor_number }}楼-{{ child.child_number }}层</span
               ><time :datetime="child.created_at">{{ formatDateTime(child.created_at) }}</time

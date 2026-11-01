@@ -23,6 +23,11 @@ const projectGroups = [
       { name: 'Vue Router', purpose: '社区与管理后台路由', url: 'https://router.vuejs.org/' },
       { name: 'Editor.js', purpose: '块编辑器与图文工具', url: 'https://github.com/codex-team/editor.js' },
       { name: 'DOMPurify', purpose: '富文本内容净化', url: 'https://github.com/cure53/DOMPurify' },
+      {
+        name: 'hevue-img-preview',
+        purpose: '帖子与评论图片预览',
+        url: 'https://github.com/heyongsheng/hevue-img-preview',
+      },
       { name: 'Bmoji', purpose: '远端表情包浏览与接口来源', url: 'https://github.com/SomeOvO/Bmoji' },
       { name: 'MathLive', purpose: 'WinUIonWeb 的数学内容支持', url: 'https://cortexjs.io/mathlive/' },
       { name: 'rtf.js', purpose: 'WinUIonWeb 的 RTF 内容支持', url: 'https://github.com/tbluemel/rtf.js' },

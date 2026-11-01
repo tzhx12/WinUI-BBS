@@ -145,9 +145,14 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ restored: [metadata: Record<string, unknown>] }>()
 const site = useSite()
-const canLock = computed(
-  () => props.kind !== 'reply' && !!site.user.value?.permissions?.includes('posts.hide_content'),
+const lockOptions = computed(() =>
+  [
+    { value: 'reply', label: '回复后解锁' },
+    { value: 'like', label: '点赞后解锁' },
+    { value: 'follow', label: '关注后解锁' },
+  ].filter(({ value }) => site.user.value?.permissions?.includes(`posts.hide_content.${value}`)),
 )
+const canLock = computed(() => props.kind !== 'reply' && lockOptions.value.length > 0)
 const lockOpen = ref(false),
   lockCondition = ref<string | number>('reply'),
   lockPreview = ref('')
@@ -182,7 +187,10 @@ function openLockDialog(range: Range) {
     return
   }
   lockPreview.value = existingLock.value?.textContent || range.toString()
-  lockCondition.value = existingLock.value?.dataset.contentLock || 'reply'
+  const previous = existingLock.value?.dataset.contentLock
+  lockCondition.value = lockOptions.value.some(({ value }) => value === previous)
+    ? previous!
+    : lockOptions.value[0]!.value
   lockOpen.value = true
 }
 function showLockMenu(event: MouseEvent) {
@@ -198,7 +206,8 @@ function showLockMenu(event: MouseEvent) {
   })
 }
 function applyLock(remove = false) {
-  if (!canLock.value) return
+  if (!canLock.value || (!remove && !lockOptions.value.some(({ value }) => value === lockCondition.value)))
+    return
   if (existingLock.value) {
     if (remove) existingLock.value.replaceWith(...existingLock.value.childNodes)
     else existingLock.value.dataset.contentLock = String(lockCondition.value)
@@ -571,15 +580,7 @@ defineExpose({ save, submission, clearDraft })
       <p class="lock-selection-preview">
         {{ lockPreview.slice(0, 180) }}{{ lockPreview.length > 180 ? '…' : '' }}
       </p>
-      <WinSelect
-        v-model="lockCondition"
-        label="解锁条件"
-        :options="[
-          { value: 'reply', label: '回复后解锁' },
-          { value: 'like', label: '点赞后解锁' },
-          { value: 'follow', label: '关注后解锁' },
-        ]"
-      />
+      <WinSelect v-model="lockCondition" label="解锁条件" :options="lockOptions" />
       <WinButton v-if="existingLock" label="移除锁定" subtle @click="applyLock(true)" />
     </WinDialog>
     <div class="editor-actions">
@@ -592,9 +593,7 @@ defineExpose({ save, submission, clearDraft })
           @click="uploadInput?.click()"
         />
         <Button :Flyout="emojiFlyout" Style="{StaticResource SubtleButtonStyle}" aria-label="插入表情包"
-          ><span class="button-content"
-            ><IconGlyph name="emoji" :size="16" /><span>表情</span></span
-          ></Button
+          ><span class="button-content"><IconGlyph name="emoji" :size="16" /><span>表情</span></span></Button
         >
       </div>
       <input
