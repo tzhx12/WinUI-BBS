@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { imageCropPresets } from '../../imageCrop'
 import { computed, reactive, ref, resolveComponent, watch } from 'vue'
 import { Button, FontIcon, NumberBox, TextBox, ToggleSwitch, TreeView } from 'winuionweb'
 import { api } from '../../api'
@@ -216,6 +217,7 @@ function select(_sender: unknown, args: { InvokedItem: Category }) {
               label="自定义板块图标"
               :url="selected.icon_image_url"
               :endpoint="`/api/admin/categories/${selected.id}/icon`"
+              :crop-preset="imageCropPresets.categoryIcon"
               icon
               @updated="imageUpdated" />
             <AdminImageSetting
@@ -223,6 +225,9 @@ function select(_sender: unknown, args: { InvokedItem: Category }) {
               label="板块头部背景图"
               :url="selected.header_background_url"
               :endpoint="`/api/admin/categories/${selected.id}/header-background`"
+              :crop-preset="imageCropPresets.categoryBackground"
+              :background-height="selected.header_background_height"
+              @height-updated="imageUpdated"
               @updated="imageUpdated" />
             <dl class="details-list">
               <div>

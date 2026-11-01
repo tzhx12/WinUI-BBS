@@ -30,7 +30,7 @@ export async function registerAdminRoutes(
   uploadRoot = resolve(process.cwd(), 'data/uploads'),
 ) {
   app.get('/api/admin/home-settings', { preHandler: adminPermissions.settings }, async () =>
-    readSettings(['home_content', 'home_background_url']),
+    readSettings(['home_content', 'home_background_url', 'popular_background_url', 'popular_background_height']),
   )
   app.patch(
     '/api/admin/home-settings',

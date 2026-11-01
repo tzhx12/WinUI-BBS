@@ -391,7 +391,7 @@ html.theme-dark {
 .community-page-background {
   position: sticky;
   top: 0;
-  height: 50%;
+  height: var(--community-background-height);
   margin-bottom: calc(-1 * var(--community-background-height));
   z-index: -1;
   overflow: hidden;
@@ -635,7 +635,7 @@ html.theme-dark {
 }
 .admin-image-preview {
   width: min(100%, 560px);
-  height: 150px;
+  aspect-ratio: 3 / 1;
   overflow: hidden;
   border: 1px solid var(--card-stroke);
   border-radius: 10px;
@@ -2152,11 +2152,6 @@ html.theme-dark {
 .dashboard-profile .profile-identity {
   flex: 1 1 340px;
   margin-bottom: 0;
-}
-.avatar-upload-preview {
-  display: flex;
-  justify-content: center;
-  padding: 8px;
 }
 .dashboard-stat {
   min-width: 100px;

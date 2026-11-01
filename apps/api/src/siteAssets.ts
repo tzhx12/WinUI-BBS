@@ -33,7 +33,7 @@ export async function removeSiteAssetIfUnused(
     `SELECT EXISTS (
        SELECT 1 FROM categories WHERE icon_image_url=$1 OR header_background_url=$1
      ) OR EXISTS (
-       SELECT 1 FROM app_settings WHERE setting_key='home_background_url' AND setting_value #>> '{}' = $1
+       SELECT 1 FROM app_settings WHERE setting_key IN ('home_background_url', 'popular_background_url') AND setting_value #>> '{}' = $1
      ) AS used`,
     [url],
   )

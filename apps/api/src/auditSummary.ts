@@ -31,6 +31,7 @@ const actions: Record<string, string> = {
   'media.storage_settings': '更新存储设置',
   'community.image.upload': '更新社区图片',
   'community.image.remove': '移除社区图片',
+  'community.background.update': '更新背景显示范围',
   'site.updates.settings': '更新版本更新设置',
   'site.updates.install': '执行版本更新',
   'media.auto_recycle': '自动回收图片',
@@ -135,6 +136,7 @@ const fields: Record<string, string> = {
   recycleBytes: '回收容量（字节）',
   objectStorageEnabled: '启用对象存储',
   kind: '图片用途',
+  height: '背景显示范围',
   url: '图片地址',
   postId: '所属帖子',
   scope: '删除范围',
@@ -183,6 +185,7 @@ const values: Record<string, string> = {
   local: '本地',
   s3: '对象存储',
   'home-background': '首页背景',
+  'popular-background': '热门讨论背景',
   icon: '板块图标',
   'header-background': '板块背景',
   thread: '整层回复',
@@ -191,6 +194,7 @@ const values: Record<string, string> = {
   prerelease: '预发布版',
 }
 function scalar(value: unknown, key: string): string {
+  if (key === 'height' && (value === 50 || value === 75)) return value === 50 ? '固定半屏渐变' : '固定 3/4 屏渐变'
   if (value === null) return key === 'banMinutes' ? '解除封禁' : key === 'expiresAt' ? '永久' : '无'
   if (value === '') return '已清空'
   if (typeof value === 'boolean') return value ? '是' : '否'

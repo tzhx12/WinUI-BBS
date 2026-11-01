@@ -26,6 +26,12 @@ const category = computed(() =>
 const isSearch = props.Parameter.path === '/search'
 const searchTerm = (props.Parameter.query.q || '').trim()
 const isPopular = props.Parameter.path === '/popular'
+const fixedBackground = computed(() =>
+  category.value ? category.value.header_background_url : isPopular ? site.settings.popularBackground : '',
+)
+const backgroundHeight = computed(() =>
+  category.value ? category.value.header_background_height : site.settings.popularBackgroundHeight,
+)
 const sort = ref(
   props.Parameter.query.sort === 'popular' || (!props.Parameter.query.sort && isPopular)
     ? 'popular'
@@ -97,9 +103,13 @@ function compose() {
 }
 </script>
 <template>
-  <div class="page-scroll" :class="{ 'community-page': category }">
-    <div v-if="category?.header_background_url" class="community-page-background" aria-hidden="true">
-      <img :src="category.header_background_url" alt="" />
+  <div
+    class="page-scroll"
+    :class="{ 'community-page': category || isPopular }"
+    :style="category || isPopular ? { '--community-background-height': `${backgroundHeight}cqh` } : undefined"
+  >
+    <div v-if="fixedBackground" class="community-page-background" aria-hidden="true">
+      <img :src="fixedBackground" alt="" />
     </div>
     <div class="page-content">
       <CommunityHero

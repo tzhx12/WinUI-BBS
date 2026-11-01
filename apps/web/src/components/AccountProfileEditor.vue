@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { InfoBar, PasswordBox, PersonPicture, TextBox } from 'winuionweb'
 import { api, uploadForm } from '../api'
 import { useSite } from '../site'
 import WinButton from './ui/WinButton.vue'
 import WinDialog from './ui/WinDialog.vue'
 import EmailCodeInput from './EmailCodeInput.vue'
+import ImageCropDialog from './ui/ImageCropDialog.vue'
+import { imageCropPresets } from '../imageCrop'
 
 defineOptions({ inheritAttrs: false })
 const site = useSite()
@@ -52,14 +54,11 @@ async function changePassword() {
 }
 const usernameOpen = ref(false),
   nicknameOpen = ref(false),
-  avatarOpen = ref(false),
   saving = ref(false),
   profileError = ref('')
 const username = ref(''),
   nickname = ref(''),
-  avatarInput = ref<HTMLInputElement | null>(null),
-  avatarFile = ref<File | null>(null),
-  avatarPreview = ref('')
+  avatarCropper = ref<InstanceType<typeof ImageCropDialog> | null>(null)
 const usernameChangeDate = computed(() => {
   const availableAt = site.user.value?.usernameChangeAvailableAt
   return availableAt
@@ -115,38 +114,22 @@ async function saveNickname() {
     saving.value = false
   }
 }
-function clearAvatar() {
-  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
-  avatarPreview.value = ''
-  avatarFile.value = null
-  if (avatarInput.value) avatarInput.value.value = ''
-}
 function editAvatar() {
-  clearAvatar()
   profileError.value = ''
-  avatarOpen.value = true
+  avatarCropper.value?.choose()
 }
-function selectAvatar(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
-  avatarFile.value = file
-  avatarPreview.value = URL.createObjectURL(file)
-  profileError.value = ''
-}
-async function saveAvatar() {
-  if (!avatarFile.value) return
+async function saveAvatar(file: File) {
   saving.value = true
   profileError.value = ''
   try {
     await api('/api/me/avatar', {
       method: 'POST',
       token: site.token.value,
-      body: uploadForm(avatarFile.value),
+      body: uploadForm(file),
     })
     await site.refreshUser()
     emit('updated')
-    avatarOpen.value = false
+    avatarCropper.value?.close()
     site.notify('头像已更新')
   } catch (cause) {
     profileError.value = (cause as Error).message
@@ -154,7 +137,6 @@ async function saveAvatar() {
     saving.value = false
   }
 }
-onBeforeUnmount(clearAvatar)
 </script>
 <template>
   <div v-if="showActions && site.user.value && !site.user.value.isBanned" class="profile-management-list">
@@ -166,6 +148,8 @@ onBeforeUnmount(clearAvatar)
           :ProfilePicture="site.user.value.avatarUrl || undefined"
           :Width="64"
           :Height="64"
+          :MinWidth="64"
+          :MinHeight="64"
         />
       </div>
       <WinButton label="上传头像" icon="image" @click="editAvatar" />
@@ -252,39 +236,16 @@ onBeforeUnmount(clearAvatar)
     :error="profileError"
     @primary="saveNickname"
   >
-    <TextBox
-      v-model:Text="nickname"
-      Header="昵称"
-      aria-label="昵称"
-      :MaxLength="48"
-      :IsEnabled="!saving"
-    />
+    <TextBox v-model:Text="nickname" Header="昵称" aria-label="昵称" :MaxLength="48" :IsEnabled="!saving" />
   </WinDialog>
-  <WinDialog
-    v-model:open="avatarOpen"
-    title="上传头像"
+  <ImageCropDialog
+    ref="avatarCropper"
+    v-bind="imageCropPresets.avatar"
+    title="裁剪头像"
     primary="保存头像"
-    :busy="saving || !avatarFile"
+    :busy="saving"
     :error="profileError"
-    @primary="saveAvatar"
-    @closed="clearAvatar"
-  >
-    <div class="avatar-upload-preview">
-      <PersonPicture
-        :DisplayName="site.user.value?.displayName"
-        :ProfilePicture="avatarPreview || site.user.value?.avatarUrl || undefined"
-        :Width="96"
-        :Height="96"
-      />
-    </div>
-    <WinButton label="选择图片" icon="image" :disabled="saving" @click="avatarInput?.click()" />
-    <input
-      ref="avatarInput"
-      type="file"
-      class="visually-hidden"
-      accept="image/png,image/jpeg,image/webp,image/gif"
-      @change="selectAvatar"
-    />
-    <p v-if="avatarFile" class="file-selection">{{ avatarFile.name }}</p>
-  </WinDialog>
+    @selected="profileError = ''"
+    @confirm="saveAvatar"
+  />
 </template>

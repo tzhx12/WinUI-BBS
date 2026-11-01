@@ -37,6 +37,8 @@ export interface PageParameter {
   query: Record<string, string | undefined>
 }
 
+export type BackgroundHeight = 50 | 75
+
 export interface Category {
   id: string
   parent_id: string | null
@@ -47,6 +49,7 @@ export interface Category {
   icon_glyph: string
   icon_image_url: string
   header_background_url: string
+  header_background_height: BackgroundHeight
   show_notification: boolean
   requires_review: boolean
   minimum_reader_level: number

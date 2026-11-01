@@ -39,6 +39,8 @@ export async function registerForumRoutes(
       'site_title',
       'site_icon_url',
       'home_background_url',
+      'popular_background_url',
+      'popular_background_height',
       'home_content',
       'site_url',
       'registration_enabled',
@@ -85,6 +87,7 @@ export async function registerForumRoutes(
       icon_glyph: string
       icon_image_url: string
       header_background_url: string
+      header_background_height: 50 | 75
       show_notification: boolean
       requires_review: boolean
       minimum_reader_level: number
@@ -92,7 +95,7 @@ export async function registerForumRoutes(
       sort_order: number
       post_count: string
     }>(
-      `SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.accent_color, c.icon_glyph, c.icon_image_url, c.header_background_url, c.show_notification, c.requires_review,
+      `SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.accent_color, c.icon_glyph, c.icon_image_url, c.header_background_url, c.header_background_height, c.show_notification, c.requires_review,
               c.minimum_reader_level, c.minimum_author_level, c.sort_order,
               COUNT(p.id)::text AS post_count
        FROM categories c LEFT JOIN posts p ON p.category_id = c.id AND p.status = 'published' AND p.deleted_at IS NULL

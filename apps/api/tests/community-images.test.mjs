@@ -169,6 +169,7 @@ test('category and settings managers have separate image permissions; guests and
   ).json()
   for (const [url, allowed, denied] of [
     ['/api/admin/home-background', settingsManager, categoryManager],
+    ['/api/admin/popular-background', settingsManager, categoryManager],
     [
       `/api/admin/categories/${category.id}/icon`,
       categoryManager,
@@ -290,4 +291,228 @@ test('concurrent replacements keep only the active image and deleting a category
     (await upload('/api/admin/categories/99999999/icon', f.owner)).statusCode,
     404,
   )
+})
+
+test('background range defaults preserve half-screen categories and popular images are independent of home', async () => {
+  const category = (await f.request('GET', '/api/categories')).json()[0]
+  const before = (await f.request('GET', '/api/site')).json()
+  assert.equal(category.header_background_height, 50)
+  assert.equal(before.popular_background_height, 50)
+  assert.equal(before.popular_background_url, '')
+  const first = await upload('/api/admin/popular-background', f.owner)
+  assert.equal(first.statusCode, 201, first.body)
+  const updated = (await f.request('GET', '/api/site')).json()
+  assert.equal(updated.popular_background_url, first.json().url)
+  assert.equal(updated.home_background_url, before.home_background_url)
+  assert.deepEqual(updated.home_content, before.home_content)
+  const admin = (
+    await f.request('GET', '/api/admin/home-settings', undefined, f.owner)
+  ).json()
+  assert.equal(admin.popular_background_url, first.json().url)
+  assert.equal(admin.popular_background_height, 50)
+  const replacement = await upload('/api/admin/popular-background', f.owner)
+  assert.equal(replacement.statusCode, 201, replacement.body)
+  assert.equal(
+    (await f.app.inject({ method: 'GET', url: first.json().url })).statusCode,
+    404,
+  )
+  assert.equal(
+    (
+      await f.request(
+        'DELETE',
+        '/api/admin/popular-background',
+        undefined,
+        f.owner,
+      )
+    ).statusCode,
+    200,
+  )
+  assert.equal(
+    (await f.app.inject({ method: 'GET', url: replacement.json().url }))
+      .statusCode,
+    404,
+  )
+  assert.equal(
+    (await f.request('GET', '/api/site')).json().home_background_url,
+    before.home_background_url,
+  )
+})
+
+test('background range endpoints enforce permissions, exact supported values and persist independently', async () => {
+  const category = (await f.request('GET', '/api/categories')).json()[0]
+  const homeBefore = (await f.request('GET', '/api/site')).json()
+  for (const [url, permission] of [
+    [
+      `/api/admin/categories/${category.id}/header-background`,
+      'categories.manage',
+    ],
+    ['/api/admin/popular-background', 'settings.manage'],
+  ]) {
+    assert.equal(
+      (await f.request('PATCH', url, { height: 75 })).statusCode,
+      401,
+    )
+    for (const user of f.managers) {
+      assert.equal(
+        (await f.request('PATCH', url, { height: 75 }, user)).statusCode,
+        user.permission === permission ? 200 : 403,
+      )
+    }
+    for (const body of [
+      {},
+      { height: 0 },
+      { height: 100 },
+      { height: 50.1 },
+      { height: '75' },
+      { height: 75, url: 'invalid' },
+    ])
+      assert.equal(
+        (await f.request('PATCH', url, body, f.owner)).statusCode,
+        400,
+      )
+    assert.equal(
+      (await f.request('PATCH', url, { height: 50 }, f.owner)).statusCode,
+      200,
+    )
+    assert.equal(
+      (await f.request('PATCH', url, { height: 75 }, f.owner)).statusCode,
+      200,
+    )
+  }
+  const current = (await f.request('GET', '/api/categories'))
+    .json()
+    .find((c) => c.id === category.id)
+  assert.equal(current.header_background_height, 75)
+  assert.equal(current.header_background_url, category.header_background_url)
+  const site = (await f.request('GET', '/api/site')).json()
+  assert.equal(site.popular_background_height, 75)
+  assert.equal(site.home_background_url, homeBefore.home_background_url)
+  assert.deepEqual(site.home_content, homeBefore.home_content)
+  assert.equal(
+    (
+      await f.request(
+        'PATCH',
+        '/api/admin/categories/99999999/header-background',
+        { height: 75 },
+        f.owner,
+      )
+    ).statusCode,
+    404,
+  )
+  assert.equal(
+    (
+      await f.request(
+        'PATCH',
+        '/api/admin/categories/invalid/header-background',
+        { height: 75 },
+        f.owner,
+      )
+    ).statusCode,
+    404,
+  )
+  const audit = (await f.request('GET', '/api/admin/audit', undefined, f.owner))
+    .json()
+    .find((e) => e.action_key === 'community.background.update')
+  assert.equal(audit.summary.action, '更新背景显示范围')
+  assert.ok(audit.summary.lines.includes('背景显示范围：固定 3/4 屏渐变'))
+})
+
+test('popular image validation and transaction failures preserve the saved image and range', async () => {
+  const url = '/api/admin/popular-background'
+  const first = await upload(url, f.owner)
+  assert.equal(first.statusCode, 201)
+  const before = (await readdir(join(f.uploadRoot, '..', 'site-assets'))).sort()
+  assert.equal(
+    (await upload(url, f.owner, Buffer.from('invalid'))).statusCode,
+    415,
+  )
+  assert.equal(
+    (await upload(url, f.owner, Buffer.alloc(10 * 1024 * 1024 + 1))).statusCode,
+    413,
+  )
+  await f.query(`CREATE FUNCTION reject_background_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN IF NEW.action_key IN ('community.image.upload','community.background.update') THEN RAISE EXCEPTION 'audit unavailable'; END IF; RETURN NEW; END $$`)
+  await f.query(
+    'CREATE TRIGGER reject_background_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_background_audit()',
+  )
+  try {
+    assert.equal((await upload(url, f.owner)).statusCode, 500)
+    assert.equal(
+      (await f.request('PATCH', url, { height: 50 }, f.owner)).statusCode,
+      500,
+    )
+    const category = (await f.request('GET', '/api/categories')).json()[0]
+    assert.equal(
+      (
+        await f.request(
+          'PATCH',
+          `/api/admin/categories/${category.id}/header-background`,
+          { height: 50 },
+          f.owner,
+        )
+      ).statusCode,
+      500,
+    )
+    assert.equal(
+      (await f.request('GET', '/api/categories')).json()[0]
+        .header_background_height,
+      75,
+    )
+  } finally {
+    await f.query('DROP TRIGGER reject_background_audit ON audit_events')
+    await f.query('DROP FUNCTION reject_background_audit()')
+  }
+  const site = (await f.request('GET', '/api/site')).json()
+  assert.equal(site.popular_background_url, first.json().url)
+  assert.equal(site.popular_background_height, 75)
+  assert.deepEqual(
+    (await readdir(join(f.uploadRoot, '..', 'site-assets'))).sort(),
+    before,
+  )
+})
+
+test('deleting a category preserves an image still referenced by popular discussions', async () => {
+  const category = (
+    await f.request(
+      'POST',
+      '/api/admin/categories',
+      { name: '共享背景板块', slug: 'shared-background' },
+      f.owner,
+    )
+  ).json()
+  const uploaded = await upload(
+    `/api/admin/categories/${category.id}/header-background`,
+    f.owner,
+  )
+  assert.equal(uploaded.statusCode, 201)
+  const url = uploaded.json().url
+  // Deliberately share an existing asset to exercise cross-target reference protection.
+  await f.query(
+    "UPDATE app_settings SET setting_value=$1::jsonb WHERE setting_key='popular_background_url'",
+    [JSON.stringify(url)],
+  )
+  assert.equal(
+    (
+      await f.request(
+        'DELETE',
+        `/api/admin/categories/${category.id}`,
+        undefined,
+        f.owner,
+      )
+    ).statusCode,
+    200,
+  )
+  assert.equal((await f.app.inject({ method: 'GET', url })).statusCode, 200)
+  assert.equal(
+    (
+      await f.request(
+        'DELETE',
+        '/api/admin/popular-background',
+        undefined,
+        f.owner,
+      )
+    ).statusCode,
+    200,
+  )
+  assert.equal((await f.app.inject({ method: 'GET', url })).statusCode, 404)
 })

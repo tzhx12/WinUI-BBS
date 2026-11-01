@@ -1,6 +1,6 @@
 import { inject, reactive, ref, watch, type InjectionKey } from 'vue'
 import { api, ApiError } from './api'
-import type { Category, User } from './types'
+import type { BackgroundHeight, Category, User } from './types'
 import { projectInfo } from './projectInfo'
 
 export const adminSections = [
@@ -64,6 +64,8 @@ export function createSite() {
     title: projectInfo.name,
     icon: '',
     homeBackground: '',
+    popularBackground: '',
+    popularBackgroundHeight: 50 as BackgroundHeight,
     homeContent: {
       homeTitle: '社区首页',
       homeDescription: '浏览社区中的新话题，参与感兴趣的讨论。',
@@ -93,9 +95,7 @@ export function createSite() {
       passwordChangeSeconds: 60,
     },
   })
-  const theme = ref<'light' | 'dark'>(
-    (localStorage.getItem('forum-theme') as 'light' | 'dark') || 'light',
-  )
+  const theme = ref<'light' | 'dark'>((localStorage.getItem('forum-theme') as 'light' | 'dark') || 'light')
   const compactNavigation = ref(localStorage.getItem('forum-compact-navigation') === 'true')
   const fontScale = ref(Number(localStorage.getItem('forum-font-scale') || 100))
   const accent = ref(localStorage.getItem('forum-accent') || 'blue')
@@ -138,6 +138,8 @@ export function createSite() {
     title?: string
     icon?: string
     homeBackground?: string
+    popularBackground?: string
+    popularBackgroundHeight?: BackgroundHeight
     homeContent?: typeof settings.homeContent
     url?: string
     registrationEnabled?: boolean
@@ -189,6 +191,8 @@ export function createSite() {
         site_title: string
         site_icon_url: string
         home_background_url: string
+        popular_background_url: string
+        popular_background_height: BackgroundHeight
         home_content: typeof settings.homeContent
         site_url: string
         registration_enabled: boolean
@@ -204,6 +208,8 @@ export function createSite() {
       title: value.site_title,
       icon: value.site_icon_url,
       homeBackground: value.home_background_url,
+      popularBackground: value.popular_background_url,
+      popularBackgroundHeight: value.popular_background_height,
       homeContent: value.home_content,
       url: value.site_url,
       registrationEnabled: value.registration_enabled,

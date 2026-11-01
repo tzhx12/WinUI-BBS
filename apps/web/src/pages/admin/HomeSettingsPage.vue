@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { imageCropPresets } from '../../imageCrop'
 import { TextBox } from 'winuionweb'
 import { api } from '../../api'
 import { useResource } from '../../composables/useResource'
@@ -58,6 +59,7 @@ async function save() {
             label="首页板块背景图"
             :url="site.settings.homeBackground"
             endpoint="/api/admin/home-background"
+            :crop-preset="imageCropPresets.homeBackground"
             @updated="site.updateSettings({ homeBackground: $event })"
           />
         </section>
@@ -75,6 +77,15 @@ async function save() {
             aria-label="热门讨论说明"
             :MaxLength="500"
             :AcceptsReturn="true"
+          />
+          <AdminImageSetting
+            label="热门讨论背景图"
+            :url="site.settings.popularBackground"
+            endpoint="/api/admin/popular-background"
+            :background-height="site.settings.popularBackgroundHeight"
+            :crop-preset="imageCropPresets.categoryBackground"
+            @height-updated="site.updateSettings({ popularBackgroundHeight: $event })"
+            @updated="site.updateSettings({ popularBackground: $event })"
           />
         </section>
       </template>
