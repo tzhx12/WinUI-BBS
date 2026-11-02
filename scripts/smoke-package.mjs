@@ -2,7 +2,7 @@ import 'dotenv/config'
 import assert from 'node:assert/strict'
 import { spawn, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdtemp, rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -47,6 +47,9 @@ try {
     cwd: join(root, 'apps/api'),
     env: {
       ...process.env,
+      JWT_SECRET: randomBytes(48).toString('base64url'),
+      NODE_ENV: 'production',
+      WEB_ORIGIN: undefined,
       DATABASE_URL: connection.toString(),
       PORT: '0',
       HOST: '127.0.0.1',
@@ -105,6 +108,10 @@ try {
   const response = await fetch(origin),
     html = await response.text()
   assert.equal(response.status, 200)
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
+  assert.equal(response.headers.get('x-frame-options'), 'DENY')
+  assert.match(response.headers.get('content-security-policy'), /script-src 'self'/)
+  assert.equal(health.headers.get('cache-control'), 'no-store')
   const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)].map((match) => match[1])
   assert.ok(assets.length >= 2)
   for (const asset of assets) assert.equal((await fetch(origin + asset)).status, 200, asset)

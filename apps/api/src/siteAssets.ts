@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import type { FastifyBaseLogger, FastifyRequest } from 'fastify'
 import { imageTypes, mediaError } from './media.js'
 import { query } from './db.js'
+import { validateImageSignature } from './images.js'
 
 export const siteAssetRoot = (uploadRoot: string) =>
   resolve(uploadRoot, '../site-assets')
@@ -58,17 +59,7 @@ export async function readSiteImage(request: FastifyRequest, icon: boolean) {
       )
     throw error
   }
-  const signatures: Record<string, boolean> = {
-    '.png': buffer
-      .subarray(0, 8)
-      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])),
-    '.jpg': buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255,
-    '.gif': ['GIF87a', 'GIF89a'].includes(buffer.toString('ascii', 0, 6)),
-    '.webp':
-      buffer.toString('ascii', 0, 4) === 'RIFF' &&
-      buffer.toString('ascii', 8, 12) === 'WEBP',
-  }
-  if (!signatures[extension]) throw mediaError('图片内容与格式不符', 415)
+  validateImageSignature(buffer, file.mimetype)
   return { buffer, key: `${randomUUID()}${extension}` }
 }
 

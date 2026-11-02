@@ -48,10 +48,10 @@ export function contentSize(body: EditorData) {
     if (typeof value === 'string') {
       if (!['text', 'content', 'caption', 'code', ''].includes(key)) return 0
       if (key === 'code') return Array.from(value).length
-      const element = document.createElement('div')
+      const element = document.createElement('template')
       element.innerHTML = value
-      inlineEmojis += element.querySelectorAll('img').length
-      return Array.from(element.textContent || '').length
+      inlineEmojis += element.content.querySelectorAll('img').length
+      return Array.from(element.content.textContent || '').length
     }
     if (Array.isArray(value)) return value.reduce((sum, item) => sum + count(item), 0)
     if (value && typeof value === 'object')

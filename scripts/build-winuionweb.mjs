@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const revision = '692d0a76dad3fa92515bc50db44ed626d83b695e'
-const version = '0.2.0-forum.3'
+const version = '0.2.0-forum.4'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const destination = join(root, 'vendor', 'winuionweb')
 const staging = await mkdtemp(join(tmpdir(), 'forum-winuionweb-'))
@@ -44,6 +44,7 @@ try {
     'named-xaml-exports.patch',
     'preserve-modules.patch',
     'local-component-dependencies.patch',
+    'no-dynamic-evaluation.patch',
   ]
   for (const patch of patches) run('git', ['apply', join(destination, patch)], source)
   // Keep the upstream lock intact while installing its exact build toolchain.

@@ -11,10 +11,20 @@ test('password workers accept existing bcrypt prefixes, costs and long Unicode p
       assert.equal(await passwords.compare(password, old.replace('$2b$', `$${prefix}$`)), true)
     assert.equal(await passwords.compare('wrong password', old), false)
     const created = await passwords.hash(password, 5)
-    assert.equal(bcrypt.getRounds(created), 5)
-    assert.equal(bcrypt.compareSync(password, created), true)
+    assert.ok(created.startsWith('$forum-sha256$v1$'))
+    assert.equal(bcrypt.getRounds(created.slice('$forum-sha256$v1$'.length)), 5)
+    assert.equal(await passwords.compare(password, created), true)
   }
   assert.equal(await passwords.compare('password', 'invalid'), false)
+})
+
+test('new passwords include every byte beyond the bcrypt 72-byte boundary', async () => {
+  for (const prefix of ['a'.repeat(72), '多'.repeat(24)]) {
+    const hash = await passwords.hash(prefix + 'first', 4)
+    assert.equal(await passwords.compare(prefix + 'first', hash), true)
+    assert.equal(await passwords.compare(prefix + 'second', hash), false)
+    assert.equal(await passwords.compare(prefix, hash), false)
+  }
 })
 
 test('a full worker queue rejects excess work and recovers after queued jobs finish', async () => {

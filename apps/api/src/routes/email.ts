@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { adminPermissions, authenticate } from '../auth.js'
 import { inTransaction, query } from '../db.js'
 import { readSettings, saveSettings } from '../settings.js'
+import { authRateLimits } from '../requestSecurity.js'
 import {
   challengeHash,
   checkImap,
@@ -128,7 +129,7 @@ export async function registerEmailRoutes(app: FastifyInstance) {
       return { saved: true }
     },
   )
-  app.post('/api/auth/email-code', async (request, reply) => {
+  app.post('/api/auth/email-code', { config: { rateLimit: authRateLimits.email } }, async (request, reply) => {
     const parsed = z.object({ email: emailSchema }).safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '请填写有效邮箱' })
     const settings = await readSettings(['registration_enabled'])
@@ -139,7 +140,7 @@ export async function registerEmailRoutes(app: FastifyInstance) {
       return reply.code(409).send({ error: '此邮箱已被注册' })
     return issueEmailChallenge(parsed.data.email, 'registration')
   })
-  app.post('/api/auth/forgot-password', async (request, reply) => {
+  app.post('/api/auth/forgot-password', { config: { rateLimit: authRateLimits.email } }, async (request, reply) => {
     const parsed = z.object({ email: emailSchema }).safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '请填写注册邮箱' })
     const security = await emailSecurity()
@@ -157,7 +158,7 @@ export async function registerEmailRoutes(app: FastifyInstance) {
       expiresInMinutes: security.resetMinutes,
     }
   })
-  app.post('/api/auth/password-reset', async (request, reply) => {
+  app.post('/api/auth/password-reset', { config: { rateLimit: authRateLimits.reset } }, async (request, reply) => {
     const parsed = z.object({ token: z.string().min(40).max(128) }).safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '找回密码链接无效或已过期' })
     const result = await query<{ expires_at: Date }>(
@@ -168,25 +169,26 @@ export async function registerEmailRoutes(app: FastifyInstance) {
     if (!result.rows[0]) return reply.code(400).send({ error: '找回密码链接无效、已使用或已过期' })
     return { valid: true, expiresAt: result.rows[0].expires_at }
   })
-  app.post('/api/auth/reset-password', async (request, reply) => {
+  app.post('/api/auth/reset-password', { config: { rateLimit: authRateLimits.reset } }, async (request, reply) => {
     const parsed = z
       .object({ token: z.string().min(40).max(128), password: passwordSchema })
       .safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '请检查找回链接，新密码需为 10–128 位' })
+    const tokenHash = challengeHash(parsed.data.token)
+    const candidate = (await query<{ user_uid: string }>(
+      `SELECT c.user_uid FROM email_challenges c JOIN users u ON u.uid=c.user_uid
+       WHERE c.secret_hash=$1 AND c.purpose='password_reset' AND c.consumed_at IS NULL
+       AND c.expires_at>NOW() AND u.status='active' AND (u.banned_until IS NULL OR u.banned_until<=NOW())`,
+      [tokenHash],
+    )).rows[0]
+    if (!candidate) return reply.code(400).send({ error: '找回密码链接无效、已使用或已过期' })
     const hash = await bcrypt.hash(parsed.data.password, 12)
     const changed = await inTransaction(async (client) => {
-      const candidate = (
-        await client.query<{ user_uid: string }>(
-          "SELECT user_uid FROM email_challenges WHERE secret_hash=$1 AND purpose='password_reset'",
-          [challengeHash(parsed.data.token)],
-        )
-      ).rows[0]
-      if (!candidate) return false
       await client.query('SELECT uid FROM users WHERE uid=$1 FOR UPDATE', [candidate.user_uid])
       const consumed = await client.query(
         `UPDATE email_challenges SET consumed_at=NOW() WHERE secret_hash=$1 AND purpose='password_reset'
          AND consumed_at IS NULL AND expires_at>NOW() AND EXISTS(SELECT 1 FROM users WHERE uid=user_uid AND status='active' AND (banned_until IS NULL OR banned_until<=NOW())) RETURNING id`,
-        [challengeHash(parsed.data.token)],
+        [tokenHash],
       )
       if (!consumed.rowCount) return false
       await client.query(
@@ -202,19 +204,18 @@ export async function registerEmailRoutes(app: FastifyInstance) {
     if (!changed) return reply.code(400).send({ error: '找回密码链接无效、已使用或已过期' })
     return { changed: true }
   })
-  app.post('/api/me/password/code', { preHandler: authenticate }, async (request) => {
+  app.post('/api/me/password/code', { preHandler: authenticate, config: { rateLimit: authRateLimits.email } }, async (request) => {
     const user = (
       await query<{ email: string }>('SELECT email FROM users WHERE uid=$1', [request.user.uid])
     ).rows[0]!
     return issueEmailChallenge(user.email.toLowerCase(), 'password_change', request.user.uid)
   })
-  app.post('/api/me/password', { preHandler: authenticate }, async (request, reply) => {
+  app.post('/api/me/password', { preHandler: authenticate, config: { rateLimit: authRateLimits.change } }, async (request, reply) => {
     const parsed = z
       .object({ code: z.string().regex(/^\d{6}$/), password: passwordSchema })
       .safeParse(request.body)
     if (!parsed.success)
       return reply.code(400).send({ error: '请填写 6 位邮箱验证码，新密码需为 10–128 位' })
-    const hash = await bcrypt.hash(parsed.data.password, 12)
     const result = await inTransaction(async (client) => {
       const security = await emailSecurity(client)
       const user = (
@@ -231,6 +232,7 @@ export async function registerEmailRoutes(app: FastifyInstance) {
         parsed.data.code,
       )
       if (!challenge) return { error: '验证码错误、已过期或尝试次数过多', status: 400 }
+      const hash = await bcrypt.hash(parsed.data.password, 12)
       await client.query('UPDATE email_challenges SET consumed_at=NOW() WHERE id=$1', [challenge])
       const updated = await client.query<{ session_version: number }>(
         'UPDATE users SET password_hash=$2,password_changed_at=NOW(),session_version=session_version+1,email_verified_at=COALESCE(email_verified_at,NOW()) WHERE uid=$1 RETURNING session_version',

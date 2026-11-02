@@ -24,9 +24,13 @@ Category URLs use the slug, for example `/#/category/square`. Posts use `/#/cate
 
 After `npm run build`, deploy the complete `apps/web/dist`, including `.br` and `.gz` files, through `FORUM_WEB_ROOT`. The built-in static server selects Brotli, gzip or the original file according to browser support. Hashed `assets` are cached for one year; HTML and files without hashes are revalidated before reuse.
 
-Pages load by route, deferring administration and editor dependencies until their pages are opened. WinUIonWeb uses the pinned `0.2.0-forum.3` archive with direct component imports instead of registering the full library; controls import their internal icons, tooltips and grid definitions locally. See [vendor/winuionweb/README.md](../vendor/winuionweb/README.md) for patches and reproducible build instructions.
+Pages load by route, deferring administration and editor dependencies until their pages are opened. WinUIonWeb uses the pinned `0.2.0-forum.4` archive with direct component imports instead of registering the full library; controls import their internal icons, tooltips and grid definitions locally. The security patch removes dynamic JavaScript evaluation from XAML and preserves Vue-bound strings as data. See [vendor/winuionweb/README.md](../vendor/winuionweb/README.md) for patches and reproducible build instructions.
 
 Password calculations use at most two worker threads while preserving existing bcrypt hashes and costs. A full queue of 64 waiting jobs returns 503 so callers can retry later. Uploads and post attachments stream into the system temporary directory before validation and the storage write lock. Temporary files are removed on success or failure; the service account needs read/write access to that directory.
+
+### Security for public deployment
+
+Before public deployment, set `NODE_ENV=production`, a unique random `JWT_SECRET` of at least 32 bytes and HTTPS. Setting `FORUM_WEB_ROOT` also enables production secret validation; missing, short or example secrets fail startup. Configure `FORUM_TRUST_PROXY` only with the actual proxy IPs/CIDRs; forwarded headers are untrusted by default. See [Secure deployment](security.en.md) for proxy examples, endpoint rate limits, content and upload protections, and the password-format rollback requirement. Do not expose the Vite development server as a production service.
 
 ## Updating an existing deployment
 

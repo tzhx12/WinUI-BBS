@@ -1,0 +1,86 @@
+diff --git a/src/components/xamlRuntime.ts b/src/components/xamlRuntime.ts
+index bc97e03..d0684ca 100644
+--- a/src/components/xamlRuntime.ts
++++ b/src/components/xamlRuntime.ts
+@@ -28,16 +28,6 @@ export const xamlControlIdentityKey = Symbol('WinUIonWeb.xamlControlIdentity')
+ // that WinUI supplies to a MenuFlyoutItem.
+ export const xamlItemContextKey = Symbol('WinUIonWeb.xamlItemContext')
+ 
+-// Internal Vue contexts can contain keys that are not valid JavaScript
+-// parameter names (or are reserved words).  Exclude those keys before
+-// constructing the small expression evaluator below.
+-const RESERVED_FUNCTION_PARAMETERS = new Set([
+-  'arguments', 'eval', 'await', 'yield', 'class', 'function', 'var', 'let',
+-  'const', 'if', 'else', 'return', 'switch', 'case', 'default', 'delete',
+-  'new', 'this', 'super', 'typeof', 'void', 'in', 'instanceof', 'true',
+-  'false', 'null', 'undefined'
+-])
+-
+ export const eventNames = new Set([
+   'TextCompositionStarted', 'TextCompositionChanged', 'TextCompositionEnded', 'PaneToggleRequested',
+   'SuggestionChosen', 'PasswordChanged', 'PasswordChanging', 'BeforeTextChanging', 'TextChanging',
+@@ -339,6 +329,8 @@ const splitPath = (value: string) => value
+ 
+ const resolvePath = (expression: string, scope: Scope): unknown => {
+   let source = expression.trim()
++  // Binding paths never reach JavaScript globals or object prototypes.
++  if (/\b(?:__proto__|prototype|constructor|globalThis|window|document|Function|eval)\b/.test(source)) return undefined
+   // x:Bind emits a typed access for an object-valued selection. The browser
+   // keeps the same object without needing a C# cast, then reads its member.
+   const objectCast = source.match(/^\(\s*\(\s*[A-Za-z_]\w*:[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\s*\)\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*\)([\s\S]*)$/)
+@@ -402,24 +394,6 @@ const resolvePath = (expression: string, scope: Scope): unknown => {
+     return unwrap(value)
+   }
+ 
+-  // x:Bind permits method calls and conditional expressions. The gallery uses
+-  // these for localized labels and simple value projections, so evaluate the
+-  // expression against the component setup scope after handling XAML literals.
+-  if (/[$A-Za-z_(]/.test(source)) {
+-    try {
+-      const jsSource = source.replace(/\bx:(True|False|Null)\b/g, (_, literal: string) => literal === 'True' ? 'true' : literal === 'False' ? 'false' : 'null')
+-      const entries = Object.entries(scope).filter(([key]) =>
+-        /^[A-Za-z_$][\w$]*$/.test(key) && !RESERVED_FUNCTION_PARAMETERS.has(key)
+-      )
+-      const evaluated = unwrap(Function(...entries.map(([key]) => key), `return (${jsSource})`)(...entries.map(([, value]) => value)))
+-      // Nullable XAML values expose .Value even when their browser model is
+-      // already a primitive. Let the path resolver unwrap that segment.
+-      if (evaluated !== undefined) return evaluated
+-    } catch {
+-      // Fall through to path lookup for unresolved binding text.
+-    }
+-  }
+-
+   const rootMatch = source.match(/^([A-Za-z_$][\w$]*)/)
+   if (!rootMatch) return undefined
+   let value: unknown = scope[rootMatch[1]]
+@@ -446,6 +420,8 @@ const isExpressionString = (value: string) => {
+ 
+ export const resolveXamlValue = (value: unknown, instance: ComponentInternalInstance | null, extraScope?: Scope, preserveColor = false): unknown => {
+   if (typeof value !== 'string') return value
++  // Vue-bound strings are data. Only authored static XAML may resolve bindings.
++  if ((instance?.vnode as (VNode & { dynamicProps?: string[] }) | undefined)?.dynamicProps?.some(key => instance?.vnode.props?.[key] === value)) return value
+   if (value === 'True') return true
+   if (value === 'False') return false
+   const trimmed = value.trim()
+@@ -665,20 +641,7 @@ const evaluateHandler = (expression: string, scope: Scope, event: unknown) => {
+   const source = expression.trim()
+   const direct = resolvePath(source, scope)
+   if (typeof direct === 'function') return (...args: unknown[]) => direct(...args)
+-  const call = source.match(/^([A-Za-z_$][\w$]*)\((.*)\)$/s)
+-  if (!call || typeof scope[call[1]] !== 'function') return undefined
+-  const args = call[2].trim()
+-  try {
+-    const entries = Object.entries(scope).filter(([key]) =>
+-      /^[A-Za-z_$][\w$]*$/.test(key) && !RESERVED_FUNCTION_PARAMETERS.has(key)
+-    )
+-    const values = args
+-      ? Function(...entries.map(([key]) => key), '$event', `return [${args}]`)(...entries.map(([, value]) => value), event)
+-      : []
+-    return (...eventArgs: unknown[]) => (scope[call[1]] as (...args: unknown[]) => unknown)(...values, ...eventArgs)
+-  } catch {
+-    return (...eventArgs: unknown[]) => (scope[call[1]] as (...args: unknown[]) => unknown)(...eventArgs)
+-  }
++  return undefined
+ }
+ 
+ export const resolveXamlHandler = (value: unknown, instance: ComponentInternalInstance | null, extraScope?: Scope) => {

@@ -73,3 +73,5 @@ sudo journalctl -u winui-bbs -u winui-bbs-update.service -n 80
 迁移或部署失败需要恢复数据库时，先停止应用，备份当前数据库，再由数据库管理员将 `shared/backups/` 中对应文件恢复到空数据库。更新 `shared/.env` 的 `DATABASE_URL` 并让 `current` 指向与备份匹配的程序版本，最后启动 `winui-bbs`。不要在仍有用户写入的数据库上直接覆盖恢复。
 
 定期独立备份数据库、本地上传、对象存储及 `.env`。更新前数据库备份不包含上传和对象存储；需要保留 `MAIL_ENCRYPTION_KEY` / `STORAGE_ENCRYPTION_KEY` 才能读取原有加密凭据。旧版本目录和数据库备份保留供恢复，由服务器管理员按保留策略清理。
+
+密码安全更新后，新建和修改的密码使用 `$forum-sha256$v1$` 标记。旧程序不识别该格式，回退必须选择仍支持此格式的版本，或配套恢复更新前的数据库；单独切换旧程序会使相关账号无法登录。公网配置与限流见[安全部署](security.md)。

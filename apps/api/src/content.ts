@@ -11,6 +11,7 @@ import { inTransaction, query } from './db.js'
 import { contentLimits, userMediaLimits } from './settings.js'
 import { imageTypes, mediaError } from './media.js'
 import { stageFile } from './staging.js'
+import { validateStagedImage } from './images.js'
 import {
   deleteStoredFile,
   monitorStorage,
@@ -213,6 +214,7 @@ export async function readSubmission(request: FastifyRequest) {
           '单次发布图片总大小不能超过个人容量或 100 MiB',
         )
         if (part.file.truncated) throw mediaError('图片超过单张上传限制', 413)
+        await validateStagedImage(path, part.mimetype)
         bytes += size
         attachments.push({
           id: part.fieldname,

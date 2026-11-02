@@ -5,6 +5,7 @@ import { authenticate } from '../auth.js'
 import { effectiveLevel, inTransaction, query } from '../db.js'
 import { grantLevelInvitations } from '../invitations.js'
 import { verifyEmailCode } from '../mail.js'
+import { authRateLimits } from '../requestSecurity.js'
 
 const usernameSchema = z
   .string()
@@ -101,7 +102,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     }
   })
 
-  app.post('/api/auth/register', async (request, reply) => {
+  app.post('/api/auth/register', { config: { rateLimit: authRateLimits.register } }, async (request, reply) => {
     const parsed = credentialsSchema.safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '请检查用户名、邮箱和密码格式' })
     const { email, displayName, password } = parsed.data
@@ -187,9 +188,9 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     }
   })
 
-  app.post('/api/auth/login', async (request, reply) => {
+  app.post('/api/auth/login', { config: { rateLimit: authRateLimits.login } }, async (request, reply) => {
     const parsed = z
-      .object({ identity: z.string().trim().min(1), password: z.string().min(1) })
+      .object({ identity: z.string().trim().min(1).max(320), password: z.string().min(1).max(128) })
       .safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '请输入账号和密码' })
     const result = await query<{

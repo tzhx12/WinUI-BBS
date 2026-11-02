@@ -97,8 +97,29 @@ function pointerInput() {
 
 test('the installed candidate identifies its fixed upstream source', () => {
   const metadata = JSON.parse(readFileSync(new URL('package.json', library), 'utf8'))
-  assert.equal(metadata.version, '0.2.0-forum.3')
+  assert.equal(metadata.version, '0.2.0-forum.4')
   assert.equal(metadata.forumUpstream.revision, '692d0a76dad3fa92515bc50db44ed626d83b695e')
+})
+
+test('XAML values never execute JavaScript and Vue-bound text stays literal', async () => {
+  const runtime = await import(new URL('dist-lib/components/xamlRuntime.js', library))
+  globalThis.__forumXamlProbe = 0
+  try {
+    for (const text of [
+      '{x:Bind globalThis.__forumXamlProbe=1}',
+      '{x:Bind (function(){globalThis.__forumXamlProbe=1})()}',
+      '{x:Bind value.constructor.constructor("globalThis.__forumXamlProbe=1")()}',
+    ]) {
+      runtime.resolveXamlValue(text, null, { value: {} })
+      const instance = { vnode: { dynamicProps: ['Text'], props: { Text: text } } }
+      assert.equal(runtime.resolveXamlValue(text, instance), text)
+      assert.equal(globalThis.__forumXamlProbe, 0)
+    }
+    assert.equal(runtime.resolveXamlValue('{x:Bind item.name}', null, {item:{name:'Named binding'}}), 'Named binding')
+    assert.equal(runtime.resolveXamlValue('{x:Bind item.constructor}', null, {item:{}}), undefined)
+    const source = readFileSync(new URL('src/components/xamlRuntime.ts', library), 'utf8')
+    assert.doesNotMatch(source, /\bFunction\s*\(/)
+  } finally { delete globalThis.__forumXamlProbe }
 })
 
 test('named imports resolve their internal controls without the global plugin', async (t) => {

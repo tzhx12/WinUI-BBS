@@ -7,6 +7,7 @@ import type { PoolClient } from 'pg'
 import { inTransaction } from './db.js'
 import { userMediaLimits } from './settings.js'
 import { stageFile, withStagingDirectory } from './staging.js'
+import { validateStagedImage } from './images.js'
 import {
   deleteStoredFile,
   monitorStorage,
@@ -93,6 +94,7 @@ export async function saveUpload(
         '图片超过单张上传限制',
       )
       if (file.file.truncated) throw mediaError('图片超过单张上传限制', 413)
+      await validateStagedImage(path, file.mimetype)
     } catch (error) {
       if ((error as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE')
         throw mediaError('图片超过单张上传限制', 413)

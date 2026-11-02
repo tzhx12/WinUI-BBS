@@ -10,6 +10,8 @@ import { readSettings, type RemoteEmojiSettings } from '../settings.js'
 import { checkEmojiPackLimit, setCommunityEmojiPack } from '../emoji.js'
 import { currentVersion } from '../version.js'
 import { stageFile, withStagingDirectory } from '../staging.js'
+import { fetchRemoteResource, readRemoteJson } from '../remoteFetch.js'
+import { validateStagedImage } from '../images.js'
 import {
   deleteStoredFile,
   monitorStorage,
@@ -34,7 +36,7 @@ const remoteEmote = z.object({
 const detailSchema = z.object({
   id: z.number(),
   text: z.string(),
-  emote: z.array(remoteEmote),
+  emote: z.array(remoteEmote).max(1000),
 })
 const importSchema = z.object({
   remoteId: z.number().int().positive(),
@@ -50,16 +52,11 @@ function imageUrl(value: string, urlType = 0) {
   if (url.hostname.endsWith('.hdslb.com')) url.protocol = 'https:'
   return url.href
 }
-async function fetchRemote(url: string, signal?: AbortSignal) {
-  const response = await fetch(url, {
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000),
-    headers: {
+async function fetchRemote(url: string, apiUrl: string, signal?: AbortSignal) {
+  return fetchRemoteResource(url, new URL(apiUrl).origin, {
       'User-Agent': `WinUI-BBS/${currentVersion}`,
       Referer: 'https://www.bilibili.com/',
-    },
-  })
-  if (!response.ok) throw mediaError(`远端请求失败 (${response.status})`, 502)
-  return response
+  }, signal)
 }
 async function remoteSettings() {
   const settings = await readSettings(['remote_emoji'])
@@ -67,16 +64,17 @@ async function remoteSettings() {
   if (!remote.enabled) throw mediaError('管理员尚未开放远端表情包', 403)
   return remote
 }
-async function downloadImage(url: string, path: string, signal: AbortSignal) {
-  const response = await fetchRemote(url, signal)
+async function downloadImage(url: string, path: string, apiUrl: string, signal: AbortSignal) {
+  const response = await fetchRemote(url, apiUrl, signal)
   const type = response.headers.get('content-type')?.split(';')[0] || ''
   const extension = imageTypes.get(type)
   if (!extension) {
     await response.body?.cancel()
     throw mediaError('远端返回了不支持的图片格式', 415)
   }
-  await stageFile(response.body!, path, 3 * 1024 ** 2, '远端表情超过 3 MiB，未导入此表情包')
-  return { path, extension, type }
+  const bytes = await stageFile(response.body!, path, 3 * 1024 ** 2, '远端表情超过 3 MiB，未导入此表情包')
+  await validateStagedImage(path, type)
+  return { path, extension, type, bytes }
 }
 
 // Queue the same pack without holding a database connection or buffering its images.
@@ -125,11 +123,11 @@ export async function registerRemoteEmojiRoutes(app: FastifyInstance, uploadRoot
       .safeParse(request.query)
     if (!parsed.success) return reply.code(400).send({ error: '搜索条件无效' })
     const remote = await remoteSettings()
-    const payload = (await (await fetchRemote(endpoint(remote, 'list'))).json()) as {
+    const payload = (await readRemoteJson(await fetchRemote(endpoint(remote, 'list'), remote.apiUrl))) as {
       data: { all_packages: unknown[] }
     }
     const packages = z
-      .array(remotePackage)
+      .array(remotePackage).max(10000)
       .parse(payload.data.all_packages)
       .filter((item) => item.type !== 4)
     const filtered = packages.filter(
@@ -148,7 +146,7 @@ export async function registerRemoteEmojiRoutes(app: FastifyInstance, uploadRoot
     const remote = await remoteSettings()
     const { id } = request.params as { id: string }
     if (!/^\d+$/.test(id)) throw mediaError('表情包标识无效')
-    const detail = detailSchema.parse(await (await fetchRemote(endpoint(remote, `info?id=${id}`))).json())
+    const detail = detailSchema.parse(await readRemoteJson(await fetchRemote(endpoint(remote, `info?id=${id}`), remote.apiUrl)))
     return {
       id: detail.id,
       name: detail.text,
@@ -190,7 +188,7 @@ export async function registerRemoteEmojiRoutes(app: FastifyInstance, uploadRoot
                 await checkEmojiPackLimit(request.user.uid, client)
               })
             const detail = detailSchema.parse(
-              await (await fetchRemote(endpoint(remote, `info?id=${parsed.data.remoteId}`))).json(),
+              await readRemoteJson(await fetchRemote(endpoint(remote, `info?id=${parsed.data.remoteId}`), remote.apiUrl)),
             )
             const emotes = detail.emote.filter(
               (item) => item.type !== 4 && (parsed.data.variant === 'static' || Boolean(item.gif_url)),
@@ -198,7 +196,8 @@ export async function registerRemoteEmojiRoutes(app: FastifyInstance, uploadRoot
             if (!emotes.length) throw mediaError('此表情包没有可用的所选版本', 409)
             const assets: NonNullable<typeof prepared>['assets'] = new Array(emotes.length)
             const abort = new AbortController()
-            let next = 0,
+            let totalBytes = 0,
+              next = 0,
               downloadError: unknown
             await Promise.all(
               Array.from({ length: Math.min(3, emotes.length) }, async () => {
@@ -209,8 +208,11 @@ export async function registerRemoteEmojiRoutes(app: FastifyInstance, uploadRoot
                     const asset = await downloadImage(
                       imageUrl(parsed.data.variant === 'animated' ? item.gif_url : item.url),
                       join(directory, String(index)),
+                      remote.apiUrl,
                       abort.signal,
                     )
+                    totalBytes += asset.bytes
+                    if (totalBytes > 100 * 1024 ** 2) throw mediaError('远端表情包超过 100 MiB，未导入此表情包', 413)
                     assets[index] = { ...asset, name: item.text }
                   }
                 } catch (error) {

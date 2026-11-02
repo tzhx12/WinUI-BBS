@@ -9,6 +9,8 @@ An open-source discussion forum with a **WinUI-style interface**, built with Vue
 
 [GitHub](https://github.com/tzhx12/WinUI-BBS) · [Report an issue](https://github.com/tzhx12/WinUI-BBS/issues) · [Configuration guide](docs/configuration.en.md)
 
+Read [Secure deployment](docs/security.en.md) before exposing the site publicly, including session secrets, HTTPS and trusted proxies.
+
 ## Features
 
 ### Community discussions
@@ -82,6 +84,8 @@ Copy [apps/api/.env.example](apps/api/.env.example) to `apps/api/.env`. At minim
 DATABASE_URL=postgresql://forum:your-password@127.0.0.1:5432/forum
 JWT_SECRET=replace-with-a-long-random-secret
 ```
+
+Generate and replace the JWT secret with `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"`. The example value cannot be used to start the server.
 
 Start the development services:
 

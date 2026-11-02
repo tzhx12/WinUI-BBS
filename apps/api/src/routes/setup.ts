@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { inTransaction } from '../db.js'
 import { setupState } from '../setup.js'
+import { authRateLimits } from '../requestSecurity.js'
 
 const setupSchema = z.object({
   username: z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9_.-]+$/),
@@ -18,7 +19,7 @@ export async function registerSetupRoutes(app: FastifyInstance) {
     return setupState(request.headers['x-setup-token'] as string | undefined)
   })
 
-  app.post('/api/setup/initialize', async (request, reply) => {
+  app.post('/api/setup/initialize', { config: { rateLimit: authRateLimits.setup } }, async (request, reply) => {
     const setupToken = request.headers['x-setup-token'] as string | undefined
     if (!(await setupState(setupToken)).allowed)
       return reply.code(404).send({ error: '管理员创建入口不可用' })

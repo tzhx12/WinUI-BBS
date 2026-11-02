@@ -2,10 +2,11 @@
 
 WinUI-BBS 0.4.0 is distributed under GPL-3.0-only. WinUIonWeb is also GPL-3.0-only; its full license is in `LICENSE` and its upstream-specific notices are in `licenses/WinUIonWeb-THIRD_PARTY_NOTICES.md`.
 
-WinUIonWeb 0.2.0-forum.3 is built from upstream commit
+WinUIonWeb 0.2.0-forum.4 is built from upstream commit
 `692d0a76dad3fa92515bc50db44ed626d83b695e` with native-context-menu and TreeView
 touch-scrolling compatibility patches, named XAML exports, preserved component modules
-and local control dependencies for named imports.
+and local control dependencies for named imports. The security patch removes
+dynamic JavaScript evaluation from XAML and preserves Vue-bound text as data.
 The archive, patches and rebuild instructions are in `vendor/winuionweb/`;
 the archive includes corresponding library source and the locked build toolchain.
 
@@ -55,6 +56,10 @@ The application has an About page with links to these projects and their roles:
 Dependency versions are recorded in `package-lock.json`. Package-specific license files and notices remain with the installed dependencies.
 
 [parse5](https://github.com/inikulin/parse5), licensed under MIT, parses rich-text fragments on the server to validate inline remote emoji and count them toward image limits. Its installed dependency includes the license text.
+
+## Network security libraries
+
+[@fastify/rate-limit](https://github.com/fastify/fastify-rate-limit), licensed under MIT, limits authentication and recovery requests. [Undici](https://github.com/nodejs/undici), licensed under MIT, supplies the connection-pinned remote emoji HTTP client. [ipaddr.js](https://github.com/whitequark/ipaddr.js), licensed under MIT, classifies public and reserved network addresses. Their installed packages include license texts.
 
 ## Email libraries
 

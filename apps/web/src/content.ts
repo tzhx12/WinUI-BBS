@@ -73,6 +73,9 @@ function inlineFragment(value: unknown) {
 
 export function inlineHtml(value: unknown) {
   const fragment = inlineFragment(value)
+  fragment.querySelectorAll('a[target="_blank"]').forEach((link) => {
+    link.setAttribute('rel', 'noopener noreferrer')
+  })
   fragment.querySelectorAll('img').forEach((image) => {
     if (
       !image.hasAttribute('data-remote-emoji') ||

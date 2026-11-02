@@ -9,6 +9,8 @@
 
 [GitHub 仓库](https://github.com/tzhx12/WinUI-BBS) · [报告问题](https://github.com/tzhx12/WinUI-BBS/issues) · [使用与配置](docs/configuration.md)
 
+公网部署前请阅读[安全部署](docs/security.md)，配置随机密钥、HTTPS 与可信代理。
+
 ## 功能
 
 ### 社区讨论
@@ -82,6 +84,8 @@ npm ci
 DATABASE_URL=postgresql://forum:your-password@127.0.0.1:5432/forum
 JWT_SECRET=replace-with-a-long-random-secret
 ```
+
+用 `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"` 生成并替换 JWT 密钥；示例值不能用于启动。
 
 启动开发服务：
 

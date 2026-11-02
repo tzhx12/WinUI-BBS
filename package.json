@@ -35,6 +35,11 @@
   "devDependencies": {
     "concurrently": "^9.2.1"
   },
+  "overrides": {
+    "@fastify/static": {
+      "glob": "^14.0.2"
+    }
+  },
   "allowScripts": {
     "esbuild@0.28.2": true
   }

@@ -1,5 +1,4 @@
 import 'dotenv/config'
-import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import cors from '@fastify/cors'
@@ -22,24 +21,27 @@ import { registerUpdateRoutes, startAutomaticUpdates } from './routes/updates.js
 import { setupPath } from './setup.js'
 import { currentVersion } from './version.js'
 import { registerWebAssets } from './webAssets.js'
+import { registerRequestSecurity, sessionSecret, trustedProxies } from './requestSecurity.js'
 import {
   monitorStorage,
   flushStorageDeletions,
   withStorageLock,
 } from './storage.js'
 
-const app = Fastify({ logger: true, bodyLimit: 1_500_000 })
+const app = Fastify({ logger: true, bodyLimit: 1_500_000, trustProxy: trustedProxies() })
 const uploadRoot = resolve(process.cwd(), 'data/uploads')
 
 async function start() {
   if (!process.env.DATABASE_URL)
     throw new Error('Set DATABASE_URL in apps/api/.env')
+  const secret = sessionSecret()
+  await registerRequestSecurity(app)
   await mkdir(uploadRoot, { recursive: true })
   await runMigrations()
   await app.register(cors, {
     origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173',
   })
-  await app.register(jwt, { secret: process.env.JWT_SECRET ?? randomUUID() })
+  await app.register(jwt, { secret })
   await app.register(multipart, {
     limits: { fileSize: 100 * 1024 * 1024, files: 1 },
   })

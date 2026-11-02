@@ -1,6 +1,6 @@
-# WinUIonWeb 0.2.0 (forum.3)
+# WinUIonWeb 0.2.0 (forum.4)
 
-The web workspace installs `winuionweb-0.2.0-forum.3.tgz` from this directory.
+The web workspace installs `winuionweb-0.2.0-forum.4.tgz` from this directory.
 The archive is included in Git and release packages, so `npm ci` needs neither
 a local checkout nor an unpublished npm version.
 
@@ -32,6 +32,14 @@ and DropDownButton import ColumnDefinition. This removes development resolution
 warnings and restores separate primary and dropdown click areas in SplitButton
 without global registration. `npm run check:components -w apps/web` renders these
 named exports without the global plugin to catch missing internal dependencies.
+
+`no-dynamic-evaluation.patch` removes both JavaScript `Function` evaluators from
+the XAML runtime and blocks access to prototype/global paths. Vue-bound strings
+remain literal data; authored static member bindings, translations and internal
+template handlers retain their scoped resolver. Arbitrary JavaScript expressions
+and handler argument expressions from the upstream Gallery are intentionally
+unsupported in this security-focused forum build. This works with a CSP that
+does not allow `unsafe-eval`.
 
 Rebuild from the pinned upstream source with Node >=22.12.0, npm, Git and tar:
 

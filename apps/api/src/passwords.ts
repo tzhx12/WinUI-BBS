@@ -1,6 +1,7 @@
 import { availableParallelism } from 'node:os'
 import { createRequire } from 'node:module'
 import { Worker } from 'node:worker_threads'
+import { createHash } from 'node:crypto'
 
 type Job = {
   operation: 'hash' | 'compare'
@@ -14,6 +15,8 @@ const slots = new Set<Slot>()
 const queue: Job[] = []
 const workerLimit = Math.min(2, availableParallelism())
 const bcryptPath = createRequire(import.meta.url).resolve('bcryptjs')
+const passwordPrefix = '$forum-sha256$v1$'
+const digest = (password: string) => createHash('sha256').update(password, 'utf8').digest('base64')
 
 // Keep the existing bcrypt implementation and hash format off the request thread.
 const workerSource = `
@@ -88,6 +91,9 @@ export async function closePasswordWorkers() {
 }
 
 export default {
-  hash: (password: string, cost: number) => run('hash', password, cost) as Promise<string>,
-  compare: (password: string, hash: string) => run('compare', password, hash) as Promise<boolean>,
+  // Mark prehashed passwords so legacy bcrypt accounts retain their original verification.
+  hash: async (password: string, cost: number) => passwordPrefix + await run('hash', digest(password), cost),
+  compare: (password: string, hash: string) => hash.startsWith(passwordPrefix)
+    ? run('compare', digest(password), hash.slice(passwordPrefix.length)) as Promise<boolean>
+    : run('compare', password, hash) as Promise<boolean>,
 }
