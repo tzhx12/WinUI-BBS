@@ -4,14 +4,29 @@ import { readdir, readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { createManagementFixture } from './helpers/management-fixture.mjs'
 
-let f, category, post, roots
+let f, category, post, roots, remoteImportRequests, secondImportArrived
 const body = { blocks: [{ type: 'paragraph', data: { text: '性能回归正文' } }] }
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWioAAAAASUVORK5CYII=',
   'base64',
 )
 before(async () => {
-  f = await createManagementFixture()
+  remoteImportRequests = 0
+  let resolveSecondImport
+  secondImportArrived = new Promise((resolve) => {
+    resolveSecondImport = resolve
+  })
+  f = await createManagementFixture({
+    configure(app) {
+      app.addHook('onRequest', (request, _reply, done) => {
+        if (request.method === 'POST' && request.url === '/api/me/remote-emoji/import') {
+          remoteImportRequests++
+          if (remoteImportRequests === 2) resolveSecondImport()
+        }
+        done()
+      })
+    },
+  })
   category = (await f.request('GET', '/api/categories')).json()[0]
   post = (
     await f.query(
@@ -222,6 +237,7 @@ test('remote downloads leave uploads unblocked and concurrent imports share one 
   })
   await new Promise((resolve) => remote.listen(0, '127.0.0.1', resolve))
   const base = `http://127.0.0.1:${remote.address().port}`
+  remoteImportRequests = 0
   const previous = (await f.query("SELECT setting_value FROM app_settings WHERE setting_key='remote_emoji'"))
     .rows[0].setting_value
   let importing,
@@ -246,6 +262,7 @@ test('remote downloads leave uploads unblocked and concurrent imports share one 
       { remoteId: 987, variant: 'static' },
       f.managers[0],
     )
+    await secondImportArrived
     queued = Array.from({ length: 38 }, () =>
       f
         .request('POST', '/api/me/remote-emoji/import', { remoteId: 987, variant: 'static' }, f.managers[0])
