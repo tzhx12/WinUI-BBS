@@ -24,7 +24,7 @@ Category URLs use the slug, for example `/#/category/square`. Posts use `/#/cate
 
 After `npm run build`, deploy the complete `apps/web/dist`, including `.br` and `.gz` files, through `FORUM_WEB_ROOT`. The built-in static server selects Brotli, gzip or the original file according to browser support. Hashed `assets` are cached for one year; HTML and files without hashes are revalidated before reuse.
 
-Pages load by route, deferring administration and editor dependencies until their pages are opened. WinUIonWeb uses the pinned `0.2.0-forum.2` archive with direct component imports instead of registering the full library. See [vendor/winuionweb/README.md](../vendor/winuionweb/README.md) for patches and reproducible build instructions.
+Pages load by route, deferring administration and editor dependencies until their pages are opened. WinUIonWeb uses the pinned `0.2.0-forum.3` archive with direct component imports instead of registering the full library; controls import their internal icons, tooltips and grid definitions locally. See [vendor/winuionweb/README.md](../vendor/winuionweb/README.md) for patches and reproducible build instructions.
 
 Password calculations use at most two worker threads while preserving existing bcrypt hashes and costs. A full queue of 64 waiting jobs returns 503 so callers can retry later. Uploads and post attachments stream into the system temporary directory before validation and the storage write lock. Temporary files are removed on success or failure; the service account needs read/write access to that directory.
 

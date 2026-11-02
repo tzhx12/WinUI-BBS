@@ -2,9 +2,10 @@
 
 WinUI-BBS 0.4.0 is distributed under GPL-3.0-only. WinUIonWeb is also GPL-3.0-only; its full license is in `LICENSE` and its upstream-specific notices are in `licenses/WinUIonWeb-THIRD_PARTY_NOTICES.md`.
 
-WinUIonWeb 0.2.0-forum.2 is built from upstream commit
+WinUIonWeb 0.2.0-forum.3 is built from upstream commit
 `692d0a76dad3fa92515bc50db44ed626d83b695e` with native-context-menu and TreeView
-touch-scrolling compatibility patches, named XAML exports and preserved component modules.
+touch-scrolling compatibility patches, named XAML exports, preserved component modules
+and local control dependencies for named imports.
 The archive, patches and rebuild instructions are in `vendor/winuionweb/`;
 the archive includes corresponding library source and the locked build toolchain.
 

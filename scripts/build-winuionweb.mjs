@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const revision = '692d0a76dad3fa92515bc50db44ed626d83b695e'
-const version = '0.2.0-forum.2'
+const version = '0.2.0-forum.3'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const destination = join(root, 'vendor', 'winuionweb')
 const staging = await mkdtemp(join(tmpdir(), 'forum-winuionweb-'))
@@ -38,9 +38,14 @@ try {
   ])
   run('tar', ['-xf', 'source.tar'])
   const source = join(staging, 'WinUIonWeb')
-  const patches = ['native-contextmenu.patch', 'treeview-touch-scroll.patch', 'named-xaml-exports.patch', 'preserve-modules.patch']
-  for (const patch of patches)
-    run('git', ['apply', join(destination, patch)], source)
+  const patches = [
+    'native-contextmenu.patch',
+    'treeview-touch-scroll.patch',
+    'named-xaml-exports.patch',
+    'preserve-modules.patch',
+    'local-component-dependencies.patch',
+  ]
+  for (const patch of patches) run('git', ['apply', join(destination, patch)], source)
   // Keep the upstream lock intact while installing its exact build toolchain.
   run('npm', ['ci', '--no-audit', '--no-fund'], source)
   const path = join(source, 'package.json')
@@ -69,14 +74,9 @@ try {
   )
   await writeFile(path, JSON.stringify(metadata, null, 2) + '\n')
   // npm pack excludes package-lock.json; include the build lock under an explicit name.
-  const lock = JSON.parse(
-    await readFile(join(source, 'package-lock.json'), 'utf8'),
-  )
+  const lock = JSON.parse(await readFile(join(source, 'package-lock.json'), 'utf8'))
   lock.version = lock.packages[''].version = version
-  await writeFile(
-    join(source, 'build-package-lock.json'),
-    JSON.stringify(lock, null, 2) + '\n',
-  )
+  await writeFile(join(source, 'build-package-lock.json'), JSON.stringify(lock, null, 2) + '\n')
   await mkdir(destination, { recursive: true })
   run('npm', ['pack', '--pack-destination', destination], source)
 } finally {

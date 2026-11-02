@@ -1,0 +1,123 @@
+diff --git a/src/components/CheckBox.vue b/src/components/CheckBox.vue
+--- a/src/components/CheckBox.vue
++++ b/src/components/CheckBox.vue
+@@ -21,7 +21,7 @@
+     @focusout="onLostFocus">
+     <span class="checkbox-box" aria-hidden="true">
+       <AnimatedIcon class="checkbox-glyph" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{x:Bind CheckGlyphMargin, Mode=OneWay}">
+-        <AnimatedIcon.Source><animatedvisuals:AnimatedAcceptVisualSource /></AnimatedIcon.Source>
++        <AnimatedIcon.Source><AnimatedAcceptVisualSource /></AnimatedIcon.Source>
+         <AnimatedIcon.FallbackIconSource><FontIconSource Glyph="&#xE73E;" FontSize="12" /></AnimatedIcon.FallbackIconSource>
+       </AnimatedIcon>
+     </span>
+@@ -35,7 +35,11 @@
+ import { computed, getCurrentInstance, inject, provide, ref, useAttrs, watch } from 'vue';
+ import { resolveXamlHandler, resolveXamlValue, updateXamlBinding, xamlScopeKey } from './xamlRuntime';
+ import AnimatedIcon from './AnimatedIcon.vue';
++import { FontIconSource } from './IconSource';
++import { animatedIconVisualSourceComponents } from './animatedIconVisuals';
+ import { useAnimatedIconInput } from './animatedIconInput';
++
++const AnimatedAcceptVisualSource = animatedIconVisualSourceComponents.AnimatedAcceptVisualSource;
+ 
+ const props = defineProps({
+   Content: { type: [String, Number], default: '' },
+diff --git a/src/components/ComboBox.vue b/src/components/ComboBox.vue
+--- a/src/components/ComboBox.vue
++++ b/src/components/ComboBox.vue
+@@ -68,7 +68,7 @@
+         @pointerdown.prevent>
+       </button>
+       <AnimatedIcon class="win-combo-chevron" x:Name="DropDownGlyph" Width="12" Height="12" Margin="0,0,14,0" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{ThemeResource ComboBoxDropDownGlyphForeground}" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">
+-        <AnimatedIcon.Source><animatedvisuals:AnimatedChevronDownSmallVisualSource /></AnimatedIcon.Source>
++        <AnimatedIcon.Source><AnimatedChevronDownSmallVisualSource /></AnimatedIcon.Source>
+         <AnimatedIcon.FallbackIconSource><FontIconSource Foreground="{ThemeResource ComboBoxDropDownGlyphForeground}" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Glyph="&#xE70D;" /></AnimatedIcon.FallbackIconSource>
+       </AnimatedIcon>
+     </div>
+@@ -93,7 +93,7 @@
+       </ContentPresenter>
+       <span class="win-combo-focus-pill" aria-hidden="true" />
+       <AnimatedIcon class="win-combo-chevron" x:Name="DropDownGlyph" Width="12" Height="12" Margin="0,0,14,0" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{ThemeResource ComboBoxDropDownGlyphForeground}" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">
+-        <AnimatedIcon.Source><animatedvisuals:AnimatedChevronDownSmallVisualSource /></AnimatedIcon.Source>
++        <AnimatedIcon.Source><AnimatedChevronDownSmallVisualSource /></AnimatedIcon.Source>
+         <AnimatedIcon.FallbackIconSource><FontIconSource Foreground="{ThemeResource ComboBoxDropDownGlyphForeground}" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" Glyph="&#xE70D;" /></AnimatedIcon.FallbackIconSource>
+       </AnimatedIcon>
+     </button>
+@@ -223,12 +223,16 @@
+ import './comboBoxResources.css';
+ import { useFlyoutAnimation } from './useFlyoutAnimation';
+ import AnimatedIcon from './AnimatedIcon.vue';
++import { FontIconSource } from './IconSource';
++import { animatedIconVisualSourceComponents } from './animatedIconVisuals';
+ import { useAnimatedIconInput } from './animatedIconInput';
+ import { colorString, createSolidColorBrush, xamlThemeKey } from './brushCore';
+ import { useAcrylicBrushStyle } from './AcrylicBrush';
+ import { vAcrylicBrush } from './acrylicBrushVisual';
+ import { vThemeShadow } from './themeShadowVisual';
+ import { primitiveResourceScope } from './xamlPrimitives';
++
++const AnimatedChevronDownSmallVisualSource = animatedIconVisualSourceComponents.AnimatedChevronDownSmallVisualSource;
+ 
+ const ComboBoxPopupMaxNumberOfItems = 15;
+ const ComboBoxPopupMaxNumberOfItemsThatCanBeShownOnOneSide = 7;
+diff --git a/src/components/ExpanderBase.vue b/src/components/ExpanderBase.vue
+--- a/src/components/ExpanderBase.vue
++++ b/src/components/ExpanderBase.vue
+@@ -60,7 +60,7 @@
+       </div>
+       <span class="win-expander-chevron" aria-hidden="true">
+         <AnimatedIcon class="win-expander-arrow" x:Name="ExpandCollapseChevron" Width="12" Height="12" Foreground="{ThemeResource ExpanderChevronForeground}" HorizontalAlignment="Center" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+-          <AnimatedIcon.Source><animatedvisuals:AnimatedChevronUpDownSmallVisualSource /></AnimatedIcon.Source>
++          <AnimatedIcon.Source><AnimatedChevronUpDownSmallVisualSource /></AnimatedIcon.Source>
+           <AnimatedIcon.FallbackIconSource><FontIconSource Glyph="&#xE70D;" FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="12" IsTextScaleFactorEnabled="False" /></AnimatedIcon.FallbackIconSource>
+         </AnimatedIcon>
+       </span>
+@@ -76,11 +76,15 @@
+ <script setup>
+ import { computed, getCurrentInstance, nextTick, onBeforeUnmount, onMounted, ref, useSlots, watch } from 'vue';
+ import AnimatedIcon from './AnimatedIcon.vue';
++import { FontIconSource } from './IconSource';
++import { animatedIconVisualSourceComponents } from './animatedIconVisuals';
+ import { useAnimatedIconInput } from './animatedIconInput';
+ import TextBlock from './TextBlock.vue';
+ import { resolveXamlValue, updateXamlBinding } from './xamlRuntime';
+ import { resolveBrushStyle } from './AcrylicBrush';
+ import { cssColor, isSolidColorBrush } from './brushCore';
++
++const AnimatedChevronUpDownSmallVisualSource = animatedIconVisualSourceComponents.AnimatedChevronUpDownSmallVisualSource;
+ 
+ const props = defineProps({
+   Header: { type: [String, Number], default: '' },
+diff --git a/src/components/TitleBar.vue b/src/components/TitleBar.vue
+--- a/src/components/TitleBar.vue
++++ b/src/components/TitleBar.vue
+@@ -152,6 +152,7 @@
+ import { uiSettings } from './uiSettings';
+ import { normalizeXamlNodes, resolveXamlHandler, resolveXamlValue, updateXamlBinding, xamlScopeKey } from './xamlRuntime';
+ import TextBlock from './TextBlock.vue';
++import ToolTip from './ToolTip.vue';
+ import AnimatedIcon from './AnimatedIcon.vue';
+ import FontIcon from './FontIcon.vue';
+ import { FontIconSource } from './IconSource';
+diff --git a/src/components/DropDownButton.vue b/src/components/DropDownButton.vue
+--- a/src/components/DropDownButton.vue
++++ b/src/components/DropDownButton.vue
+@@ -49,6 +49,7 @@
+ <script setup lang="ts">
+ import { Comment, computed, defineComponent, Fragment, getCurrentInstance, h, inject, isVNode, onBeforeUnmount, onMounted, provide, proxyRefs, ref, shallowRef, Text, useAttrs, useSlots, watch, type VNode } from 'vue'
+ import Grid from './Grid.vue'
++import ColumnDefinition from './ColumnDefinition.vue'
+ import ContentPresenter from './ContentPresenter.vue'
+ import AnimatedIcon from './AnimatedIcon.vue'
+ import { FontIconSource } from './IconSource'
+diff --git a/src/components/SplitButton.vue b/src/components/SplitButton.vue
+--- a/src/components/SplitButton.vue
++++ b/src/components/SplitButton.vue
+@@ -50,6 +50,7 @@
+ <script setup lang="ts">
+ import { cloneVNode, Comment, computed, defineComponent, Fragment, getCurrentInstance, h, inject, isVNode, onBeforeUnmount, onMounted, provide, proxyRefs, ref, shallowRef, Text, useAttrs, useSlots, watch, type VNode } from 'vue'
+ import Grid from './Grid.vue'
++import ColumnDefinition from './ColumnDefinition.vue'
+ import Button from './Button.vue'
+ import AnimatedIcon from './AnimatedIcon.vue'
+ import { FontIconSource } from './IconSource'

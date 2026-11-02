@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
+import { createSSRApp, h } from 'vue'
+import { renderToString } from 'vue/server-renderer'
 
 const library = new URL('../../../node_modules/winuionweb/', import.meta.url)
 
@@ -95,8 +97,39 @@ function pointerInput() {
 
 test('the installed candidate identifies its fixed upstream source', () => {
   const metadata = JSON.parse(readFileSync(new URL('package.json', library), 'utf8'))
-  assert.equal(metadata.version, '0.2.0-forum.2')
+  assert.equal(metadata.version, '0.2.0-forum.3')
   assert.equal(metadata.forumUpstream.revision, '692d0a76dad3fa92515bc50db44ed626d83b695e')
+})
+
+test('named imports resolve their internal controls without the global plugin', async (t) => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  // Rendering exercises component resolution; pointer listeners only need an event target.
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: new EventTarget() })
+  try {
+    const controls = await import('winuionweb')
+    for (const name of [
+      'CheckBox',
+      'ComboBox',
+      'TitleBar',
+      'SplitButton',
+      'DropDownButton',
+      'ExpanderBase',
+    ]) {
+      await t.test(name, async () => {
+        const warnings = []
+        const app = createSSRApp({ render: () => h(controls[name], { Content: 'Example', Margin: '0' }) })
+        app.config.warnHandler = (message) => warnings.push(message)
+        const html = await renderToString(app)
+        assert.deepEqual(warnings, [])
+        assert.doesNotMatch(html, /<(?:ColumnDefinition|FontIconSource|animatedvisuals:)/i)
+        if (name === 'SplitButton' || name === 'DropDownButton')
+          assert.equal((html.match(/class="win-definition"/g) ?? []).length, name === 'SplitButton' ? 3 : 2)
+      })
+    }
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow)
+    else delete globalThis.window
+  }
 })
 
 test('ordinary inputs, links and editable content keep native context menus', () => {

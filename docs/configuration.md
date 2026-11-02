@@ -28,7 +28,7 @@ API 默认监听 <http://127.0.0.1:4000/>，健康检查地址为 `/api/health`�
 
 生产部署运行 `npm run build` 后，将完整的 `apps/web/dist`（包括 `.br`、`.gz` 文件）交给 `FORUM_WEB_ROOT`。内置静态服务按浏览器支持选择 Brotli、gzip 或原文件；带哈希的 `assets` 缓存一年，HTML 和无哈希文件每次使用前重新验证。
 
-前端按路由加载页面，后台和编辑器依赖在访问相应页面时加载。WinUIonWeb 使用仓库内固定的 `0.2.0-forum.2` 包，以组件导入代替全量注册；补丁与可复现构建说明见 [vendor/winuionweb/README.md](../vendor/winuionweb/README.md)。
+前端按路由加载页面，后台和编辑器依赖在访问相应页面时加载。WinUIonWeb 使用仓库内固定的 `0.2.0-forum.3` 包，以组件导入代替全量注册，内部图标、提示和网格列定义由控件局部导入；补丁与可复现构建说明见 [vendor/winuionweb/README.md](../vendor/winuionweb/README.md)。
 
 密码计算使用至多两个工作线程，保留现有 bcrypt 哈希和 cost；等待队列达到 64 项时返回 503，稍后可重试。图片上传和发布附件在系统临时目录流式暂存，通过校验并取得存储写锁后才写入图库，成功或失败都会清理临时文件；运行账号需要临时目录的读写权限。
 

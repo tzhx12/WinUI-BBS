@@ -185,6 +185,7 @@ test('numbered deep pages preserve ordering across the reverse-scan boundary', a
 test('remote downloads leave uploads unblocked and concurrent imports share one cache', async () => {
   let release,
     started,
+    queueRejected,
     downloads = 0,
     completed = false
   const gate = new Promise((resolve) => {
@@ -192,6 +193,9 @@ test('remote downloads leave uploads unblocked and concurrent imports share one 
   })
   const begun = new Promise((resolve) => {
     started = resolve
+  })
+  const queueFull = new Promise((resolve) => {
+    queueRejected = resolve
   })
   const remote = createServer(async (req, res) => {
     if (req.url.startsWith('/info')) {
@@ -243,7 +247,12 @@ test('remote downloads leave uploads unblocked and concurrent imports share one 
       f.managers[0],
     )
     queued = Array.from({ length: 38 }, () =>
-      f.request('POST', '/api/me/remote-emoji/import', { remoteId: 987, variant: 'static' }, f.managers[0]),
+      f
+        .request('POST', '/api/me/remote-emoji/import', { remoteId: 987, variant: 'static' }, f.managers[0])
+        .then((response) => {
+          if (response.statusCode === 503) queueRejected()
+          return response
+        }),
     )
     const uploading = f.app.inject({
       method: 'POST',
@@ -268,8 +277,14 @@ test('remote downloads leave uploads unblocked and concurrent imports share one 
     ])
     assert.equal(uploaded.statusCode, 201, uploaded.body)
     assert.equal(completed, false)
-    // Keep the download gate closed until the queue is full.
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    // Observe saturation before releasing downloads, including on a busy test runner.
+    clearTimeout(timer)
+    await Promise.race([
+      queueFull,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('import queue did not reject excess requests')), 8000)
+      }),
+    ])
     release()
     const results = await Promise.all([importing, second])
     assert.ok(
