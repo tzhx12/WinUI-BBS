@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import bcrypt from 'bcryptjs'
+import bcrypt from '../passwords.js'
 import { z } from 'zod'
 import { adminPermissions, authenticate } from '../auth.js'
 import { inTransaction, query } from '../db.js'

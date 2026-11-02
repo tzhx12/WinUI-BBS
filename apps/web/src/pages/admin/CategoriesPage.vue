@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { imageCropPresets } from '../../imageCrop'
-import { computed, reactive, ref, resolveComponent, watch } from 'vue'
-import { Button, FontIcon, NumberBox, TextBox, ToggleSwitch, TreeView } from 'winuionweb'
+import { computed, reactive, ref, watch } from 'vue'
+import { Button, DataTemplate, FontIcon, NumberBox, TextBox, ToggleSwitch, TreeView } from 'winuionweb'
 import { api } from '../../api'
 import { useResource } from '../../composables/useResource'
 import { useSite } from '../../site'
@@ -40,8 +40,7 @@ watch(categories, () => {
   tree.value = buildTree(null)
   if (selected.value) selected.value = categories.value.find((c) => c.id === selected.value!.id) || null
 })
-const TreeItemTemplate = resolveComponent('TreeView.ItemTemplate')
-const DataTemplate = resolveComponent('DataTemplate')
+const TreeItemTemplate = TreeView.ItemTemplate
 const boundItem = '{x:Bind}' as unknown as Category
 const iconOptions = [
   { glyph: '\ue8b7', label: '文件夹' },

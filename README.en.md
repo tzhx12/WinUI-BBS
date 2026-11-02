@@ -17,7 +17,7 @@ The Chinese block editor supports text, images, emoji, draft restoration, nested
 
 ### User spaces and permissions
 
-Users can manage profiles, avatars, follows and favorite folders, and publish a public space. Category trees, reader and author levels, groups and expiring memberships control access. Management permissions are split by capability, and the administration menu follows the current account's permissions.
+Users can manage profiles, avatars, follows and favorite folders, and publish a public space. Space posts follow the site's page-size setting, with page jumps and browser history support. Category trees, reader and author levels, groups and expiring memberships control access. Management permissions are split by capability, and the administration menu follows the current account's permissions.
 
 ### Review and administration
 
@@ -27,7 +27,7 @@ Administrators can require review site-wide or by category, grant group-based ex
 
 Users and administrators can manage images, personal emoji packs, a community pack and the site icon. Remote emoji support search, previews, static/GIF imports and inline insertion.
 
-Local and S3-compatible storage support capacity monitoring, automatic switching, low-space alerts and cleanup of the oldest ordinary images. Emoji packs, avatars and the site icon are protected from automatic cleanup. Administrators can configure quotas, storage priority and cleanup batches.
+Local and S3-compatible storage support capacity monitoring, automatic switching, low-space alerts and cleanup of the oldest ordinary images. Emoji packs, avatars and the site icon are protected from automatic cleanup. Administrators can configure quotas, storage priority and cleanup batches. Regular uploads can continue while remote emoji download; the shared cache is committed after those downloads finish.
 
 ### Appearance and cross-platform UI
 
@@ -113,7 +113,9 @@ docs/        Configuration guides and screenshots
 licenses/    Third-party licenses and notices
 ```
 
-See the [configuration guide](docs/configuration.en.md) for permissions, review, media limits, storage policies and deployment details.
+Pages load by route, and production builds include Brotli/gzip assets. When serving the frontend through `FORUM_WEB_ROOT`, deploy the complete `apps/web/dist`, including `.br` and `.gz` files. Hashed assets use long-lived caching; HTML is revalidated before reuse.
+
+See the [configuration guide](docs/configuration.en.md), including [production deployment and performance](docs/configuration.en.md#production-deployment-and-performance), for permissions, review, media limits, storage policies and deployment details.
 
 ## Acknowledgements
 

@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
-import WinUIOnWeb from 'winuionweb'
+import { createI18n, i18nKey } from 'winuionweb'
 import 'winuionweb/style.css'
 import './iconCompatibility.css'
 import './style.css'
@@ -8,4 +8,8 @@ import { router } from './router'
 import { initializeIconFont } from './iconPlatform'
 
 await initializeIconFont()
-createApp(App).use(WinUIOnWeb, { locale: 'zh-CN' }).use(router).mount('#app')
+const app = createApp(App)
+const i18n = createI18n('zh-CN')
+app.provide(i18nKey, i18n)
+app.config.globalProperties.$t = i18n.t
+app.use(router).mount('#app')

@@ -1,6 +1,11 @@
 <script setup lang="ts">
-import { computed, h, ref, resolveComponent, watch } from 'vue'
-import { MenuFlyout, SplitButton } from 'winuionweb'
+import { computed, h, ref, watch } from 'vue'
+import {
+  MenuFlyout,
+  MenuFlyoutItem as MenuItem,
+  MenuFlyoutSeparator as Separator,
+  SplitButton,
+} from 'winuionweb'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
 import { useSite } from '../site'
@@ -23,8 +28,6 @@ const folders = ref<Folder[]>([]),
   error = ref('')
 const split = ref<InstanceType<typeof SplitButton> | null>(null)
 const menu = ref<InstanceType<typeof MenuFlyout> | null>(null)
-const MenuItem = resolveComponent('MenuFlyoutItem')
-const Separator = resolveComponent('MenuFlyoutSeparator')
 const saved = computed(() => folders.value.some((folder) => folder.contains_post))
 const defaultFolder = computed(() => folders.value.find((folder) => folder.is_default))
 const title = computed(() =>

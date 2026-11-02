@@ -1,6 +1,6 @@
-# WinUIonWeb 0.2.0 (forum.1)
+# WinUIonWeb 0.2.0 (forum.2)
 
-The web workspace installs `winuionweb-0.2.0-forum.1.tgz` from this directory.
+The web workspace installs `winuionweb-0.2.0-forum.2.tgz` from this directory.
 The archive is included in Git and release packages, so `npm ci` needs neither
 a local checkout nor an unpublished npm version.
 
@@ -18,6 +18,12 @@ existing scrollable-ancestor helper while retaining pointer capture. The upstrea
 `touch-action: none` otherwise prevents the intended native scroll after cancelling
 the pending drag. Long-press drag, horizontal drag and secondary-touch scrolling
 keep their upstream implementation.
+
+`named-xaml-exports.patch` exposes DataTemplate and menu item components as named
+exports. The forum can import its controls directly without registering the entire
+library, which would include unused rich text, math and media controls in the entry bundle.
+`preserve-modules.patch` keeps component module boundaries in the published JavaScript
+so the application build can remove unused controls and their initialization code.
 
 Rebuild from the pinned upstream source with Node >=22.12.0, npm, Git and tar:
 

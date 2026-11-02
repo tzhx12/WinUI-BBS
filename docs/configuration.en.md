@@ -20,13 +20,23 @@ The unique global administrator group has every permission permanently. Its name
 
 Category URLs use the slug, for example `/#/category/square`. Posts use `/#/category/square/post/{uuid}`; hidden posts use `/#/post/{uuid}`. Older links redirect to the current canonical URL. Wheel scrolling over overflowing category cards moves through the cards first, then scrolls the page at the boundary.
 
+## Production deployment and performance
+
+After `npm run build`, deploy the complete `apps/web/dist`, including `.br` and `.gz` files, through `FORUM_WEB_ROOT`. The built-in static server selects Brotli, gzip or the original file according to browser support. Hashed `assets` are cached for one year; HTML and files without hashes are revalidated before reuse.
+
+Pages load by route, deferring administration and editor dependencies until their pages are opened. WinUIonWeb uses the pinned `0.2.0-forum.2` archive with direct component imports instead of registering the full library. See [vendor/winuionweb/README.md](../vendor/winuionweb/README.md) for patches and reproducible build instructions.
+
+Password calculations use at most two worker threads while preserving existing bcrypt hashes and costs. A full queue of 64 waiting jobs returns 503 so callers can retry later. Uploads and post attachments stream into the system temporary directory before validation and the storage write lock. Temporary files are removed on success or failure; the service account needs read/write access to that directory.
+
 ## Updating an existing deployment
 
 Installations created by the one-command installer support update checks, Releases / Pre-releases channels and automatic updates under **Site settings → System updates**. See [Builds, releases and updates](releases.md) for deployment and recovery details. Source deployments can continue using the manual procedure below.
 
 Back up PostgreSQL, local uploads and deployment configuration before updating; retain the corresponding buckets when using object storage. Preserve the original `MAIL_ENCRYPTION_KEY` and `STORAGE_ENCRYPTION_KEY` so saved credentials remain readable. After updating, run `npm ci`, `npm run check` and `npm run build`, then restart the services. The API applies pending migrations automatically; do not reinitialize the database.
 
-The migration protects active avatars, existing emoji and site icons. Newly uploaded avatars retain cleanup protection after replacement. Replaced avatars from older installations have no separate identity record and continue to be treated as ordinary library images.
+Migration `026_public_post_lists.sql` adds public-feed and author-list indexes. Migration `027_feed_reply_counts.sql` backfills each post's count of undeleted replies, installs its maintenance trigger and adds popular-feed, category and child-reply indexes. Its initial run locks the affected tables while backfilling data and creating indexes; schedule a maintenance window for large databases. Subsequent reply creation, soft deletion, restoration and permanent deletion update the count in the same transaction.
+
+Media cleanup protects active avatars, existing emoji and site icons. Newly uploaded avatars retain cleanup protection after replacement. Replaced avatars from older installations have no separate identity record and continue to be treated as ordinary library images.
 
 ## Home and category images
 
@@ -102,6 +112,10 @@ Administrators with `settings.manage` configure **内容管理 → 发帖与回�
 
 Home, popular discussions and category feeds use server-side pagination. Previous/next controls and a page-number field appear below the list; Enter also jumps to the entered page. The URL preserves the page and sort order on refresh and back navigation. Changing the sort returns to page 1, and links past the last page show the current last page. The heading count is the total readable posts, not only the current page. Configure posts per page under **Content management → Post and reply settings → Post list**.
 
+`GET /api/posts?page=N` returns `{ posts, page, pageSize, total, totalPages }`. Legacy requests without `page` retain the array response, capped at 60 posts. Lists select page IDs from the index before reading bodies, authors and like counts; pages in the second half scan in reverse while retaining direct page jumps. Popular sorting counts undeleted root and child replies, preserving pin priority and the home feed's followed-unread priority.
+
+Search requests with `q` still return an array of at most 60 posts, even when `page` is supplied. The server checks candidates in batches within one read-only snapshot and stops after finding 60 matches in titles or visible body content. Hidden paragraphs cannot produce matches; searches matching only hidden content may still scan multiple batches.
+
 Visible Unicode characters count toward the body limit, including nested lists and captions; formatting markup does not. Image limits apply only to normal images. Uploaded emoji, remote inline emoji and community emoji share a fixed limit of 1000 per post or individual reply, including child replies. Each insertion counts, including repeated emoji. Replies are paginated by the server, including in recycle-bin details.
 
 Select text to apply italics or use the crossed-eye icon to mark a spoiler. The post editor also shows a lock icon when the author has permission to lock content; replies do not offer content locks. Insert emoji using the button below the editor.
@@ -139,6 +153,10 @@ Open **我的收藏** from the user dashboard to create, rename or delete folder
 Choose **设为默认** in the folder list, or enable the default option while creating or editing a folder. Each user can have one default folder; deleting it clears the selection. When a post is unsaved, the left side of its favorite split button saves to the default folder or opens the folder menu if no default is set. When saved, clicking the left side removes the post from all of your folders. The dropdown manages individual folders or creates a folder. The button uses the accent color when the post is in any folder and returns to its ordinary appearance when all saves are removed. Likes use a toggle button with an accent color while selected; the state persists after refresh.
 
 Avatars on post lists, post bylines and replies open `/users/:uid`. Public spaces show published posts readable by the visitor and public folders. Hidden, deleted, pending and rejected posts are excluded from public spaces and public favorites. Private folders are owner-only. Public folder contents and counts respect the visitor's reader level.
+
+Public user spaces paginate posts using the site's posts-per-page setting. Previous/next controls and a page-number field support navigation, including Enter. The URL retains the page across refreshes and browser history; requests beyond the last page show the current last page.
+
+`GET /api/users/:uid?page=N` keeps `user`, `posts` and `folders`, and adds `page`, `pageSize`, `total` and `totalPages`. Its `posts` array contains only the requested page. Legacy requests without `page` retain their original response and full post list; new callers should supply `page` to avoid loading every post at once.
 
 ## Posts and personal recycle bin
 
@@ -195,6 +213,8 @@ In **我的图片 → 我的表情包**, preview packs and use **上移 / 下移
 Remote emoji are inserted at the caret, inline with text, at twice the current font size (about 30px in normal body text). Consecutive emoji support individual Backspace/Delete, undo and draft restoration. Uploaded emoji retain their 80px block display. Inline emoji count toward the separate fixed limit of 1000 emoji per body, and the server validates their cached image identity. Migration 014 identifies existing remote emoji blocks so the renderer can append them to the preceding paragraph; uploaded emoji retain their existing display.
 
 Remote downloads are disabled initially. Enable them and configure the source page and compatible [Bmoji](https://github.com/SomeOvO/Bmoji) API endpoint. Search, previews and static/GIF imports are supported. Downloads are cached once per API source, pack and version and do not consume personal storage. Remote pack sizes are controlled by the source server and are exempt from the 150-image upload limit. **用户下载的远端表情包计入个人组数限额** starts enabled. Disable it to count only uploaded packs. Re-enabling it keeps existing packs; users over the limit must remove packs before adding more. Removing a collected pack preserves shared cached files and existing post images.
+
+Remote emoji stream into temporary files before committing the shared cache, so regular uploads can continue during downloads. Each API process prepares at most two packs at once, with three image downloads per pack and the existing 3 MiB limit per image. The process accepts at most 34 import requests, including queued requests; additional imports return 503. Pack quotas are checked again at commit, and failures roll back files and subscriptions.
 
 Administrators can select an existing shared pack in **图床与表情** or download one as the community pack in **上传与远端设置**. Only one community pack is active. It is pinned first, excluded from personal pack quotas, and cannot be reordered or removed by users. An unset or empty community pack is hidden. Users with `posts.create` or `replies.create` may use it in the corresponding editor without `media.use`. Migration preserves the first populated shared pack and leaves the initial empty placeholder hidden.
 

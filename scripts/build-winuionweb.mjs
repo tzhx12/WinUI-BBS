@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const revision = '692d0a76dad3fa92515bc50db44ed626d83b695e'
-const version = '0.2.0-forum.1'
+const version = '0.2.0-forum.2'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const destination = join(root, 'vendor', 'winuionweb')
 const staging = await mkdtemp(join(tmpdir(), 'forum-winuionweb-'))
@@ -38,7 +38,7 @@ try {
   ])
   run('tar', ['-xf', 'source.tar'])
   const source = join(staging, 'WinUIonWeb')
-  const patches = ['native-contextmenu.patch', 'treeview-touch-scroll.patch']
+  const patches = ['native-contextmenu.patch', 'treeview-touch-scroll.patch', 'named-xaml-exports.patch', 'preserve-modules.patch']
   for (const patch of patches)
     run('git', ['apply', join(destination, patch)], source)
   // Keep the upstream lock intact while installing its exact build toolchain.

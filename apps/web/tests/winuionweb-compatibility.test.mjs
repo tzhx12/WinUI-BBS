@@ -95,7 +95,7 @@ function pointerInput() {
 
 test('the installed candidate identifies its fixed upstream source', () => {
   const metadata = JSON.parse(readFileSync(new URL('package.json', library), 'utf8'))
-  assert.equal(metadata.version, '0.2.0-forum.1')
+  assert.equal(metadata.version, '0.2.0-forum.2')
   assert.equal(metadata.forumUpstream.revision, '692d0a76dad3fa92515bc50db44ed626d83b695e')
 })
 

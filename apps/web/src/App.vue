@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import {
   computed,
+  defineAsyncComponent,
   h,
   nextTick,
   onMounted,
   onBeforeUnmount,
   provide,
   ref,
-  resolveComponent,
   shallowReactive,
   watch,
   type Component,
@@ -29,16 +29,16 @@ import { adminNavigationGroups, adminSections, createSite, siteKey } from './sit
 import type { Category, User } from './types'
 import HeaderSearch from './components/HeaderSearch.vue'
 import HeaderAccount from './components/HeaderAccount.vue'
-import AuthDialog from './components/AuthDialog.vue'
-import SetupView from './components/SetupView.vue'
 import EmptyState from './components/ui/EmptyState.vue'
 import WinButton from './components/ui/WinButton.vue'
 import WinDialog from './components/ui/WinDialog.vue'
 
 const site = createSite()
-const TitleBarLeftHeader = resolveComponent('TitleBar.LeftHeader')
-const TitleBarContent = resolveComponent('TitleBar.Content')
-const TitleBarRightHeader = resolveComponent('TitleBar.RightHeader')
+const AuthDialog = defineAsyncComponent(() => import('./components/AuthDialog.vue'))
+const SetupView = defineAsyncComponent(() => import('./components/SetupView.vue'))
+const TitleBarLeftHeader = TitleBar.LeftHeader
+const TitleBarContent = TitleBar.Content
+const TitleBarRightHeader = TitleBar.RightHeader
 provide(siteKey, site)
 provide(xamlScopeKey, {})
 provide(xamlNameScopeKey, shallowReactive({}))

@@ -1,10 +1,13 @@
 import type { FastifyRequest } from 'fastify'
 import { z } from 'zod'
+import type { QueryResultRow } from 'pg'
 import { query } from './db.js'
 import { contentLimits } from './settings.js'
 import { mediaError } from './media.js'
 
-export const pageSchema = z.object({ page: z.coerce.number().int().min(1).max(1000000).default(1) })
+export const pageSchema = z.object({
+  page: z.coerce.number().int().min(1).max(1000000).default(1),
+})
 export const replyColumns = `r.id,r.body,r.created_at,r.author_uid,r.floor_number,r.child_number,r.parent_reply_id,r.deleted_at,r.deletion_source,
  u.username,u.display_name,u.avatar_url,t.author_uid AS reply_to_uid,tu.display_name AS reply_to_name`
 export const replyJoins = `LEFT JOIN users u ON u.uid=r.author_uid LEFT JOIN replies t ON t.id=r.reply_to_id AND t.deleted_at IS NULL LEFT JOIN users tu ON tu.uid=t.author_uid`
@@ -43,8 +46,50 @@ export async function replyPage(request: FastifyRequest, postId: string) {
     ORDER BY r.floor_number LIMIT $2 OFFSET $3`,
     [postId, pageSize, (page - 1) * pageSize],
   )
-  const replies = await Promise.all(
-    roots.rows.map(async (root) => ({ ...root, children: await childReplyPage(root.id) })),
-  )
-  return { replies, page, pageSize, totalPages, totalReplyCount: counts.rows[0]!.total, totalThreadCount }
+  const ids = roots.rows.map((root) => root.id)
+  const [childCounts, previews] = ids.length
+    ? await Promise.all([
+        query<{ parent_reply_id: string; total: number }>(
+          `SELECT parent_reply_id,COUNT(*)::int AS total FROM replies
+           WHERE parent_reply_id=ANY($1::uuid[]) AND deleted_at IS NULL GROUP BY parent_reply_id`,
+          [ids],
+        ),
+        query(
+          `SELECT ${replyColumns} FROM unnest($1::uuid[]) roots(id)
+           CROSS JOIN LATERAL (
+             SELECT * FROM replies WHERE parent_reply_id=roots.id AND deleted_at IS NULL
+             ORDER BY child_number LIMIT 5
+           ) r ${replyJoins} ORDER BY r.parent_reply_id,r.child_number`,
+          [ids],
+        ),
+      ])
+    : [{ rows: [] }, { rows: [] }]
+  const totals = new Map(childCounts.rows.map((row) => [row.parent_reply_id, row.total]))
+  const children = new Map<string, QueryResultRow[]>()
+  for (const child of previews.rows) {
+    const rows = children.get(child.parent_reply_id) ?? []
+    rows.push(child)
+    children.set(child.parent_reply_id, rows)
+  }
+  const replies = roots.rows.map((root) => {
+    const total = totals.get(root.id) ?? 0
+    return {
+      ...root,
+      children: {
+        replies: children.get(root.id) ?? [],
+        page: 1,
+        pageSize: 5,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / 5)),
+      },
+    }
+  })
+  return {
+    replies,
+    page,
+    pageSize,
+    totalPages,
+    totalReplyCount: counts.rows[0]!.total,
+    totalThreadCount,
+  }
 }

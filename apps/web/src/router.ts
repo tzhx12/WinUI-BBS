@@ -1,40 +1,40 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import SetupView from './components/SetupView.vue'
-import FeedPage from './pages/FeedPage.vue'
-import PostPage from './pages/PostPage.vue'
-import ComposePage from './pages/ComposePage.vue'
-import ProfilePage from './pages/ProfilePage.vue'
-import PublicGroupsPage from './pages/PublicGroupsPage.vue'
-import AppearancePage from './pages/AppearancePage.vue'
-import UserDashboardPage from './pages/UserDashboardPage.vue'
-import MyInvitationsPage from './pages/MyInvitationsPage.vue'
-import TrashPage from './pages/TrashPage.vue'
-import OverviewPage from './pages/admin/OverviewPage.vue'
-import UsersPage from './pages/admin/UsersPage.vue'
-import GroupsPage from './pages/admin/GroupsPage.vue'
-import LevelsPage from './pages/admin/LevelsPage.vue'
-import CategoriesPage from './pages/admin/CategoriesPage.vue'
-import PostsPage from './pages/admin/PostsPage.vue'
-import MediaPage from './pages/admin/MediaPage.vue'
-import SettingsPage from './pages/admin/SettingsPage.vue'
-import AuditPage from './pages/admin/AuditPage.vue'
-import InvitationsPage from './pages/admin/InvitationsPage.vue'
-import MyImagesPage from './pages/MyImagesPage.vue'
-import NotificationsPage from './pages/NotificationsPage.vue'
-import AdminNotificationsPage from './pages/admin/NotificationsPage.vue'
-import ReviewsPage from './pages/admin/ReviewsPage.vue'
-import ReviewSettingsPage from './pages/admin/ReviewSettingsPage.vue'
-import DeletedPostsPage from './pages/admin/DeletedPostsPage.vue'
-import AboutPage from './pages/AboutPage.vue'
-import RegistrationPage from './pages/admin/RegistrationPage.vue'
-import MailSettingsPage from './pages/admin/MailSettingsPage.vue'
-import ResetPasswordPage from './pages/ResetPasswordPage.vue'
-import ContentSettingsPage from './pages/admin/ContentSettingsPage.vue'
-import FavoritesPage from './pages/FavoritesPage.vue'
-import UserSpacePage from './pages/UserSpacePage.vue'
-import FollowingPage from './pages/FollowingPage.vue'
-import HomeSettingsPage from './pages/admin/HomeSettingsPage.vue'
-import AccountProfilePage from './pages/AccountProfilePage.vue'
+const SetupView = () => import('./components/SetupView.vue')
+const FeedPage = () => import('./pages/FeedPage.vue')
+const PostPage = () => import('./pages/PostPage.vue')
+const ComposePage = () => import('./pages/ComposePage.vue')
+const ProfilePage = () => import('./pages/ProfilePage.vue')
+const PublicGroupsPage = () => import('./pages/PublicGroupsPage.vue')
+const AppearancePage = () => import('./pages/AppearancePage.vue')
+const UserDashboardPage = () => import('./pages/UserDashboardPage.vue')
+const MyInvitationsPage = () => import('./pages/MyInvitationsPage.vue')
+const TrashPage = () => import('./pages/TrashPage.vue')
+const OverviewPage = () => import('./pages/admin/OverviewPage.vue')
+const UsersPage = () => import('./pages/admin/UsersPage.vue')
+const GroupsPage = () => import('./pages/admin/GroupsPage.vue')
+const LevelsPage = () => import('./pages/admin/LevelsPage.vue')
+const CategoriesPage = () => import('./pages/admin/CategoriesPage.vue')
+const PostsPage = () => import('./pages/admin/PostsPage.vue')
+const MediaPage = () => import('./pages/admin/MediaPage.vue')
+const SettingsPage = () => import('./pages/admin/SettingsPage.vue')
+const AuditPage = () => import('./pages/admin/AuditPage.vue')
+const InvitationsPage = () => import('./pages/admin/InvitationsPage.vue')
+const MyImagesPage = () => import('./pages/MyImagesPage.vue')
+const NotificationsPage = () => import('./pages/NotificationsPage.vue')
+const AdminNotificationsPage = () => import('./pages/admin/NotificationsPage.vue')
+const ReviewsPage = () => import('./pages/admin/ReviewsPage.vue')
+const ReviewSettingsPage = () => import('./pages/admin/ReviewSettingsPage.vue')
+const DeletedPostsPage = () => import('./pages/admin/DeletedPostsPage.vue')
+const AboutPage = () => import('./pages/AboutPage.vue')
+const RegistrationPage = () => import('./pages/admin/RegistrationPage.vue')
+const MailSettingsPage = () => import('./pages/admin/MailSettingsPage.vue')
+const ResetPasswordPage = () => import('./pages/ResetPasswordPage.vue')
+const ContentSettingsPage = () => import('./pages/admin/ContentSettingsPage.vue')
+const FavoritesPage = () => import('./pages/FavoritesPage.vue')
+const UserSpacePage = () => import('./pages/UserSpacePage.vue')
+const FollowingPage = () => import('./pages/FollowingPage.vue')
+const HomeSettingsPage = () => import('./pages/admin/HomeSettingsPage.vue')
+const AccountProfilePage = () => import('./pages/AccountProfilePage.vue')
 
 export const router = createRouter({
   history: createWebHashHistory(),

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { postPath } from '../utils'
 import { computed, ref, watch } from 'vue'
-import { InfoBar } from 'winuionweb'
+import { InfoBar, NumberBox } from 'winuionweb'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
 import { useSite } from '../site'
 import { useResource } from '../composables/useResource'
-import type { PageParameter, PostSummary, User } from '../types'
+import type { PageParameter, PostFeedPage, User } from '../types'
 import PageHeader from '../components/ui/PageHeader.vue'
 import ResourceState from '../components/ui/ResourceState.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
@@ -21,26 +21,29 @@ const props = defineProps<{ Parameter: PageParameter }>()
 const router = useRouter(),
   site = useSite(),
   tab = ref('posts')
+const requestedPage = Math.max(1, Number(props.Parameter.query.page) || 1)
+const jump = ref(requestedPage)
 const { data, loading, error, reload } = useResource(
   () =>
-    api<{
-      user: {
-        uuid: string
-        experience: number
-        level: number
-        title: User['title']
-        groups: User['groups']
-        uid: string
-        username: string
-        display_name: string
-        avatar_url: string | null
-        following: boolean
-        follower_count: number
-        banned_until: string | null
+    api<
+      PostFeedPage & {
+        user: {
+          uuid: string
+          experience: number
+          level: number
+          title: User['title']
+          groups: User['groups']
+          uid: string
+          username: string
+          display_name: string
+          avatar_url: string | null
+          following: boolean
+          follower_count: number
+          banned_until: string | null
+        }
+        folders: Array<{ id: string; name: string; post_count: number }>
       }
-      posts: PostSummary[]
-      folders: Array<{ id: string; name: string; post_count: number }>
-    }>(`/api/users/${props.Parameter.id}`, { token: site.token.value }),
+    >(`/api/users/${props.Parameter.id}?page=${requestedPage}`, { token: site.token.value }),
   null,
 )
 const profile = computed<User | null>(() =>
@@ -73,6 +76,22 @@ const banMessage = computed(() => {
   return `该用户已被封禁至${part('year')}-${part('month')}-${part('day')}-${part('hour')}:${part('minute')}`
 })
 watch(site.token, reload)
+watch(data, (value) => {
+  jump.value = value?.page ?? 1
+})
+function goPage(page: number) {
+  if (loading.value || !data.value || !Number.isInteger(page) || page < 1 || page > data.value.totalPages)
+    return
+  void router.push({
+    path: props.Parameter.path,
+    query: { ...props.Parameter.query, page: String(page) },
+  })
+}
+function jumpByKeyboard(event: KeyboardEvent) {
+  if (!(event.target instanceof HTMLInputElement)) return
+  event.preventDefault()
+  goPage(Number(event.target.value))
+}
 async function followChanged(following: boolean) {
   if (data.value) data.value.user.following = following
   await reload()
@@ -115,7 +134,40 @@ async function followChanged(following: boolean) {
           <template v-if="tab === 'posts'"
             ><EmptyState v-if="!data.posts.length" title="暂无可阅读的帖子" icon="chat" />
             <section v-for="post in data.posts" :key="post.id" class="surface-card favorite-post">
-              <PostListItem :item="post" @click="router.push(postPath(post))" /></section
+              <PostListItem :item="post" @click="router.push(postPath(post))" />
+            </section>
+            <nav v-if="!error && data.totalPages > 1" class="feed-pagination" aria-label="帖子翻页">
+              <div class="feed-page-controls">
+                <WinButton
+                  label="上一页"
+                  :disabled="loading || data.page <= 1"
+                  @click="goPage(data.page - 1)"
+                />
+                <span aria-live="polite"
+                  >第 {{ data.page }} / {{ data.totalPages }} 页 · 每页 {{ data.pageSize }} 篇</span
+                >
+                <WinButton
+                  label="下一页"
+                  :disabled="loading || data.page >= data.totalPages"
+                  @click="goPage(data.page + 1)"
+                />
+              </div>
+              <div class="feed-page-jump" @keydown.enter.capture="jumpByKeyboard">
+                <span>跳至</span>
+                <NumberBox
+                  v-model:Value="jump"
+                  :Minimum="1"
+                  :Maximum="data.totalPages"
+                  :SmallChange="1"
+                  SpinButtonPlacementMode="Hidden"
+                  AutomationProperties.Name="帖子页码"
+                />
+                <WinButton
+                  label="跳转"
+                  :disabled="loading || !Number.isInteger(jump) || jump < 1 || jump > data.totalPages"
+                  @click="goPage(jump)"
+                />
+              </div></nav
           ></template>
           <template v-else
             ><EmptyState v-if="!data.folders.length" title="暂无公开收藏夹" icon="favorite" />

@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { FastifyRequest } from 'fastify'
 import type { PoolClient } from 'pg'
 import { decodeHTML } from 'entities'
@@ -7,6 +10,7 @@ import { parseFragment, type DefaultTreeAdapterTypes } from 'parse5'
 import { inTransaction, query } from './db.js'
 import { contentLimits, userMediaLimits } from './settings.js'
 import { imageTypes, mediaError } from './media.js'
+import { stageFile } from './staging.js'
 import {
   deleteStoredFile,
   monitorStorage,
@@ -40,7 +44,13 @@ export const editorBodySchema = z
   })
   .passthrough()
 type Body = z.infer<typeof editorBodySchema>
-type Attachment = { id: string; name: string; mime: string; buffer: Buffer }
+type Attachment = {
+  id: string
+  name: string
+  mime: string
+  path: string
+  bytes: number
+}
 const emojiLimit = 1000
 
 export function replyExcerpt(body: Body, maximumCharacters = 10): string {
@@ -83,9 +93,7 @@ export function replyExcerpt(body: Body, maximumCharacters = 10): string {
     .replace(/\s+/g, ' ')
     .trim()
   const characters = Array.from(text)
-  return (
-    characters.slice(0, maximumCharacters).join('') + (characters.length > maximumCharacters ? '…' : '')
-  )
+  return characters.slice(0, maximumCharacters).join('') + (characters.length > maximumCharacters ? '…' : '')
 }
 
 function textLength(value: unknown, key = ''): number {
@@ -161,47 +169,65 @@ export async function validateContent(body: Body, kind: 'post' | 'reply') {
   }
 }
 
-// Files exist only in memory until every post/reply validation has passed.
+// Stage attachments on disk while validating or waiting for the shared writer lock.
 export async function readSubmission(request: FastifyRequest) {
-  if (!request.isMultipart()) return { payload: request.body, attachments: [] as Attachment[] }
+  if (!request.isMultipart())
+    return {
+      payload: request.body,
+      attachments: [] as Attachment[],
+      cleanup: async () => {},
+    }
   const limits = await userMediaLimits(request.user.uid)
+  const directory = await mkdtemp(join(tmpdir(), 'forum-submission-'))
+  const cleanup = () => rm(directory, { recursive: true, force: true })
   const attachments: Attachment[] = []
   let payload: unknown
   let bytes = 0
-  for await (const part of request.parts({
-    limits: {
-      files: 50,
-      fields: 1,
-      parts: 51,
-      fileSize: limits.imageBytes,
-      fieldSize: 1500000,
-    },
-  })) {
-    if (part.type === 'field') {
-      if (part.fieldname !== 'payload' || payload !== undefined || part.valueTruncated)
-        throw mediaError('提交内容无效')
-      try {
-        payload = JSON.parse(String(part.value))
-      } catch {
-        throw mediaError('提交内容无效')
+  try {
+    for await (const part of request.parts({
+      limits: {
+        files: 50,
+        fields: 1,
+        parts: 51,
+        fileSize: limits.imageBytes,
+        fieldSize: 1500000,
+      },
+    })) {
+      if (part.type === 'field') {
+        if (part.fieldname !== 'payload' || payload !== undefined || part.valueTruncated)
+          throw mediaError('提交内容无效')
+        try {
+          payload = JSON.parse(String(part.value))
+        } catch {
+          throw mediaError('提交内容无效')
+        }
+      } else {
+        if (!/^draft:[\w-]+$/.test(part.fieldname) || attachments.some((a) => a.id === part.fieldname))
+          throw mediaError('图片标识无效')
+        if (!imageTypes.has(part.mimetype)) throw mediaError('仅支持 PNG、JPEG、WebP 和 GIF 图片', 415)
+        const path = join(directory, String(attachments.length))
+        const size = await stageFile(
+          part.file,
+          path,
+          Math.min(limits.storageBytes, 100 * 1024 ** 2) - bytes,
+          '单次发布图片总大小不能超过个人容量或 100 MiB',
+        )
+        if (part.file.truncated) throw mediaError('图片超过单张上传限制', 413)
+        bytes += size
+        attachments.push({
+          id: part.fieldname,
+          name: part.filename,
+          mime: part.mimetype,
+          path,
+          bytes: size,
+        })
       }
-    } else {
-      if (!/^draft:[\w-]+$/.test(part.fieldname) || attachments.some((a) => a.id === part.fieldname))
-        throw mediaError('图片标识无效')
-      if (!imageTypes.has(part.mimetype)) throw mediaError('仅支持 PNG、JPEG、WebP 和 GIF 图片', 415)
-      const buffer = await part.toBuffer()
-      bytes += buffer.length
-      if (bytes > Math.min(limits.storageBytes, 100 * 1024 ** 2))
-        throw mediaError('单次发布图片总大小不能超过个人容量或 100 MiB', 413)
-      attachments.push({
-        id: part.fieldname,
-        name: part.filename,
-        mime: part.mimetype,
-        buffer,
-      })
     }
+    return { payload, attachments, cleanup }
+  } catch (error) {
+    await cleanup()
+    throw error
   }
-  return { payload, attachments }
 }
 
 export async function withSubmission<T>(
@@ -238,7 +264,7 @@ export async function withSubmission<T>(
             [uid],
           )
           if (
-            Number(usage.rows[0]!.bytes) + attachments.reduce((sum, a) => sum + a.buffer.length, 0) >
+            Number(usage.rows[0]!.bytes) + attachments.reduce((sum, a) => sum + a.bytes, 0) >
             limits.storageBytes
           )
             throw mediaError('图床容量不足', 409)
@@ -247,27 +273,17 @@ export async function withSubmission<T>(
             const stored = await putStoredFile(
               root,
               key,
-              a.buffer,
+              await readFile(a.path),
               a.mime,
               client,
               body.blocks
                 .filter((block) => block.type === 'image')
-                .map((block) =>
-                  String((block.data.file as { url: string }).url).replace(/^\/uploads\//, ''),
-                ),
+                .map((block) => String((block.data.file as { url: string }).url).replace(/^\/uploads\//, '')),
             )
             files.push(stored)
             await client.query(
               "INSERT INTO media_assets(storage_key,original_name,mime_type,byte_size,alt_text,collection,created_by,storage_backend,storage_location) VALUES($1,$2,$3,$4,$2,'library',$5,$6,$7)",
-              [
-                key,
-                a.name,
-                a.mime,
-                a.buffer.length,
-                uid,
-                stored.storage_backend,
-                stored.storage_location,
-              ],
+              [key, a.name, a.mime, a.bytes, uid, stored.storage_backend, stored.storage_location],
             )
             for (const block of body.blocks)
               if (block.type === 'image' && (block.data.file as { url: string }).url === a.id)

@@ -21,6 +21,7 @@ import { registerFavoriteRoutes } from './routes/favorites.js'
 import { registerUpdateRoutes, startAutomaticUpdates } from './routes/updates.js'
 import { setupPath } from './setup.js'
 import { currentVersion } from './version.js'
+import { registerWebAssets } from './webAssets.js'
 import {
   monitorStorage,
   flushStorageDeletions,
@@ -62,7 +63,7 @@ async function start() {
   await registerUpdateRoutes(app)
 
   if (process.env.FORUM_WEB_ROOT) {
-    await app.register(fastifyStatic, { root: resolve(process.env.FORUM_WEB_ROOT), prefix: '/', decorateReply: false })
+    await registerWebAssets(app, process.env.FORUM_WEB_ROOT)
   }
 
   const storageMaintenance = async () => {

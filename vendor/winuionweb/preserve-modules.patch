@@ -1,0 +1,18 @@
+diff --git a/vite.lib.config.ts b/vite.lib.config.ts
+--- a/vite.lib.config.ts
++++ b/vite.lib.config.ts
+@@ -23,12 +23,12 @@ export default defineConfig({
+         'system-accent-color': fileURLToPath(new URL('./src/systemAccentColor.ts', import.meta.url)),
+       },
+       formats: ['es'],
+-      fileName: (_format, entryName) => `${entryName}.js`,
++      fileName: (_format, entryName) => `${entryName.replace(/[?&:]/g, '_')}.js`,
+       cssFileName: 'style'
+     },
+     rollupOptions: {
+       external: ['vue', 'mathlive/ssr', 'rtf.js'],
+-      output: { exports: 'named' }
++      output: { exports: 'named', preserveModules: true, preserveModulesRoot: 'src' }
+     }
+   }
+ })

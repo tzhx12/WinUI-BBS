@@ -4,6 +4,7 @@ import { authenticate, readerLevel } from '../auth.js'
 import { effectiveLevel, inTransaction, query } from '../db.js'
 import { mediaError } from '../media.js'
 import { visibleBody } from '../lockedContent.js'
+import { contentLimits } from '../settings.js'
 
 const folderSchema = z.object({
   name: z.string().trim().min(1).max(64),
@@ -204,6 +205,10 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
     },
   )
   app.get('/api/users/:id', async (request, reply) => {
+    const parsed = z
+      .object({ page: z.coerce.number().int().min(1).max(2147483647).optional() })
+      .safeParse(request.query)
+    if (!parsed.success) return reply.code(400).send({ error: '帖子页码无效' })
     const uid = await viewer(request, reply)
     if (reply.sent) return
     const target = (request.params as { id: string }).id
@@ -235,10 +240,30 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
     user.experience = Number(user.experience)
     Object.assign(user, { level: publicLevel, groups: groups.rows, title: title.rows[0] ?? null })
     const level = uid ? await readerLevel(uid) : 0
+    const from = `FROM posts p ${joins} WHERE p.author_uid=$1 AND p.status='published'
+      AND p.deleted_at IS NULL AND p.minimum_reader_level<=$2 AND c.minimum_reader_level<=$2`
+    let pagination:
+      | { page: number; pageSize: number; total: number; totalPages: number }
+      | undefined
+    if (parsed.data.page !== undefined) {
+      const [limits, count] = await Promise.all([
+        contentLimits(),
+        query<{ total: number }>(`SELECT COUNT(*)::int AS total ${from}`, [target, level]),
+      ])
+      const total = count.rows[0]!.total
+      const pageSize = limits.postsPerPage
+      const totalPages = Math.max(1, Math.ceil(total / pageSize))
+      pagination = { page: Math.min(parsed.data.page, totalPages), pageSize, total, totalPages }
+    }
     const posts = (
       await query(
-        `SELECT ${postColumns} FROM posts p ${joins} WHERE p.author_uid=$1 AND p.status='published' AND p.deleted_at IS NULL AND p.minimum_reader_level<=$2 AND c.minimum_reader_level<=$2 ORDER BY p.created_at DESC`,
-        [target, level],
+        `SELECT ${postColumns} ${from} ORDER BY p.created_at DESC,p.id DESC
+         ${pagination ? 'LIMIT $3 OFFSET $4' : ''}`,
+        [
+          target,
+          level,
+          ...(pagination ? [pagination.pageSize, (pagination.page - 1) * pagination.pageSize] : []),
+        ],
       )
     ).rows
     const folders = (
@@ -250,6 +275,11 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
         [target, level],
       )
     ).rows
-    return { user, posts: posts.map((post) => ({ ...post, body: visibleBody(post.body) })), folders }
+    return {
+      user,
+      posts: posts.map((post) => ({ ...post, body: visibleBody(post.body) })),
+      folders,
+      ...pagination,
+    }
   })
 }

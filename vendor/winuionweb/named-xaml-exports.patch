@@ -1,0 +1,12 @@
+diff --git a/src/index.ts b/src/index.ts
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -29,6 +29,8 @@ export const WinUIOnWeb = {
+ 
+ export default WinUIOnWeb
+ export { registerWinUIComponents }
++export { DataTemplate } from './components/CollectionProperties'
++export { MenuFlyoutItem, MenuFlyoutSeparator } from './components/MenuFlyoutItems'
+ export { createI18n, i18nKey, normalizeLocale, useI18n } from './components/i18n'
+ export type { I18n, Locale, ResourceBundle, ResourceMap } from './components/i18n'
+ export { xamlNameScopeKey, xamlScopeKey } from './components/xamlRuntime'

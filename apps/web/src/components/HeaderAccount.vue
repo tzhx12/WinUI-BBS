@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, h, resolveComponent } from 'vue'
+import { computed, h } from 'vue'
 import { useRouter } from 'vue-router'
-import { Button, MenuFlyout, PersonPicture } from 'winuionweb'
+import { Button, MenuFlyout, MenuFlyoutItem as MenuItem, PersonPicture } from 'winuionweb'
 import { useSite } from '../site'
 import WinButton from './ui/WinButton.vue'
 const site = useSite()
 const router = useRouter()
-const MenuItem = resolveComponent('MenuFlyoutItem')
 const appearancePath = computed(() =>
   site.user.value?.permissions?.includes('settings.manage') ? '/admin/appearance' : '/appearance',
 )

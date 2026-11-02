@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import bcrypt from 'bcryptjs'
+import bcrypt from '../passwords.js'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { inTransaction } from '../db.js'

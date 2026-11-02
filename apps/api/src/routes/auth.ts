@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs'
+import bcrypt, { closePasswordWorkers } from '../passwords.js'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate } from '../auth.js'
@@ -44,6 +44,7 @@ function siteDate() {
 }
 
 export async function registerAuthRoutes(app: FastifyInstance) {
+  app.addHook('onClose', closePasswordWorkers)
   app.patch('/api/me/profile', { preHandler: authenticate }, async (request, reply) => {
     const parsed = z
       .object({ username: usernameSchema.optional(), displayName: displayNameSchema.optional() })
@@ -326,7 +327,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         [request.user.uid, rule.rows[0].points],
       )
       const updatedUser = award.rows[0]!
-      const level = await effectiveLevel(updatedUser.experience, updatedUser.level_offset)
+      const level = await effectiveLevel(updatedUser.experience, updatedUser.level_offset, client)
       await grantLevelInvitations(request.user.uid, client)
       return { points: rule.rows[0].points, experience: Number(updatedUser.experience), level }
     })

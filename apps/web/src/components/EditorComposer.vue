@@ -1,16 +1,6 @@
 <script setup lang="ts">
-import {
-  computed,
-  h,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  resolveComponent,
-  shallowRef,
-  watch,
-} from 'vue'
-import { Button, Flyout, MenuFlyout } from 'winuionweb'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { Button, Flyout, MenuFlyout, MenuFlyoutItem as LockMenuItem } from 'winuionweb'
 import type EditorJS from '@editorjs/editorjs'
 import { api } from '../api'
 import { contentSize, emojiLimit, readDraft, writeDraft } from '../drafts'
@@ -157,7 +147,6 @@ const lockOpen = ref(false),
   lockCondition = ref<string | number>('reply'),
   lockPreview = ref('')
 const lockMenu = ref<InstanceType<typeof MenuFlyout> | null>(null)
-const LockMenuItem = resolveComponent('MenuFlyoutItem')
 let lockRanges: Range[] = []
 const existingLock = shallowRef<HTMLElement | null>(null)
 let contextRange: Range | null = null

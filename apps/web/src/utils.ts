@@ -1,4 +1,5 @@
-import { h, resolveComponent, type Component } from 'vue'
+import { h, type Component } from 'vue'
+import { DataTemplate } from 'winuionweb'
 
 export const formatDate = (value: string) =>
   new Intl.DateTimeFormat('zh-CN', {
@@ -26,11 +27,7 @@ export const formatDateTime = (value: string) =>
 
 // WinUI's DataTemplate materializes this binding in each item's data context.
 export function itemTemplate(component: Component, property = 'item', props: Record<string, unknown> = {}) {
-  return h(
-    resolveComponent('DataTemplate'),
-    {},
-    { default: () => [h(component, { ...props, [property]: '{x:Bind}' })] },
-  )
+  return h(DataTemplate, {}, { default: () => [h(component, { ...props, [property]: '{x:Bind}' })] })
 }
 
 export function categoryPath(category: { slug: string }) {

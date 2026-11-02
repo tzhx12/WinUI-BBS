@@ -42,8 +42,12 @@ export async function runMigrations() {
   }
 }
 
-export async function effectiveLevel(experience: number | string, offset: number) {
-  const setting = await query<{ setting_value: number }>(
+export async function effectiveLevel(
+  experience: number | string,
+  offset: number,
+  db: Pool | PoolClient = pool,
+) {
+  const setting = await db.query<{ setting_value: number }>(
     "SELECT setting_value::text::integer AS setting_value FROM app_settings WHERE setting_key = 'points_per_level'",
   )
   const pointsPerLevel = Math.max(1, setting.rows[0]?.setting_value ?? 100)
@@ -63,6 +67,6 @@ export async function awardExperience(uid: string, actionKey: string, client?: P
     [uid, rule.rows[0].points],
   )
   if (!updated.rows[0]) return null
-  const level = await effectiveLevel(updated.rows[0].experience, updated.rows[0].level_offset)
+  const level = await effectiveLevel(updated.rows[0].experience, updated.rows[0].level_offset, db)
   return { points: rule.rows[0].points, experience: Number(updated.rows[0].experience), level }
 }
