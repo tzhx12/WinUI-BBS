@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [English](configuration.en.md)
 
-**当前版本：0.4.0** · **开源许可：GPL-3.0-only**
+**当前版本：0.5.0** · **开源许可：GPL-3.0-only**
 
 WinUI-BBS 是一个采用 WinUI 风格的开源论坛系统，使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL 构建。它提供可视化管理后台、用户组权限、分级板块、图文发帖、内容审核、站内通知与个人图床。
 
@@ -51,6 +51,8 @@ API 默认监听 <http://127.0.0.1:4000/>，健康检查地址为 `/api/health`�
 更新代码前备份 PostgreSQL 数据库、本地上传目录和部署配置；使用对象存储时同时保留对应存储桶。保留原 `MAIL_ENCRYPTION_KEY` 和 `STORAGE_ENCRYPTION_KEY`，以便继续读取已加密的凭据。更新后执行 `npm ci`、`npm run check` 和 `npm run build`，再重启服务；API 会自动应用尚未执行的迁移，无须重新初始化数据库。
 
 迁移 `026_public_post_lists.sql` 增加公开列表与作者列表索引；`027_feed_reply_counts.sql` 回填帖子未删除回复数，并安装维护触发器及热门、板块和子回复索引。首次应用 027 会锁定相关表并回填数据、创建索引，数据量较大时应安排维护时段。之后的回复新增、软删除、恢复和永久删除均在同一事务中更新统计。
+
+迁移 `028_two_factor_and_turnstile.sql` 增加两步验证字段和 Turnstile 配置，`029_totp_login_challenges.sql` 增加一次性登录挑战。两项功能默认关闭，已有用户继续按原方式登录。
 
 媒体回收保护规则涵盖当前头像和现有表情、站点图标；之后上传的头像即使更换也会保留回收保护。旧版本已更换的头像没有独立身份记录，因此仍按普通图库图片处理。
 
@@ -104,7 +106,7 @@ API 默认监听 <http://127.0.0.1:4000/>，健康检查地址为 `/api/health`�
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 ```
 
-邮件凭据使用 AES-256-GCM 加密后保存在数据库中。真实邮箱、服务器和凭据属于本地部署配置，不应写入源码、截图或 Git 仓库。
+邮件凭据、Turnstile 私钥和用户 TOTP 密钥使用 AES-256-GCM 加密后保存在数据库中。请保留原 `MAIL_ENCRYPTION_KEY`；真实邮箱、服务器和凭据属于本地部署配置，不应写入源码、截图或 Git 仓库。
 
 在“用户与注册 → 注册管理”启用注册邮箱验证后，注册需要先取得邮箱验证码。验证码默认有效 **60 分钟**；同一邮箱的注册、改密和找回邮件共用发送间隔，默认 **60 秒**，不能设置得更短。验证码一次性使用，输错 5 次后失效。
 
@@ -113,6 +115,10 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 用户后台的“更改密码”通过已绑定邮箱的验证码确认身份，新密码需为 10–128 位。默认每 **60 秒**最多成功修改一次。改密后保留当前登录，其他旧登录凭证失效。
 
 验证码有效期、发送间隔、找回功能开关、链接有效期、每日找回次数及改密间隔均在注册管理中配置。注册邮箱验证默认关闭，以保留未配置邮件服务时的现有注册方式；启用前必须先配置发信服务。上述流程不会向已有账号补加登录邮箱验证要求。
+
+用户可在“用户后台 → 资料管理”开启两步验证：输入当前密码后用身份验证器扫描二维码，并输入应用生成的 6 位验证码完成绑定。之后登录需先通过密码，再输入一次性验证码；启用或关闭时，其他登录会话失效。绑定密钥只在设置时显示，`MAIL_ENCRYPTION_KEY` 必须配置且在备份恢复时保留。请备份身份验证器中的账号；邮箱重置密码不会解除两步验证。
+
+有 `settings.manage` 权限的管理员可在“用户与注册 → 注册管理”配置 Cloudflare Turnstile 站点密钥和私钥，并在 Cloudflare 为该小组件添加站点域名。开启后，登录、注册、注册验证码发送、找回密码申请、重设密码、改密验证码发送和提交新密码均需通过验证。私钥加密保存在数据库；留空私钥不会覆盖已保存的值。各表单的小组件居中显示，窄屏使用紧凑尺寸。
 
 注册可以关闭、向所有人开放，或要求邀请码。管理员可以创建单次或多次使用的邀请码，设置等级奖励，并启用、停用或删除奖励规则。删除奖励规则后，已经发出的邀请码仍然保留。用户可从用户后台中的“我的邀请码”管理邀请链接；复制邀请与图片链接时使用配置的站点 URL。
 
@@ -252,7 +258,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 ## 关于与开源致谢
 
-导航底部的“关于”位于“外观设置”或“管理后台”上方，游客和登录用户均可访问。页面展示 WinUI-BBS 项目介绍、当前版本 0.4.0，以及相关开源项目的超链接按钮。版本号读取根目录 `package.json`，站点名称可在后台独立配置。
+导航底部的“关于”位于“外观设置”或“管理后台”上方，游客和登录用户均可访问。页面展示 WinUI-BBS 项目介绍、当前版本 0.5.0，以及相关开源项目的超链接按钮。版本号读取根目录 `package.json`，站点名称可在后台独立配置。
 
 主要项目包括 [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb)、[Vue](https://vuejs.org/)、[Vue Router](https://router.vuejs.org/)、[Editor.js](https://github.com/codex-team/editor.js)、[DOMPurify](https://github.com/cure53/DOMPurify)、[Fastify](https://fastify.dev/)、[PostgreSQL](https://www.postgresql.org/)、[Vite](https://vite.dev/) 和 [TypeScript](https://www.typescriptlang.org/)。更多依赖及其用途见应用内“关于”页。
 

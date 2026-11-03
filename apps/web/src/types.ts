@@ -77,6 +77,7 @@ export interface User {
   bannedUntil?: string | null
   pointsPerLevel?: number
   checkinPoints?: number
+  twoFactorEnabled?: boolean
 }
 
 export interface PostSummary {

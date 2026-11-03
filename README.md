@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.en.md)
 
-[![版本 0.4.0](https://img.shields.io/badge/version-0.4.0-0078D4)](package.json)
+[![版本 0.5.0](https://img.shields.io/badge/version-0.5.0-0078D4)](package.json)
 [![GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-2d7d46)](LICENSE)
 
 一个采用 **WinUI 风格**的开源论坛系统。项目使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL，提供图文讨论、用户空间、细粒度权限和可视化管理后台。界面默认使用简体中文。
@@ -10,6 +10,8 @@
 [GitHub 仓库](https://github.com/tzhx12/WinUI-BBS) · [报告问题](https://github.com/tzhx12/WinUI-BBS/issues) · [使用与配置](docs/configuration.md)
 
 公网部署前请阅读[安全部署](docs/security.md)，配置随机密钥、HTTPS 与可信代理。
+
+[0.5.0 更新说明](docs/release-0.5.0.md)
 
 ## 功能
 
@@ -37,7 +39,7 @@
 
 ### 邮件与账号安全
 
-支持 SMTP 发信、注册邮箱验证、限次找回密码、邮箱验证改密和 IMAP 连接检查。邮件及对象存储凭据使用服务端密钥加密保存。
+支持 SMTP 发信、注册邮箱验证、限次找回密码、邮箱验证改密、TOTP 两步登录和 Cloudflare Turnstile 人机验证。邮件、验证器密钥及对象存储凭据使用服务端密钥加密保存。
 
 ## 界面预览
 
@@ -102,7 +104,7 @@ npm run dev
 | `npm run dev`                          | 同时启动前后端开发服务   |
 | `npm run check`                        | 检查类型和图标映射       |
 | `npm run build`                        | 构建前后端               |
-| `npm run version:set -- 0.4.0`         | 设置下次正式发布版本     |
+| `npm run version:set -- 0.6.0`         | 设置下次正式发布版本     |
 | `npm run test:integration -w apps/api` | 运行 PostgreSQL 集成测试 |
 | `npm run format -w apps/web`           | 格式化前端代码           |
 

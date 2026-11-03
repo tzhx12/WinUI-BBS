@@ -94,6 +94,7 @@ export function createSite() {
       recoveryDailyLimit: 1,
       passwordChangeSeconds: 60,
     },
+    turnstile: { enabled: false, siteKey: '' },
   })
   const theme = ref<'light' | 'dark'>((localStorage.getItem('forum-theme') as 'light' | 'dark') || 'light')
   const compactNavigation = ref(localStorage.getItem('forum-compact-navigation') === 'true')
@@ -146,6 +147,7 @@ export function createSite() {
     registrationMode?: 'open' | 'invite'
     postsRequireReview?: boolean
     emailSecurity?: typeof settings.emailSecurity
+    turnstile?: typeof settings.turnstile
     contentLimits?: typeof settings.contentLimits
   }) {
     Object.assign(settings, value)
@@ -199,6 +201,8 @@ export function createSite() {
         registration_mode: 'open' | 'invite'
         posts_require_review: boolean
         email_security: typeof settings.emailSecurity
+        turnstile_enabled: boolean
+        turnstile_site_key: string
         content_limits: typeof settings.contentLimits
       }>('/api/site'),
       loadCategories(),
@@ -216,6 +220,7 @@ export function createSite() {
       registrationMode: value.registration_mode,
       postsRequireReview: value.posts_require_review,
       emailSecurity: value.email_security,
+      turnstile: { enabled: value.turnstile_enabled, siteKey: value.turnstile_site_key },
       contentLimits: value.content_limits,
     })
     loadAppearance()

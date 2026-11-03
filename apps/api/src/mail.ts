@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomInt } from 'node:crypto'
+import { randomBytes, randomInt } from 'node:crypto'
 import nodemailer from 'nodemailer'
 import { ImapFlow } from 'imapflow'
 import { z } from 'zod'
@@ -6,6 +6,8 @@ import type { PoolClient } from 'pg'
 import { inTransaction } from './db.js'
 import { readSettings } from './settings.js'
 import { currentVersion } from './version.js'
+import { decryptSecret, secretHash as challengeHash } from './accountSecrets.js'
+export { encryptSecret as encryptMailSecret, secretHash as challengeHash } from './accountSecrets.js'
 
 export const mailError = (message: string, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode })
@@ -34,25 +36,6 @@ export const mailTransportSchema = z.object({
   imap: endpointSchema.extend({ enabled: z.boolean() }),
 })
 export type MailTransport = z.infer<typeof mailTransportSchema>
-function encryptionKey() {
-  const key = Buffer.from(process.env.MAIL_ENCRYPTION_KEY || '', 'base64')
-  if (key.length !== 32) throw mailError('请先在服务端配置 MAIL_ENCRYPTION_KEY，再保存发信凭据', 503)
-  return key
-}
-export function encryptMailSecret(secret: string) {
-  if (!secret) return ''
-  const iv = randomBytes(12),
-    cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv)
-  const ciphertext = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()])
-  return [iv, cipher.getAuthTag(), ciphertext].map((v) => v.toString('base64')).join('.')
-}
-function decryptMailSecret(secret: string) {
-  if (!secret) return ''
-  const [iv, tag, ciphertext] = secret.split('.').map((v) => Buffer.from(v, 'base64'))
-  const cipher = createDecipheriv('aes-256-gcm', encryptionKey(), iv!)
-  cipher.setAuthTag(tag!)
-  return Buffer.concat([cipher.update(ciphertext!), cipher.final()]).toString('utf8')
-}
 export async function emailSecurity(client?: PoolClient) {
   return (await readSettings(['email_security'], client)).email_security as EmailSecurity
 }
@@ -74,7 +57,7 @@ export async function sendEmail(to: string, subject: string, text: string, confi
     port: value.smtp.port,
     secure: value.smtp.secure,
     requireTLS: !value.smtp.secure,
-    auth: { user: value.smtp.user, pass: decryptMailSecret(value.smtp.password) },
+    auth: { user: value.smtp.user, pass: decryptSecret(value.smtp.password) },
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: 25000,
@@ -100,7 +83,7 @@ export async function checkImap(config: MailTransport) {
     port: config.imap.port,
     secure: config.imap.secure,
     doSTARTTLS: !config.imap.secure,
-    auth: { user: config.imap.user, pass: decryptMailSecret(config.imap.password) },
+    auth: { user: config.imap.user, pass: decryptSecret(config.imap.password) },
     logger: false,
     clientInfo: { name: 'WinUI-BBS', version: currentVersion },
     connectionTimeout: 15000,
@@ -116,9 +99,6 @@ export async function checkImap(config: MailTransport) {
   } finally {
     client.close()
   }
-}
-export function challengeHash(secret: string) {
-  return createHmac('sha256', encryptionKey()).update(secret).digest('hex')
 }
 export async function verifyEmailCode(client: PoolClient, email: string, purpose: string, code: string) {
   const result = await client.query<{ id: string; secret_hash: string }>(

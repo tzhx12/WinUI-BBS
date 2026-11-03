@@ -8,12 +8,15 @@ const props = defineProps<{
   purpose: 'registration' | 'password_change'
   email?: string
   token?: string | null
+  turnstileToken?: string
+  captchaRequired?: boolean
   disabled?: boolean
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   error: [message: string]
   sent: [message: string]
+  used: []
 }>()
 const busy = ref(false),
   remaining = ref(0)
@@ -28,7 +31,10 @@ async function send() {
       {
         method: 'POST',
         token: props.token,
-        body: props.purpose === 'registration' ? { email: props.email } : undefined,
+        body: {
+          ...(props.purpose === 'registration' ? { email: props.email } : {}),
+          ...(props.turnstileToken ? { turnstileToken: props.turnstileToken } : {}),
+        },
       },
     )
     remaining.value = result.retryAfterSeconds
@@ -42,6 +48,7 @@ async function send() {
     emit('error', (cause as Error).message)
   } finally {
     busy.value = false
+    emit('used')
   }
 }
 onBeforeUnmount(() => clearInterval(timer))
@@ -59,7 +66,13 @@ onBeforeUnmount(() => clearInterval(timer))
     />
     <WinButton
       :label="busy ? '正在发送…' : label"
-      :disabled="disabled || busy || remaining > 0 || (purpose === 'registration' && !email?.trim())"
+      :disabled="
+        disabled ||
+        busy ||
+        remaining > 0 ||
+        (purpose === 'registration' && !email?.trim()) ||
+        (captchaRequired && !turnstileToken)
+      "
       @click="send"
     />
   </div>

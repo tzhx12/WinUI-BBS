@@ -53,11 +53,12 @@ export async function registerRequestSecurity(app: FastifyInstance) {
       .header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
       .header('Content-Security-Policy', [
         "default-src 'self'",
-        "script-src 'self'",
+        "script-src 'self' https://challenges.cloudflare.com",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: http: https:",
         "font-src 'self' data:",
-        "connect-src 'self'",
+        "connect-src 'self' https://challenges.cloudflare.com",
+        "frame-src https://challenges.cloudflare.com",
         "worker-src 'self' blob:",
         "object-src 'none'",
         "base-uri 'self'",

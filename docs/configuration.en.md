@@ -2,7 +2,7 @@
 
 [Project home](../README.en.md) · [简体中文](configuration.md)
 
-**Version 0.4.0** · GPL-3.0-only
+**Version 0.5.0** · GPL-3.0-only
 
 WinUI-BBS is an open-source discussion forum with a Vue 3 frontend, WinUIonWeb controls, a Fastify API and PostgreSQL.
 
@@ -40,6 +40,8 @@ Back up PostgreSQL, local uploads and deployment configuration before updating; 
 
 Migration `026_public_post_lists.sql` adds public-feed and author-list indexes. Migration `027_feed_reply_counts.sql` backfills each post's count of undeleted replies, installs its maintenance trigger and adds popular-feed, category and child-reply indexes. Its initial run locks the affected tables while backfilling data and creating indexes; schedule a maintenance window for large databases. Subsequent reply creation, soft deletion, restoration and permanent deletion update the count in the same transaction.
 
+Migration `028_two_factor_and_turnstile.sql` adds TOTP account fields and Turnstile configuration; `029_totp_login_challenges.sql` adds one-time login challenges. Both features start disabled, so existing accounts retain their original sign-in flow.
+
 Media cleanup protects active avatars, existing emoji and site icons. Newly uploaded avatars retain cleanup protection after replacement. Replaced avatars from older installations have no separate identity record and continue to be treated as ordinary library images.
 
 ## Home and category images
@@ -62,7 +64,7 @@ Set `MAIL_ENCRYPTION_KEY` in `apps/api/.env` before saving mail credentials. Gen
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 ```
 
-Credentials are encrypted with AES-256-GCM in the database. Real mail addresses, hosts and secrets belong in local deployment configuration, never in source files or committed screenshots.
+Mail credentials, the Turnstile secret key and user TOTP secrets are encrypted with AES-256-GCM in the database. Keep the original `MAIL_ENCRYPTION_KEY` for backups and restores. Real mail addresses, hosts and secrets belong in local deployment configuration, never in source files or committed screenshots.
 
 Enable registration email verification in **用户与注册 → 注册管理**. Codes expire after **60 minutes** by default and can be used only once. Five wrong attempts invalidate a code. Registration, password-change and recovery mail share a per-email send interval of at least **60 seconds**.
 
@@ -71,6 +73,10 @@ The sign-in dialog includes password recovery. A recovery link expires after **3
 Users can change their password from the dashboard after verifying a code sent to their account email. Passwords must have 10–128 characters; successful changes are limited to **once per 60 seconds** by default. The current session receives a new token and other previous sessions become invalid.
 
 Code expiry, mail interval, recovery availability, link expiry, daily request limit and password-change interval are configurable in registration management. Registration verification starts disabled so installations without a mail service retain their existing registration behavior. These changes do not require existing accounts to verify email before signing in.
+
+Users can enable two-factor authentication in **User dashboard → Profile management**. Confirm the current password, scan the QR code with an authenticator app, then enter its six-digit code to bind it. Later sign-ins require both the password and a one-time code. Enabling or disabling it invalidates other sessions. The setup secret is shown only during enrollment; keep `MAIL_ENCRYPTION_KEY` configured and backed up. Back up the account in your authenticator app; resetting the password by email leaves two-factor authentication enabled.
+
+Administrators with `settings.manage` configure Cloudflare Turnstile site and secret keys in **用户与注册 → 注册管理**, and add the site hostname to the widget in Cloudflare. When enabled, challenges protect sign-in, registration, registration-code requests, password-recovery requests, password resets, password-change code requests and password changes. The secret key is encrypted in the database, and leaving its field blank preserves the saved key. Widgets are centered in each form and use the compact size in narrow containers.
 
 ## Main features
 
@@ -226,7 +232,7 @@ Image management searches filenames, descriptions and pack names, combines searc
 
 ## About and open-source credits
 
-Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 0.4.0 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
+Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 0.5.0 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
 
 The project version comes from the root `package.json`. Site administrators can configure their own community name independently.
 

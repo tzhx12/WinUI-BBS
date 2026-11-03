@@ -9,6 +9,7 @@ import type { PageParameter } from '../types'
 import PageHeader from '../components/ui/PageHeader.vue'
 import ResourceState from '../components/ui/ResourceState.vue'
 import WinButton from '../components/ui/WinButton.vue'
+import TurnstileWidget from '../components/TurnstileWidget.vue'
 defineOptions({ inheritAttrs: false })
 const props = defineProps<{ Parameter: PageParameter }>(),
   site = useSite(),
@@ -16,7 +17,9 @@ const props = defineProps<{ Parameter: PageParameter }>(),
 const token = props.Parameter.query.token || '',
   password = ref(''),
   confirm = ref(''),
-  done = ref(false)
+  done = ref(false),
+  turnstileToken = ref(''),
+  turnstileGeneration = ref(0)
 const { data, loading, error, saving, run } = useResource(
   () =>
     api<{ valid: boolean; expiresAt: string }>('/api/auth/password-reset', {
@@ -32,7 +35,14 @@ async function reset() {
   }
   if (
     await run(() =>
-      api('/api/auth/reset-password', { method: 'POST', body: { token, password: password.value } }),
+      api('/api/auth/reset-password', {
+        method: 'POST',
+        body: {
+          token,
+          password: password.value,
+          ...(site.settings.turnstile.enabled ? { turnstileToken: turnstileToken.value } : {}),
+        },
+      }),
     )
   ) {
     done.value = true
@@ -40,6 +50,10 @@ async function reset() {
     confirm.value = ''
     site.signOut(false)
     window.history.replaceState(null, '', `${window.location.pathname}#/reset-password`)
+  }
+  if (site.settings.turnstile.enabled) {
+    turnstileToken.value = ''
+    turnstileGeneration.value += 1
   }
 }
 function login() {
@@ -67,6 +81,14 @@ function login() {
           autocomplete="new-password"
         />
         <p class="field-hint">密码需为 10–128 位，链接只能使用一次。</p>
+        <TurnstileWidget
+          v-if="site.settings.turnstile.enabled"
+          :key="turnstileGeneration"
+          :site-key="site.settings.turnstile.siteKey"
+          action="password-reset"
+          @verified="turnstileToken = $event"
+          @error="error = $event"
+        />
         <WinButton label="重设密码" accent :disabled="saving" @click="reset" />
       </form>
       <WinButton v-else-if="!loading" label="重新找回密码" @click="login" />

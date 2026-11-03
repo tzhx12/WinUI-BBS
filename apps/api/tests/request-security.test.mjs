@@ -58,6 +58,8 @@ test('trusted reverse proxy separates clients and supplies HTTPS security header
     assert.equal(ok.headers['x-frame-options'], 'DENY')
     assert.equal(ok.headers['referrer-policy'], 'no-referrer')
     assert.match(ok.headers['content-security-policy'], /script-src 'self'/)
+    assert.match(ok.headers['content-security-policy'], /challenges\.cloudflare\.com/)
+    assert.match(ok.headers['content-security-policy'], /frame-src https:\/\/challenges\.cloudflare\.com/)
     assert.match(ok.headers['content-security-policy'], /frame-ancestors 'none'/)
     assert.equal((await app.inject(request)).statusCode, 429)
     assert.equal((await app.inject({ ...request, headers: { ...headers, 'x-forwarded-for': '203.0.113.2' } })).statusCode, 200)
@@ -78,6 +80,8 @@ test('production route modules attach the authentication limits to their actual 
   try {
     for (const [url, policy] of [
       ['/api/auth/login', 'login'], ['/api/auth/register', 'register'], ['/api/setup/initialize', 'setup'],
+      ['/api/auth/login/totp', 'login'], ['/api/me/totp/setup', 'change'],
+      ['/api/me/totp/enable', 'change'], ['/api/me/totp/disable', 'change'],
       ['/api/auth/email-code', 'email'], ['/api/auth/forgot-password', 'email'],
       ['/api/auth/password-reset', 'reset'], ['/api/auth/reset-password', 'reset'],
       ['/api/me/password/code', 'email'], ['/api/me/password', 'change'],

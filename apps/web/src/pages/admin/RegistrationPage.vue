@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NumberBox, ToggleSwitch } from 'winuionweb'
+import { NumberBox, PasswordBox, TextBox, ToggleSwitch } from 'winuionweb'
 import { api } from '../../api'
 import { useResource } from '../../composables/useResource'
 import { useSite } from '../../site'
@@ -15,14 +15,20 @@ const { data, loading, error, saving, run } = useResource(
       registration_enabled: boolean
       registration_mode: 'open' | 'invite'
       security: typeof site.settings.emailSecurity
-    }>('/api/admin/registration-settings', { token: site.token.value }),
+      turnstile: { enabled: boolean; siteKey: string; hasSecret: boolean }
+    }>('/api/admin/registration-settings', { token: site.token.value }).then((value) => ({
+      ...value,
+      turnstile: { ...value.turnstile, secretKey: '' },
+    })),
   {
     registration_enabled: true,
     registration_mode: 'open' as 'open' | 'invite',
     security: { ...site.settings.emailSecurity },
+    turnstile: { enabled: false, siteKey: '', hasSecret: false, secretKey: '' },
   },
 )
 async function save() {
+  const hasNewTurnstileSecret = !!data.value.turnstile.secretKey
   if (
     await run(
       () =>
@@ -33,6 +39,11 @@ async function save() {
             registrationEnabled: data.value.registration_enabled,
             registrationMode: data.value.registration_mode,
             security: data.value.security,
+            turnstile: {
+              enabled: data.value.turnstile.enabled,
+              siteKey: data.value.turnstile.siteKey,
+              secretKey: data.value.turnstile.secretKey,
+            },
           },
         }),
       '注册与密码安全设置已保存',
@@ -41,6 +52,12 @@ async function save() {
     site.settings.registrationEnabled = data.value.registration_enabled
     site.settings.registrationMode = data.value.registration_mode
     site.settings.emailSecurity = { ...data.value.security }
+    site.settings.turnstile = {
+      enabled: data.value.turnstile.enabled,
+      siteKey: data.value.turnstile.enabled ? data.value.turnstile.siteKey : '',
+    }
+    data.value.turnstile.hasSecret ||= hasNewTurnstileSecret
+    data.value.turnstile.secretKey = ''
   }
 }
 </script>
@@ -74,6 +91,32 @@ async function save() {
             OnContent="需要验证码"
             OffContent="无需验证"
           />
+        </section>
+        <section class="surface-card form-stack">
+          <h2>人机验证</h2>
+          <ToggleSwitch
+            v-model:IsOn="data.turnstile.enabled"
+            Header="启用 Cloudflare Turnstile"
+            OnContent="开启"
+            OffContent="关闭"
+          />
+          <template v-if="data.turnstile.enabled">
+            <TextBox
+              v-model:Text="data.turnstile.siteKey"
+              Header="站点密钥"
+              aria-label="Turnstile 站点密钥"
+              autocomplete="off"
+            />
+            <PasswordBox
+              v-model:Password="data.turnstile.secretKey"
+              Header="私钥"
+              autocomplete="new-password"
+            />
+            <p class="field-hint">
+              {{ data.turnstile.hasSecret ? '已保存私钥；留空会保留当前密钥。' : '私钥加密保存在服务端。' }}
+              开启后，登录、注册、找回密码和更改密码都需要完成验证。
+            </p>
+          </template>
         </section>
         <section class="surface-card form-stack">
           <h2>邮箱验证码</h2>

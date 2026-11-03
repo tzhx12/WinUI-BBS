@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-WinUI-BBS 0.4.0 is distributed under GPL-3.0-only. WinUIonWeb is also GPL-3.0-only; its full license is in `LICENSE` and its upstream-specific notices are in `licenses/WinUIonWeb-THIRD_PARTY_NOTICES.md`.
+WinUI-BBS 0.5.0 is distributed under GPL-3.0-only. WinUIonWeb is also GPL-3.0-only; its full license is in `LICENSE` and its upstream-specific notices are in `licenses/WinUIonWeb-THIRD_PARTY_NOTICES.md`.
 
 WinUIonWeb 0.2.0-forum.4 is built from upstream commit
 `692d0a76dad3fa92515bc50db44ed626d83b695e` with native-context-menu and TreeView
@@ -27,6 +27,8 @@ and generator are in `apps/web/icons/fluent-system-icons.json` and
 ## Project links
 
 [hevue-img-preview](https://github.com/heyongsheng/hevue-img-preview) 7.1.3 provides post and reply image previews. Its package metadata declares MIT; the upstream LICENSE file is empty. Attribution, provenance and the standard MIT text are included in `licenses/hevue-img-preview-MIT.txt`.
+
+[node-qrcode](https://github.com/soldair/node-qrcode) 1.5.4 generates authenticator setup QR codes locally in the browser under MIT. Its license is included in `licenses/qrcode-MIT.txt`. Cloudflare Turnstile loads its widget from `challenges.cloudflare.com` when verification is enabled.
 
 The application has an About page with links to these projects and their roles:
 

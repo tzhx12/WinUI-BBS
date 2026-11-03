@@ -13,6 +13,7 @@ import { registerReplyRoutes } from './replies.js'
 import { registerFollowRoutes } from './follows.js'
 import { postUnlocks, validateContentLocks, visibleBody } from '../lockedContent.js'
 import { postFeedColumns, searchPosts } from '../postSearch.js'
+import { readTurnstileConfig } from '../turnstile.js'
 
 const currentLevel = readerLevel
 export async function registerForumRoutes(
@@ -36,20 +37,28 @@ export async function registerForumRoutes(
     clearInterval(cleanupTimer)
   })
   app.get('/api/site', async () => {
-    return readSettings([
-      'site_title',
-      'site_icon_url',
-      'home_background_url',
-      'popular_background_url',
-      'popular_background_height',
-      'home_content',
-      'site_url',
-      'registration_enabled',
-      'registration_mode',
-      'posts_require_review',
-      'email_security',
-      'content_limits',
+    const [settings, turnstile] = await Promise.all([
+      readSettings([
+        'site_title',
+        'site_icon_url',
+        'home_background_url',
+        'popular_background_url',
+        'popular_background_height',
+        'home_content',
+        'site_url',
+        'registration_enabled',
+        'registration_mode',
+        'posts_require_review',
+        'email_security',
+        'content_limits',
+      ]),
+      readTurnstileConfig(),
     ])
+    return {
+      ...settings,
+      turnstile_enabled: turnstile.enabled,
+      turnstile_site_key: turnstile.enabled ? turnstile.siteKey : '',
+    }
   })
 
   app.get('/api/admin/content-settings', { preHandler: requirePermission('settings.manage') }, async () =>

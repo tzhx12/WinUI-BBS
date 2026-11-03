@@ -1,11 +1,16 @@
 import bcrypt, { closePasswordWorkers } from '../passwords.js'
+import { randomBytes } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate } from '../auth.js'
 import { effectiveLevel, inTransaction, query } from '../db.js'
 import { grantLevelInvitations } from '../invitations.js'
 import { verifyEmailCode } from '../mail.js'
+import { decryptSecret, encryptSecret, secretHash } from '../accountSecrets.js'
 import { authRateLimits } from '../requestSecurity.js'
+import { verifyTurnstile } from '../turnstile.js'
+import { generateTotpSecret, matchingTotpCounter, provisioningUri } from '../totp.js'
+import { readSettings } from '../settings.js'
 
 const usernameSchema = z
   .string()
@@ -46,6 +51,145 @@ function siteDate() {
 
 export async function registerAuthRoutes(app: FastifyInstance) {
   app.addHook('onClose', closePasswordWorkers)
+  app.post(
+    '/api/me/totp/setup',
+    { preHandler: authenticate, config: { rateLimit: authRateLimits.change } },
+    async (request, reply) => {
+      const parsed = z.object({ password: z.string().min(1).max(128) }).safeParse(request.body)
+      if (!parsed.success) return reply.code(400).send({ error: '请输入当前密码' })
+      const current = (
+        await query<{ password_hash: string; totp_secret: string | null }>(
+          'SELECT password_hash,totp_secret FROM users WHERE uid=$1',
+          [request.user.uid],
+        )
+      ).rows[0]
+      if (!current || !(await bcrypt.compare(parsed.data.password, current.password_hash)))
+        return reply.code(400).send({ error: '当前密码不正确' })
+      if (current.totp_secret) return reply.code(409).send({ error: '两步验证已启用' })
+      const secret = generateTotpSecret()
+      const saved = await inTransaction(async (client) => {
+        const locked = await client.query<{ totp_secret: string | null; username: string }>(
+          `SELECT totp_secret,username FROM users WHERE uid=$1 AND password_hash=$2
+         AND session_version=$3 AND status='active' FOR UPDATE`,
+          [request.user.uid, current.password_hash, request.user.sessionVersion ?? 0],
+        )
+        if (!locked.rows[0] || locked.rows[0].totp_secret) return false
+        await client.query('UPDATE users SET totp_pending_secret=$2,totp_pending_at=NOW() WHERE uid=$1', [
+          request.user.uid,
+          encryptSecret(secret),
+        ])
+        return locked.rows[0].username
+      })
+      if (!saved) return reply.code(409).send({ error: '两步验证已启用' })
+      const siteTitle = String((await readSettings(['site_title'])).site_title || 'WinUI-BBS')
+      return {
+        secret,
+        otpauthUrl: provisioningUri(secret, saved, siteTitle),
+        expiresInMinutes: 10,
+      }
+    },
+  )
+
+  app.post(
+    '/api/me/totp/enable',
+    { preHandler: authenticate, config: { rateLimit: authRateLimits.change } },
+    async (request, reply) => {
+      const parsed = z.object({ code: z.string().regex(/^\d{6}$/) }).safeParse(request.body)
+      if (!parsed.success) return reply.code(400).send({ error: '请输入验证器中的 6 位验证码' })
+      const enabled = await inTransaction(async (client) => {
+        const current = await client.query<{
+          uuid: string
+          totp_secret: string | null
+          totp_pending_secret: string | null
+          totp_pending_at: Date | null
+          totp_last_counter: string
+        }>(
+          `SELECT uuid,totp_secret,totp_pending_secret,totp_pending_at,totp_last_counter FROM users
+         WHERE uid=$1 AND session_version=$2 AND status='active' FOR UPDATE`,
+          [request.user.uid, request.user.sessionVersion ?? 0],
+        )
+        const user = current.rows[0]
+        if (!user || user.totp_secret) return { error: '两步验证设置已失效，请重新开始' }
+        if (
+          !user.totp_pending_secret ||
+          !user.totp_pending_at ||
+          Date.now() - user.totp_pending_at.getTime() > 10 * 60_000
+        )
+          return { error: '绑定二维码已过期，请重新开始' }
+        const secret = decryptSecret(user.totp_pending_secret)
+        const counter = matchingTotpCounter(
+          secret,
+          parsed.data.code,
+          Date.now(),
+          BigInt(user.totp_last_counter),
+        )
+        if (counter === null) return { error: '验证码错误或已使用' }
+        const updated = await client.query<{ session_version: number }>(
+          `UPDATE users SET totp_secret=totp_pending_secret,totp_pending_secret=NULL,totp_pending_at=NULL,
+           totp_last_counter=$2,session_version=session_version+1 WHERE uid=$1 RETURNING session_version`,
+          [request.user.uid, counter.toString()],
+        )
+        return { uuid: user.uuid, sessionVersion: updated.rows[0]!.session_version }
+      })
+      if ('error' in enabled) return reply.code(400).send({ error: enabled.error })
+      return {
+        enabled: true,
+        token: app.jwt.sign(
+          { uid: request.user.uid, uuid: enabled.uuid, sessionVersion: enabled.sessionVersion },
+          { expiresIn: '7d' },
+        ),
+      }
+    },
+  )
+
+  app.post(
+    '/api/me/totp/disable',
+    { preHandler: authenticate, config: { rateLimit: authRateLimits.change } },
+    async (request, reply) => {
+      const parsed = z
+        .object({ password: z.string().min(1).max(128), code: z.string().regex(/^\d{6}$/) })
+        .safeParse(request.body)
+      if (!parsed.success) return reply.code(400).send({ error: '请填写当前密码和 6 位验证码' })
+      const disabled = await inTransaction(async (client) => {
+        const current = await client.query<{
+          uuid: string
+          password_hash: string
+          totp_secret: string | null
+          totp_last_counter: string
+        }>(
+          `SELECT uuid,password_hash,totp_secret,totp_last_counter FROM users
+         WHERE uid=$1 AND session_version=$2 AND status='active' FOR UPDATE`,
+          [request.user.uid, request.user.sessionVersion ?? 0],
+        )
+        const user = current.rows[0]
+        if (!user?.totp_secret) return { error: '两步验证尚未启用' }
+        if (!(await bcrypt.compare(parsed.data.password, user.password_hash)))
+          return { error: '当前密码不正确' }
+        const counter = matchingTotpCounter(
+          decryptSecret(user.totp_secret),
+          parsed.data.code,
+          Date.now(),
+          BigInt(user.totp_last_counter),
+        )
+        if (counter === null) return { error: '验证码错误或已使用' }
+        const updated = await client.query<{ session_version: number }>(
+          `UPDATE users SET totp_secret=NULL,totp_pending_secret=NULL,totp_pending_at=NULL,
+           totp_last_counter=-1,session_version=session_version+1 WHERE uid=$1 RETURNING session_version`,
+          [request.user.uid],
+        )
+        return { uuid: user.uuid, sessionVersion: updated.rows[0]!.session_version }
+      })
+      if ('error' in disabled) return reply.code(400).send({ error: disabled.error })
+      return {
+        enabled: false,
+        token: app.jwt.sign(
+          { uid: request.user.uid, uuid: disabled.uuid, sessionVersion: disabled.sessionVersion },
+          { expiresIn: '7d' },
+        ),
+      }
+    },
+  )
+
   app.patch('/api/me/profile', { preHandler: authenticate }, async (request, reply) => {
     const parsed = z
       .object({ username: usernameSchema.optional(), displayName: displayNameSchema.optional() })
@@ -102,97 +246,109 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     }
   })
 
-  app.post('/api/auth/register', { config: { rateLimit: authRateLimits.register } }, async (request, reply) => {
-    const parsed = credentialsSchema.safeParse(request.body)
-    if (!parsed.success) return reply.code(400).send({ error: '请检查用户名、邮箱和密码格式' })
-    const { email, displayName, password } = parsed.data
-    const username = parsed.data.username.toLowerCase()
-    const passwordHash = await bcrypt.hash(password, 12)
+  app.post(
+    '/api/auth/register',
+    { config: { rateLimit: authRateLimits.register } },
+    async (request, reply) => {
+      const parsed = credentialsSchema
+        .extend({ turnstileToken: z.string().max(2048).optional() })
+        .safeParse(request.body)
+      if (!parsed.success) return reply.code(400).send({ error: '请检查用户名、邮箱和密码格式' })
+      await verifyTurnstile(request, parsed.data.turnstileToken, 'register')
+      const { email, displayName, password } = parsed.data
+      const username = parsed.data.username.toLowerCase()
+      const passwordHash = await bcrypt.hash(password, 12)
 
-    try {
-      const user = await inTransaction(async (client) => {
-        await client.query("SELECT pg_advisory_xact_lock(hashtext('forum-first-admin'))")
-        if (!(await client.query('SELECT 1 FROM users LIMIT 1')).rowCount)
-          throw Object.assign(new Error('社区尚未完成初始化'), { statusCode: 403 })
-        const registration = await client.query<{ setting_key: string; setting_value: unknown }>(
-          "SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ('registration_enabled', 'registration_mode', 'email_security') FOR SHARE",
-        )
-        const settings = Object.fromEntries(
-          registration.rows.map((row) => [row.setting_key, row.setting_value]),
-        )
-        if (!settings.registration_enabled)
-          throw Object.assign(new Error('站点暂未开放注册'), { statusCode: 403 })
-        let challenge: string | null = null
-        if ((settings.email_security as { registrationVerification: boolean }).registrationVerification) {
-          challenge = await verifyEmailCode(
-            client,
-            email.toLowerCase(),
-            'registration',
-            parsed.data.verificationCode || '',
+      try {
+        const user = await inTransaction(async (client) => {
+          await client.query("SELECT pg_advisory_xact_lock(hashtext('forum-first-admin'))")
+          if (!(await client.query('SELECT 1 FROM users LIMIT 1')).rowCount)
+            throw Object.assign(new Error('社区尚未完成初始化'), { statusCode: 403 })
+          const registration = await client.query<{ setting_key: string; setting_value: unknown }>(
+            "SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ('registration_enabled', 'registration_mode', 'email_security') FOR SHARE",
           )
-          if (!challenge) return null
-        }
-        const code = parsed.data.invitationCode
-        let invitationId: string | null = null
-        if (settings.registration_mode === 'invite' || code) {
-          const invitation = await client.query<{ id: string }>(
-            `UPDATE invitations SET used_count = used_count + 1 WHERE code = $1 AND is_enabled
+          const settings = Object.fromEntries(
+            registration.rows.map((row) => [row.setting_key, row.setting_value]),
+          )
+          if (!settings.registration_enabled)
+            throw Object.assign(new Error('站点暂未开放注册'), { statusCode: 403 })
+          let challenge: string | null = null
+          if ((settings.email_security as { registrationVerification: boolean }).registrationVerification) {
+            challenge = await verifyEmailCode(
+              client,
+              email.toLowerCase(),
+              'registration',
+              parsed.data.verificationCode || '',
+            )
+            if (!challenge) return null
+          }
+          const code = parsed.data.invitationCode
+          let invitationId: string | null = null
+          if (settings.registration_mode === 'invite' || code) {
+            const invitation = await client.query<{ id: string }>(
+              `UPDATE invitations SET used_count = used_count + 1 WHERE code = $1 AND is_enabled
              AND used_count < max_uses AND (expires_at IS NULL OR expires_at > NOW()) RETURNING id`,
-            [code ?? ''],
-          )
-          if (!invitation.rows[0])
-            throw Object.assign(new Error('邀请码无效、已过期或已用完'), { statusCode: 400 })
-          invitationId = invitation.rows[0].id
-        }
-        const inserted = await client.query<{
-          uid: string
-          uuid: string
-          username: string
-          display_name: string
-        }>(
-          `INSERT INTO users (username, email, password_hash, display_name)
+              [code ?? ''],
+            )
+            if (!invitation.rows[0])
+              throw Object.assign(new Error('邀请码无效、已过期或已用完'), { statusCode: 400 })
+            invitationId = invitation.rows[0].id
+          }
+          const inserted = await client.query<{
+            uid: string
+            uuid: string
+            username: string
+            display_name: string
+          }>(
+            `INSERT INTO users (username, email, password_hash, display_name)
            VALUES ($1, $2, $3, $4)
            RETURNING uid, uuid, username, display_name`,
-          [username, email.toLowerCase(), passwordHash, displayName],
-        )
-        const user = inserted.rows[0]!
-        if (challenge) {
-          await client.query('UPDATE email_challenges SET consumed_at=NOW() WHERE id=$1', [challenge])
-          await client.query('UPDATE users SET email_verified_at=NOW() WHERE uid=$1', [user.uid])
-        }
-        if (invitationId)
-          await client.query('INSERT INTO invitation_uses (invitation_id, user_uid) VALUES ($1, $2)', [
-            invitationId,
-            user.uid,
-          ])
-        const defaultGroup = await client.query<{ id: string }>(
-          'SELECT id FROM user_groups WHERE is_default = TRUE LIMIT 1',
-        )
-        if (defaultGroup.rows[0]) {
-          await client.query('INSERT INTO group_memberships (user_uid, group_id) VALUES ($1, $2)', [
-            user.uid,
-            defaultGroup.rows[0].id,
-          ])
-        }
-        await grantLevelInvitations(user.uid, client)
-        return user
-      })
-      if (!user)
-        return reply.code(400).send({ error: '请填写正确的邮箱验证码，验证码可能已过期或尝试次数过多' })
-      const token = app.jwt.sign({ uid: user.uid, uuid: user.uuid }, { expiresIn: '7d' })
-      return reply.code(201).send({ token, user: { ...user, level: 1, experience: 0 } })
-    } catch (error) {
-      if ((error as { code?: string }).code === '23505')
-        return reply.code(409).send({ error: '用户名或邮箱已被使用' })
-      throw error
-    }
-  })
+            [username, email.toLowerCase(), passwordHash, displayName],
+          )
+          const user = inserted.rows[0]!
+          if (challenge) {
+            await client.query('UPDATE email_challenges SET consumed_at=NOW() WHERE id=$1', [challenge])
+            await client.query('UPDATE users SET email_verified_at=NOW() WHERE uid=$1', [user.uid])
+          }
+          if (invitationId)
+            await client.query('INSERT INTO invitation_uses (invitation_id, user_uid) VALUES ($1, $2)', [
+              invitationId,
+              user.uid,
+            ])
+          const defaultGroup = await client.query<{ id: string }>(
+            'SELECT id FROM user_groups WHERE is_default = TRUE LIMIT 1',
+          )
+          if (defaultGroup.rows[0]) {
+            await client.query('INSERT INTO group_memberships (user_uid, group_id) VALUES ($1, $2)', [
+              user.uid,
+              defaultGroup.rows[0].id,
+            ])
+          }
+          await grantLevelInvitations(user.uid, client)
+          return user
+        })
+        if (!user)
+          return reply.code(400).send({ error: '请填写正确的邮箱验证码，验证码可能已过期或尝试次数过多' })
+        const token = app.jwt.sign({ uid: user.uid, uuid: user.uuid }, { expiresIn: '7d' })
+        return reply.code(201).send({ token, user: { ...user, level: 1, experience: 0 } })
+      } catch (error) {
+        if ((error as { code?: string }).code === '23505')
+          return reply.code(409).send({ error: '用户名或邮箱已被使用' })
+        throw error
+      }
+    },
+  )
 
   app.post('/api/auth/login', { config: { rateLimit: authRateLimits.login } }, async (request, reply) => {
     const parsed = z
-      .object({ identity: z.string().trim().min(1).max(320), password: z.string().min(1).max(128) })
+      .object({
+        identity: z.string().trim().min(1).max(320),
+        password: z.string().min(1).max(128),
+        turnstileToken: z.string().max(2048).optional(),
+      })
       .safeParse(request.body)
     if (!parsed.success) return reply.code(400).send({ error: '请输入账号和密码' })
+    await verifyTurnstile(request, parsed.data.turnstileToken, 'login')
     const result = await query<{
       uid: string
       uuid: string
@@ -206,9 +362,10 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       is_banned: boolean
       banned_until: Date | null
       session_version: number
+      totp_secret: string | null
     }>(
       `SELECT uid, uuid, username, email, display_name, password_hash, experience, level_offset, status,
-              banned_until, session_version, COALESCE(banned_until > NOW(), FALSE) AS is_banned
+              banned_until, session_version, totp_secret, COALESCE(banned_until > NOW(), FALSE) AS is_banned
        FROM users WHERE lower(username) = lower($1) OR lower(email) = lower($1) LIMIT 1`,
       [parsed.data.identity],
     )
@@ -219,6 +376,20 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       !(await bcrypt.compare(parsed.data.password, user.password_hash))
     ) {
       return reply.code(401).send({ error: '账号或密码不正确' })
+    }
+    if (user.totp_secret) {
+      const challengeToken = randomBytes(32).toString('base64url')
+      await query(
+        `INSERT INTO totp_login_challenges(user_uid,secret_hash,session_version,expires_at)
+         VALUES($1,$2,$3,NOW()+INTERVAL '5 minutes')
+         ON CONFLICT(user_uid) DO UPDATE SET secret_hash=EXCLUDED.secret_hash,
+         session_version=EXCLUDED.session_version,attempts=0,expires_at=EXCLUDED.expires_at`,
+        [user.uid, secretHash(challengeToken), user.session_version],
+      )
+      return {
+        requiresTwoFactor: true,
+        challengeToken,
+      }
     }
     const token = app.jwt.sign(
       { uid: user.uid, uuid: user.uuid, sessionVersion: user.session_version },
@@ -239,6 +410,75 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     }
   })
 
+  app.post(
+    '/api/auth/login/totp',
+    { config: { rateLimit: authRateLimits.login } },
+    async (request, reply) => {
+      const parsed = z
+        .object({ challengeToken: z.string().min(40).max(128), code: z.string().regex(/^\d{6}$/) })
+        .safeParse(request.body)
+      if (!parsed.success) return reply.code(400).send({ error: '请输入验证器中的 6 位验证码' })
+      const result = await inTransaction(async (client) => {
+        const current = await client.query<{
+          uid: string
+          uuid: string
+          username: string
+          email: string
+          display_name: string
+          experience: string
+          level_offset: number
+          totp_secret: string | null
+          totp_last_counter: string
+          session_version: number
+        }>(
+          `SELECT u.uid,u.uuid,u.username,u.email,u.display_name,u.experience,u.level_offset,
+           u.totp_secret,u.totp_last_counter,u.session_version FROM users u
+         JOIN totp_login_challenges c ON c.user_uid=u.uid
+         WHERE c.secret_hash=$1 AND c.attempts<5 AND c.expires_at>NOW()
+           AND u.status='active' AND u.session_version=c.session_version FOR UPDATE OF u,c`,
+          [secretHash(parsed.data.challengeToken)],
+        )
+        const user = current.rows[0]
+        if (!user || !user.totp_secret) return null
+        const counter = matchingTotpCounter(
+          decryptSecret(user.totp_secret),
+          parsed.data.code,
+          Date.now(),
+          BigInt(user.totp_last_counter),
+        )
+        if (counter === null) {
+          await client.query('UPDATE totp_login_challenges SET attempts=attempts+1 WHERE user_uid=$1', [
+            user.uid,
+          ])
+          return null
+        }
+        await client.query('UPDATE users SET totp_last_counter=$2 WHERE uid=$1', [
+          user.uid,
+          counter.toString(),
+        ])
+        await client.query('DELETE FROM totp_login_challenges WHERE user_uid=$1', [user.uid])
+        return user
+      })
+      if (!result) return reply.code(401).send({ error: '验证码错误、已使用或登录验证已过期' })
+      const token = app.jwt.sign(
+        { uid: result.uid, uuid: result.uuid, sessionVersion: result.session_version },
+        { expiresIn: '7d' },
+      )
+      return {
+        token,
+        user: {
+          uid: result.uid,
+          uuid: result.uuid,
+          username: result.username,
+          email: result.email,
+          displayName: result.display_name,
+          experience: Number(result.experience),
+          level: await effectiveLevel(result.experience, result.level_offset),
+        },
+      }
+    },
+  )
+
   app.get('/api/auth/me', { preHandler: authenticate }, async (request, reply) => {
     const result = await query<{
       uid: string
@@ -251,9 +491,11 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       avatar_url: string | null
       username_change_available_at: Date | null
       follower_count: number
+      two_factor_enabled: boolean
     }>(
       `SELECT u.uid, u.uuid, u.username, u.email, u.display_name, u.experience, u.level_offset, u.avatar_url,
               ${usernameChangeAvailableAtSql} AS username_change_available_at,
+              (u.totp_secret IS NOT NULL) AS two_factor_enabled,
               (SELECT COUNT(*)::int FROM user_follows WHERE followed_uid=u.uid) AS follower_count
        FROM users u WHERE u.uid = $1`,
       [request.user.uid],
@@ -308,6 +550,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       checkedIn: checkin.rows[0]?.checked_in ?? false,
       pointsPerLevel: progress.rows[0]?.points_per_level ?? 100,
       checkinPoints: progress.rows[0]?.checkin_points ?? 0,
+      twoFactorEnabled: user.two_factor_enabled,
     }
   })
 

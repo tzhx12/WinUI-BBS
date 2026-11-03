@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | English
 
-[![Version 0.4.0](https://img.shields.io/badge/version-0.4.0-0078D4)](package.json)
+[![Version 0.5.0](https://img.shields.io/badge/version-0.5.0-0078D4)](package.json)
 [![GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-2d7d46)](LICENSE)
 
 An open-source discussion forum with a **WinUI-style interface**, built with Vue 3, WinUIonWeb, Fastify and PostgreSQL. It provides rich discussions, user spaces, fine-grained permissions and a visual administration panel. The interface is currently in Simplified Chinese.
@@ -10,6 +10,8 @@ An open-source discussion forum with a **WinUI-style interface**, built with Vue
 [GitHub](https://github.com/tzhx12/WinUI-BBS) · [Report an issue](https://github.com/tzhx12/WinUI-BBS/issues) · [Configuration guide](docs/configuration.en.md)
 
 Read [Secure deployment](docs/security.en.md) before exposing the site publicly, including session secrets, HTTPS and trusted proxies.
+
+[0.5.0 release notes](docs/release-0.5.0.md) (Chinese)
 
 ## Features
 
@@ -37,7 +39,7 @@ The interface supports light and dark themes, accent colors, compact navigation,
 
 ### Email and account security
 
-The server supports SMTP delivery, registration email verification, rate-limited password recovery, email-verified password changes and IMAP connection checks. Mail and object-storage credentials are encrypted with server-side keys.
+The server supports SMTP delivery, registration email verification, rate-limited password recovery, email-verified password changes, TOTP two-factor sign-in and Cloudflare Turnstile challenges. Mail, authenticator and object-storage secrets are encrypted with server-side keys.
 
 ## Preview
 
@@ -102,7 +104,7 @@ Open <http://127.0.0.1:5173/>. The API listens on <http://127.0.0.1:4000/> by de
 | `npm run dev`                          | Start both development servers   |
 | `npm run check`                        | Check types and icon mappings    |
 | `npm run build`                        | Build both workspaces            |
-| `npm run version:set -- 0.4.0`         | Set the next stable version      |
+| `npm run version:set -- 0.6.0`         | Set the next stable version      |
 | `npm run test:integration -w apps/api` | Run PostgreSQL integration tests |
 | `npm run format -w apps/web`           | Format the frontend              |
 
