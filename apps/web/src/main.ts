@@ -12,4 +12,6 @@ const app = createApp(App)
 const i18n = createI18n('zh-CN')
 app.provide(i18nKey, i18n)
 app.config.globalProperties.$t = i18n.t
-app.use(router).mount('#app')
+app.use(router)
+await router.isReady()
+app.mount('#app')

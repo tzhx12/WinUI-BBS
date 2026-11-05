@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.en.md)
 
-[![版本 1.0.0](https://img.shields.io/badge/version-1.0.0-0078D4)](package.json)
+[![版本 1.0.1](https://img.shields.io/badge/version-1.0.1-0078D4)](package.json)
 [![GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-2d7d46)](LICENSE)
 
 一个采用 **WinUI 风格**的开源论坛系统。项目使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL，提供图文讨论、用户空间、细粒度权限和可视化管理后台。界面默认使用简体中文。
@@ -11,7 +11,7 @@
 
 公网部署前请阅读[安全部署](docs/security.md)，配置随机密钥、HTTPS 与可信代理。
 
-[1.0.0 更新说明](docs/release-1.0.0.md)
+[1.0.1 更新说明](docs/release-1.0.1.md)
 
 ## 功能
 
