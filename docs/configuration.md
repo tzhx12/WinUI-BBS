@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [English](configuration.en.md)
 
-**当前版本：1.0.1** · **开源许可：GPL-3.0-only**
+**当前版本：1.0.2** · **开源许可：GPL-3.0-only**
 
 WinUI-BBS 是一个采用 WinUI 风格的开源论坛系统，使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL 构建。它提供可视化管理后台、用户组权限、分级板块、图文发帖、内容审核、站内通知与个人图床。
 
@@ -278,13 +278,15 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 ## 关于与开源致谢
 
-导航底部的“关于”位于“外观设置”或“管理后台”上方，游客和登录用户均可访问。页面展示 WinUI-BBS 项目介绍、当前版本 1.0.1，以及相关开源项目的超链接按钮。版本号读取根目录 `package.json`，站点名称可在后台独立配置。
+导航底部的“关于”位于“外观设置”或“管理后台”上方，游客和登录用户均可访问。页面展示 WinUI-BBS 项目介绍、当前版本 1.0.2，以及相关开源项目的超链接按钮。版本号读取根目录 `package.json`，站点名称可在后台独立配置。
 
 主要项目包括 [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb)、[Vue](https://vuejs.org/)、[Vue Router](https://router.vuejs.org/)、[Editor.js](https://github.com/codex-team/editor.js)、[DOMPurify](https://github.com/cure53/DOMPurify)、[Fastify](https://fastify.dev/)、[PostgreSQL](https://www.postgresql.org/)、[Vite](https://vite.dev/) 和 [TypeScript](https://www.typescriptlang.org/)。更多依赖及其用途见应用内“关于”页。
 
 ## 开发与验证
 
 前端位于 `apps/web`，后端位于 `apps/api`。应用使用 WinUIonWeb 的 TitleBar、NavigationView、Frame、表单、对话框、树和主题资源。路由采用 Hash 模式，可以直接链接帖子、板块和管理页面；管理菜单按用户有效权限显示。
+
+点击导航子项后，已展开的分组保持展开；权限和未读数量刷新也保留手动展开、收起的状态。权限撤销时，对应菜单项仍会立即移除。
 
 热门讨论直接展示帖子列表，不显示顶部板块卡片或发布帖子按钮；社区首页和分类页保留板块及发帖入口。
 

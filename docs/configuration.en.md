@@ -2,7 +2,7 @@
 
 [Project home](../README.en.md) · [简体中文](configuration.md)
 
-**Version 1.0.1** · GPL-3.0-only
+**Version 1.0.2** · GPL-3.0-only
 
 WinUI-BBS is an open-source discussion forum with a Vue 3 frontend, WinUIonWeb controls, a Fastify API and PostgreSQL.
 
@@ -251,7 +251,7 @@ Image management searches filenames, descriptions and pack names, combines searc
 
 ## About and open-source credits
 
-Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 1.0.1 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
+Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 1.0.2 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
 
 The project version comes from the root `package.json`. Site administrators can configure their own community name independently.
 
@@ -260,6 +260,8 @@ The project version comes from the root `package.json`. Site administrators can 
 The application uses WinUIonWeb's `TitleBar` and responsive `NavigationView` as its shell. Its `Frame` runs entrance transitions between sections and a drill-in transition when opening posts. Forms, dialogs, menus, lists, the category tree and progress indicators use the library's controls and theme resources. Light and dark themes are available from the title bar.
 
 The hash routes support direct links to posts, categories and each administration page. The admin navigation shows the sections granted by the current user's groups. Editor.js handles rich text, inline spoilers, uploaded images and separate emoji blocks.
+
+Expanded navigation groups stay open when selecting a child. Permission and unread-count refreshes preserve manually expanded or collapsed groups while removing any items the user can no longer access.
 
 Popular discussions show posts directly, without category cards or a publish button above the list. The community home and category pages retain their category and posting entry points.
 

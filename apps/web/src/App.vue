@@ -32,6 +32,7 @@ import HeaderAccount from './components/HeaderAccount.vue'
 import EmptyState from './components/ui/EmptyState.vue'
 import WinButton from './components/ui/WinButton.vue'
 import WinDialog from './components/ui/WinDialog.vue'
+import { useNavigationItems, type NavigationItem } from './composables/useNavigationItems'
 
 const site = createSite()
 const AuthDialog = defineAsyncComponent(() => import('./components/AuthDialog.vue'))
@@ -70,7 +71,7 @@ const selectedNavigation = computed(() =>
         : route.path,
 )
 
-function categoryItems(parent: string | null): unknown[] {
+function categoryItems(parent: string | null): NavigationItem[] {
   return site.categories.value
     .filter((item) => item.parent_id === parent)
     .sort((a, b) => a.sort_order - b.sort_order)
@@ -86,7 +87,7 @@ function categoryItems(parent: string | null): unknown[] {
     }))
 }
 
-const menuItems = computed(() =>
+const menuItems = useNavigationItems(() =>
   isAdmin.value
     ? [
         ...permittedSections.value
@@ -134,7 +135,7 @@ const menuItems = computed(() =>
       ],
 )
 
-const footerItems = computed(() => [
+const footerItems = useNavigationItems(() => [
   { Tag: '/about', Content: '关于', Icon: '\ue946' },
   ...(isAdmin.value
     ? [{ Tag: '/home', Content: '返回社区', Icon: '\ue72b' }]
