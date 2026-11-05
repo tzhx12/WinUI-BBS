@@ -2,7 +2,7 @@
 
 [Project home](../README.en.md) · [简体中文](configuration.md)
 
-**Version 0.5.0** · GPL-3.0-only
+**Version 1.0.0** · GPL-3.0-only
 
 WinUI-BBS is an open-source discussion forum with a Vue 3 frontend, WinUIonWeb controls, a Fastify API and PostgreSQL.
 
@@ -96,6 +96,8 @@ On phones, the title bar hides the site name and subtitle while keeping the logo
 
 ## Administration pages
 
+Permissions refresh before entering an administration page, every 30 seconds while in administration, and when returning to the browser page. Expired or revoked membership and account bans remove the corresponding navigation and open page. The API checks permission independently on every request.
+
 | Page | Purpose |
 | --- | --- |
 | Overview | View community activity and recent changes. |
@@ -175,6 +177,8 @@ Avatars on post lists, post bylines and replies open `/users/:uid`. Public space
 
 Public user spaces paginate posts using the site's posts-per-page setting. Previous/next controls and a page-number field support navigation, including Enter. The URL retains the page across refreshes and browser history; requests beyond the last page show the current last page.
 
+Personal and public favorite folders use the same posts-per-page setting. `GET /api/favorite-folders/:id?page=N` returns `{ folder, posts, page, pageSize, total, totalPages }`; totals include only published posts readable by the visitor. Requests without `page` keep the complete legacy list. User-space and favorite lists reuse the stored reply count.
+
 `GET /api/users/:uid?page=N` keeps `user`, `posts` and `folders`, and adds `page`, `pageSize`, `total` and `totalPages`. Its `posts` array contains only the requested page. Legacy requests without `page` retain their original response and full post list; new callers should supply `page` to avoid loading every post at once.
 
 ## Posts and personal recycle bin
@@ -211,6 +215,8 @@ Administrators with `settings.manage` use **公告与通知** to send announceme
 
 Posts, replies, nested replies and user profiles expose a report link that requires a signed-in user and a reason. Administrators with `posts.manage` use **举报处理** to page through reports: posts can be hidden, deleted, deleted with an author ban, or dismissed; users can be banned or dismissed; replies can be deleted or dismissed. Existing safeguards prevent banning UID 1, the acting administrator, or the last available group manager.
 
+Post authors can report other people's replies on their own threads. Deleting a reported reply uses the standard moderation flow: a deleted root retains its placeholder when children remain, otherwise the reply is permanently removed. The author receives a moderation notice and both reply deletion and report resolution are audited.
+
 ## Uploads and emoji packs
 
 In **图床与表情 → 上传与远端设置**, configure default storage and upload limits. Defaults are 1 GiB per user, 20 MiB per image, 20 personal emoji packs, 150 images per uploaded pack and 3 MiB per emoji image. Group settings can override individual limits; when several active groups specify a limit, the largest configured value applies. Unchecked overrides inherit the site default. The `media.use` permission controls personal image management and uploads; ordinary members receive it by default.
@@ -241,9 +247,11 @@ Administrators can select an existing shared pack in **图床与表情** or down
 
 Image management searches filenames, descriptions and pack names, combines search with collection and pack filters, and defaults to 50 images per page. `GET /api/admin/media/search` accepts `q`, `collection`, `packId`, `page` and `pageSize`. The original media list endpoints retain their array response.
 
+**我的图片 → 个人上传** displays 50 images per page, with previous/next, direct page navigation, Enter and URL page restoration. `GET /api/me/media?page=N` returns `{ items, page, pageSize, total, totalPages }`, restricted to the user's non-avatar resources; `collection` can narrow the results. `GET /api/admin/media?page=N` uses the same pagination structure while retaining access to all resources. Both endpoints preserve their complete legacy arrays when `page` is omitted. Migration `032_personal_list_indexes.sql` adds ordering indexes for favorites and personal images and runs automatically at startup.
+
 ## About and open-source credits
 
-Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 0.5.0 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
+Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 1.0.0 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
 
 The project version comes from the root `package.json`. Site administrators can configure their own community name independently.
 

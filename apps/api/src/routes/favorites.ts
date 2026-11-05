@@ -15,7 +15,7 @@ const id = z.string().regex(/^\d+$/)
 const postColumns = `p.id,p.title,p.body,p.minimum_reader_level,p.is_pinned,p.view_count,p.created_at,p.status,
  c.id AS category_id,c.slug AS category_slug,c.name AS category_name,c.accent_color AS category_color,
  u.uid AS author_uid,u.username,u.display_name,u.avatar_url,u.experience,u.level_offset,
- (SELECT COUNT(*)::int FROM replies r WHERE r.post_id=p.id AND r.deleted_at IS NULL) AS reply_count,
+ p.reply_count,
  (SELECT COUNT(*)::int FROM post_likes l WHERE l.post_id=p.id) AS like_count`
 const joins = 'JOIN categories c ON c.id=p.category_id JOIN users u ON u.uid=p.author_uid'
 async function viewer(request: FastifyRequest, reply: FastifyReply) {
@@ -117,6 +117,8 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
     return { deleted: true }
   })
   app.get('/api/favorite-folders/:id', async (request, reply) => {
+    const parsed = z.object({ page: z.coerce.number().int().min(1).max(2147483647).optional() }).safeParse(request.query)
+    if (!parsed.success) return reply.code(400).send({ error: '收藏夹页码无效' })
     const uid = await viewer(request, reply)
     if (reply.sent) return
     const folder = (
@@ -127,16 +129,28 @@ export async function registerFavoriteRoutes(app: FastifyInstance) {
     ).rows[0]
     if (!folder) return reply.code(404).send({ error: '收藏夹不存在' })
     const level = uid ? await readerLevel(uid) : 0
+    const from = `FROM favorites v JOIN posts p ON p.id=v.post_id ${joins}
+      WHERE v.folder_id=$1 AND p.deleted_at IS NULL AND
+      p.status='published' AND p.minimum_reader_level<=$2 AND c.minimum_reader_level<=$2`
+    let pagination: { page: number; pageSize: number; total: number; totalPages: number } | undefined
+    if (parsed.data.page !== undefined) {
+      const [limits, count] = await Promise.all([
+        contentLimits(),
+        query<{ total: number }>(`SELECT COUNT(*)::int AS total ${from}`, [folder.id, level]),
+      ])
+      const total = count.rows[0]!.total
+      const pageSize = limits.postsPerPage
+      const totalPages = Math.max(1, Math.ceil(total / pageSize))
+      pagination = { page: Math.min(parsed.data.page, totalPages), pageSize, total, totalPages }
+    }
     const posts = (
       await query(
-        `SELECT ${postColumns} FROM favorites v JOIN posts p ON p.id=v.post_id ${joins}
-      WHERE v.folder_id=$1 AND p.deleted_at IS NULL AND
-      (p.status='published' AND p.minimum_reader_level<=$2 AND c.minimum_reader_level<=$2)
-      ORDER BY v.created_at DESC,p.id DESC`,
-        [folder.id, level],
+        `SELECT ${postColumns} ${from} ORDER BY v.created_at DESC,p.id DESC
+         ${pagination ? 'LIMIT $3 OFFSET $4' : ''}`,
+        [folder.id, level, ...(pagination ? [pagination.pageSize, (pagination.page - 1) * pagination.pageSize] : [])],
       )
     ).rows
-    return { folder, posts: posts.map((post) => ({ ...post, body: visibleBody(post.body) })) }
+    return { folder, posts: posts.map((post) => ({ ...post, body: visibleBody(post.body) })), ...pagination }
   })
   app.post(
     '/api/me/favorite-folders/:id/posts/:postId',

@@ -1,13 +1,13 @@
 import { h, type Component } from 'vue'
 import { DataTemplate } from 'winuionweb'
 
-export const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('zh-CN', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
+const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+export const formatDate = (value: string) => dateFormatter.format(new Date(value))
 
 export const formatBytes = (bytes: number) =>
   bytes >= 1024 ** 3
@@ -16,14 +16,14 @@ export const formatBytes = (bytes: number) =>
       ? `${(bytes / 1024 ** 2).toFixed(1)} MiB`
       : `${(bytes / 1024).toFixed(1)} KiB`
 
-export const formatDateTime = (value: string) =>
-  new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
+const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+export const formatDateTime = (value: string) => dateTimeFormatter.format(new Date(value))
 
 // WinUI's DataTemplate materializes this binding in each item's data context.
 export function itemTemplate(component: Component, property = 'item', props: Record<string, unknown> = {}) {

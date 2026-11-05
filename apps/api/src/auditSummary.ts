@@ -22,6 +22,7 @@ const actions: Record<string, string> = {
   'site.settings.update': '更新站点设置',
   'home.settings.update': '更新主页设置',
   'notification.send': '发送站内通知',
+  'report.resolve': '处理举报',
   'invitation.rule.delete': '删除邀请码奖励规则',
   'mail.settings.update': '更新发信设置',
   'registration.settings.update': '更新注册与密码安全设置',
@@ -45,6 +46,7 @@ const targets: Record<string, string> = {
   'level-config': '等级规则',
   site: '站点',
   notification: '通知',
+  report: '举报',
   'invitation-rule': '邀请码奖励规则',
   settings: '设置',
   media: '图片',
@@ -145,6 +147,9 @@ const fields: Record<string, string> = {
   url: '图片地址',
   postId: '所属帖子',
   scope: '删除范围',
+  action: '处理动作',
+  targetType: '举报目标类型',
+  targetId: '举报目标编号',
   removed: '已删除回复',
   floor: '楼层',
   childFloor: '楼中楼序号',
@@ -206,6 +211,8 @@ function scalar(value: unknown, key: string): string {
   if (key === 'objectAccessMode')
     return ({ proxy: '服务器转发', presigned: '预签名 URL 直连', public: '自定义域名公开访问' } as Record<string, string>)[String(value)] || String(value)
   if (key === 'height' && (value === 50 || value === 75)) return value === 50 ? '固定半屏渐变' : '固定 3/4 屏渐变'
+  if (key === 'targetType') return targets[String(value)] || String(value)
+  if (key === 'action') return ({ hide: '隐藏帖子', delete: '删除帖子', delete_ban: '删帖并封禁作者', ban: '封禁用户', delete_reply: '删除回复', dismiss: '不处理' } as Record<string,string>)[String(value)] || String(value)
   if (value === null) return key === 'banMinutes' ? '解除封禁' : key === 'expiresAt' ? '永久' : '无'
   if (value === '') return '已清空'
   if (typeof value === 'boolean') return value ? '是' : '否'

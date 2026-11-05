@@ -33,11 +33,13 @@ const { data, loading, error, saving, reload, run } = useResource(
       total: number
       totalPages: number
     }>(`/api/admin/reports?status=${status.value}&page=${page.value}`, { token: site.token.value })
-    page.value = result.page
     return result
   },
   { reports: [], page: 1, pageSize: 20, total: 0, totalPages: 1 },
 )
+watch(data, (value) => {
+  page.value = value.page
+})
 watch(status, () => {
   page.value = 1
   void reload()
@@ -181,6 +183,9 @@ const targetName = (report: ContentReport) =>
         v-if="!error && data.totalPages > 1"
         :page="data.page"
         :total-pages="data.totalPages"
+        :page-size="data.pageSize"
+        item-unit="条"
+        label="举报"
         :loading="loading"
         @change="goPage"
       />

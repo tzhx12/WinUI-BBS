@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [English](configuration.en.md)
 
-**当前版本：0.5.0** · **开源许可：GPL-3.0-only**
+**当前版本：1.0.0** · **开源许可：GPL-3.0-only**
 
 WinUI-BBS 是一个采用 WinUI 风格的开源论坛系统，使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL 构建。它提供可视化管理后台、用户组权限、分级板块、图文发帖、内容审核、站内通知与个人图床。
 
@@ -97,6 +97,8 @@ API 默认监听 <http://127.0.0.1:4000/>，健康检查地址为 `/api/health`�
 ## 用户、注册与邀请码
 
 管理后台使用分层导航：“用户与注册”“内容管理”“站点配置”的父项只展开或收起子树，点击子项才打开页面。仅显示当前用户有权限的子项；没有可访问子项的分组不显示。导航窗格切换按钮位于 TitleBar 左侧，桌面可展开或折叠，窄屏可打开或关闭抽屉。
+
+进入后台页面前会刷新当前权限；停留后台时每 30 秒以及重新切回浏览器页面时复核。权限组到期、权限撤销或账号被封禁后，对应菜单和已打开页面会移除。API 对每次请求独立执行权限检查。
 
 ### 邮箱验证与密码安全
 
@@ -197,6 +199,8 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 用户空间的帖子按站点“每页帖子”设置分页，支持上一页、下一页及页码跳转，输入页码后也可按 Enter。页码保存在 URL 中，刷新和浏览器返回会保留；超过末页时显示当前末页。
 
+个人及公开收藏夹同样按站点“每页帖子”设置分页。`GET /api/favorite-folders/:id?page=N` 返回 `{ folder, posts, page, pageSize, total, totalPages }`，总数仅包含当前访客可阅读的已发布帖子；不带 `page` 的旧调用保留完整列表。空间和收藏列表复用帖子存储的回复总数。
+
 `GET /api/users/:uid?page=N` 保留 `user`、`posts`、`folders` 字段，并增加 `page`、`pageSize`、`total`、`totalPages`，其中 `posts` 仅包含当前页。旧调用不带 `page` 时保留原响应及完整帖子列表；新调用应传入 `page`，避免一次加载全部帖子。
 
 ## 发帖管理与回收站
@@ -236,6 +240,8 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 帖子、评论、楼中楼和用户资料旁边的“举报”链接会要求登录并填写理由。拥有 `posts.manage` 的管理员在“举报处理”中按 20 条分页处理：帖子可隐藏、删除、删除并封禁作者或不处理；用户可封禁或不处理；回复可删除或不处理。封禁仍遵守不能封禁首位管理员、自己或最后一位可管理管理员的保护规则。
 
+帖子作者可以举报自己帖子下由他人发布的回复。举报中的删除回复沿用回复管理：有子回复时保留已删除主楼占位，无子回复时永久删除，同时通知作者并写入删除与举报处理记录。
+
 ## 图床与表情包
 
 “图床与表情 → 上传与远端设置”可调整默认限额：每用户 1 GiB、单图 20 MiB、20 组个人表情包、个人上传每组 150 张、单张表情 3 MiB。用户组可覆盖各项限额；多个有效组同时配置时，每项取最大值，未覆盖项使用站点默认值。`media.use` 控制个人图床管理与上传权限，普通成员默认拥有。
@@ -268,9 +274,11 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 “图片管理”支持按文件名、图片说明、表情包名称搜索，并与资源类型和分组筛选组合使用，默认每页 50 张。分页接口为 `GET /api/admin/media/search`，支持 `q`、`collection`、`packId`、`page` 和 `pageSize`；原媒体列表接口保留数组返回格式。
 
+“我的图片 → 个人上传”每页显示 50 张，支持上下页、页码跳转、Enter 和 URL 页码恢复。`GET /api/me/media?page=N` 返回 `{ items, page, pageSize, total, totalPages }`，仅包含本人的非头像资源；`collection` 可组合筛选。`GET /api/admin/media?page=N` 使用相同分页结构并保留管理员的全部资源范围。两者不带 `page` 时仍返回原完整数组。迁移 `032_personal_list_indexes.sql` 为收藏夹和个人图片增加分页排序索引，启动时自动应用。
+
 ## 关于与开源致谢
 
-导航底部的“关于”位于“外观设置”或“管理后台”上方，游客和登录用户均可访问。页面展示 WinUI-BBS 项目介绍、当前版本 0.5.0，以及相关开源项目的超链接按钮。版本号读取根目录 `package.json`，站点名称可在后台独立配置。
+导航底部的“关于”位于“外观设置”或“管理后台”上方，游客和登录用户均可访问。页面展示 WinUI-BBS 项目介绍、当前版本 1.0.0，以及相关开源项目的超链接按钮。版本号读取根目录 `package.json`，站点名称可在后台独立配置。
 
 主要项目包括 [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb)、[Vue](https://vuejs.org/)、[Vue Router](https://router.vuejs.org/)、[Editor.js](https://github.com/codex-team/editor.js)、[DOMPurify](https://github.com/cure53/DOMPurify)、[Fastify](https://fastify.dev/)、[PostgreSQL](https://www.postgresql.org/)、[Vite](https://vite.dev/) 和 [TypeScript](https://www.typescriptlang.org/)。更多依赖及其用途见应用内“关于”页。
 

@@ -53,7 +53,9 @@ function togglePane() {
 }
 const isAdmin = computed(() => route.path.startsWith('/admin/'))
 const permittedSections = computed(() =>
-  adminSections.filter((item) => site.user.value?.permissions?.includes(item.permission)),
+  site.user.value?.isBanned
+    ? []
+    : adminSections.filter((item) => site.user.value?.permissions?.includes(item.permission)),
 )
 const canAccess = computed(
   () => !isAdmin.value || permittedSections.value.some((item) => route.path === `/admin/${item.id}`),
@@ -219,10 +221,31 @@ watch(
   },
 )
 onMounted(initialize)
+const removeAdminGuard = router.beforeEach(async (to) => {
+  if (mode.value !== 'ready' || !to.path.startsWith('/admin/')) return
+  try {
+    await site.refreshUser(false)
+  } catch {
+    site.notify('无法验证管理权限，请稍后重试')
+    return false
+  }
+})
+function refreshSession() {
+  if (mode.value !== 'ready') return
+  void (isAdmin.value ? site.refreshUser() : site.refreshUnread()).catch(() => {})
+}
+function refreshVisibleSession() {
+  if (document.visibilityState === 'visible' && isAdmin.value) refreshSession()
+}
+document.addEventListener('visibilitychange', refreshVisibleSession)
 const unreadTimer = setInterval(() => {
-  void site.refreshUnread().catch(() => {})
+  refreshSession()
 }, 30_000)
-onBeforeUnmount(() => clearInterval(unreadTimer))
+onBeforeUnmount(() => {
+  clearInterval(unreadTimer)
+  removeAdminGuard()
+  document.removeEventListener('visibilitychange', refreshVisibleSession)
+})
 </script>
 
 <template>

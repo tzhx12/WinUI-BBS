@@ -21,11 +21,13 @@ export function useAdminPostList<T>(path: string, status?: Ref<string>) {
       const params = new URLSearchParams({ q: query, page: String(requestedPage) })
       if (status && status.value !== 'all') params.set('status', status.value)
       const result = await api<AdminPostPage<T>>(`${path}?${params}`, { token: site.token.value })
-      requestedPage = result.page
       return result
     },
     { posts: [], page: 1, pageSize: 25, total: 0, totalPages: 1 } as AdminPostPage<T>,
   )
+  watch(resource.data, (result) => {
+    requestedPage = result.page
+  })
 
   function applySearch() {
     query = search.value.trim()

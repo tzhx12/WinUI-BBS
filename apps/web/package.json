@@ -1,14 +1,15 @@
 {
   "name": "@winui-bbs/web",
   "private": true,
-  "version": "0.5.0",
+  "version": "1.0.0",
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc -b && vite build && node scripts/compress-assets.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "check": "vue-tsc -b --pretty false && npm run check:icons && npm run check:components && npm run check:crop",
+    "check": "vue-tsc -b --pretty false && npm run check:icons && npm run check:components && npm run check:crop && npm run check:resources",
+    "check:resources": "node --import tsx --test tests/resource-session.test.mjs",
     "check:crop": "node --import tsx --test tests/image-crop.test.mjs",
     "check:components": "node --test tests/winuionweb-compatibility.test.mjs",
     "check:icons": "node --import tsx --test tests/icon-compatibility.test.mjs",

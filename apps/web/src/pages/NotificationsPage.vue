@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { TextBox } from 'winuionweb'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
@@ -28,34 +28,47 @@ const blockPage = ref(1),
   blockLoading = ref(false),
   blockError = ref('')
 const {
-  data: notices,
+  data: inbox,
   loading,
   error,
   saving,
   reload,
   run,
-} = useResource(async () => {
-  if (!site.user.value || section.value === 'blocks') return []
-  if (section.value === 'replies') {
-    const result = await api<{ notices: SiteNotification[]; page: number; totalPages: number }>(
-      `/api/me/notifications?kind=reply&page=${replyPage.value}`,
-      { token: site.token.value },
-    )
-    replyPage.value = result.page
-    replyTotalPages.value = result.totalPages
+} = useResource(
+  async () => {
+    if (!site.user.value || section.value === 'blocks')
+      return { notices: [], page: 1, totalPages: 1, hasMore: false }
+    if (section.value === 'replies') {
+      const result = await api<{ notices: SiteNotification[]; page: number; totalPages: number }>(
+        `/api/me/notifications?kind=reply&page=${replyPage.value}`,
+        { token: site.token.value },
+      )
+      await site.refreshUnread()
+      return { ...result, hasMore: false }
+    }
+    const result = await api<SiteNotification[]>('/api/me/notifications', { token: site.token.value })
     await site.refreshUnread()
-    return result.notices
-  }
-  const result = await api<SiteNotification[]>('/api/me/notifications', { token: site.token.value })
-  hasMore.value = result.length === 50
-  await site.refreshUnread()
-  return result
-}, [])
+    return { notices: result, page: 1, totalPages: 1, hasMore: result.length === 50 }
+  },
+  { notices: [] as SiteNotification[], page: 1, totalPages: 1, hasMore: false },
+)
+const notices = computed(() => inbox.value.notices)
+watch(inbox, (value) => {
+  hasMore.value = value.hasMore
+  replyPage.value = value.page
+  replyTotalPages.value = value.totalPages
+})
+let blockRequest = 0
+onBeforeUnmount(() => {
+  blockRequest++
+})
 watch([site.token, section], () => {
+  void reload()
   if (section.value === 'blocks') void loadBlocks(1)
-  else void reload()
+  else blockRequest++
 })
 async function loadBlocks(page: number) {
+  const version = ++blockRequest
   if (!site.user.value) return
   blockLoading.value = true
   blockError.value = ''
@@ -63,14 +76,15 @@ async function loadBlocks(page: number) {
     const result = await api<NotificationBlockPage>(`/api/me/notification-blocks?page=${page}`, {
       token: site.token.value,
     })
+    if (version !== blockRequest) return
     blocks.value = result.blocks
     blockPage.value = result.page
     blockTotalPages.value = result.totalPages
     blockTotal.value = result.total
   } catch (cause) {
-    blockError.value = (cause as Error).message
+    if (version === blockRequest) blockError.value = (cause as Error).message
   } finally {
-    blockLoading.value = false
+    if (version === blockRequest) blockLoading.value = false
   }
 }
 async function addBlock() {
@@ -87,7 +101,7 @@ async function addBlock() {
     )
   ) {
     username.value = ''
-    await loadBlocks(blockPage.value)
+    await Promise.all([loadBlocks(blockPage.value), site.refreshUnread()])
   }
 }
 async function removeBlock(uid: string) {
@@ -97,7 +111,7 @@ async function removeBlock(uid: string) {
       '已撤销屏蔽',
     )
   )
-    await loadBlocks(blockPage.value)
+    await Promise.all([loadBlocks(blockPage.value), site.refreshUnread()])
 }
 async function markRead(notice: SiteNotification) {
   if (site.user.value?.isBanned) return
@@ -133,12 +147,16 @@ async function openPost(notice: SiteNotification) {
 }
 async function more() {
   if (!notices.value.length) return
+  const currentNotices = notices.value
+  const currentToken = site.token.value
   await run(async () => {
     const result = await api<SiteNotification[]>(`/api/me/notifications?before=${notices.value.at(-1)!.id}`, {
       token: site.token.value,
     })
-    notices.value.push(...result)
-    hasMore.value = result.length === 50
+    if (section.value === 'all' && notices.value === currentNotices && site.token.value === currentToken) {
+      currentNotices.push(...result)
+      hasMore.value = result.length === 50
+    }
   })
 }
 function changeReplyPage(page: number) {
@@ -270,7 +288,7 @@ function changeReplyPage(page: number) {
           </section>
           <section v-else class="notification-blocks">
             <p class="secondary-text">屏蔽后，不再收到该用户发来的通知；可随时撤销。</p>
-            <div class="notification-block-form">
+            <div v-if="!site.user.value?.isBanned" class="notification-block-form">
               <TextBox
                 v-model:Text="username"
                 Header="用户名"
@@ -291,7 +309,13 @@ function changeReplyPage(page: number) {
                 <strong>{{ block.display_name }}</strong
                 ><span class="secondary-text">@{{ block.username }} · UID {{ block.uid }}</span>
               </div>
-              <WinButton label="撤销屏蔽" subtle :disabled="saving" @click="removeBlock(block.uid)" />
+              <WinButton
+                v-if="!site.user.value?.isBanned"
+                label="撤销屏蔽"
+                subtle
+                :disabled="saving"
+                @click="removeBlock(block.uid)"
+              />
             </article>
             <EmptyState v-if="!blockLoading && !blocks.length" title="还没有屏蔽用户" icon="people" />
             <nav v-if="blockTotalPages > 1" class="feed-pagination" aria-label="屏蔽记录翻页">

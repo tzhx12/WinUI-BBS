@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate, readerLevel, requirePermission } from '../auth.js'
 import { inTransaction, query } from '../db.js'
+import { deleteReply } from '../replyDeletion.js'
 
 const reportInput = z
   .object({
@@ -18,6 +19,12 @@ const reportInput = z
       ctx.addIssue({ code: 'custom', message: '回复编号无效' })
     if (v.targetType === 'user' && !v.userUid)
       ctx.addIssue({ code: 'custom', message: '用户编号无效' })
+    if (
+      (v.targetType === 'post' && (v.replyId || v.userUid)) ||
+      (v.targetType === 'reply' && v.userUid) ||
+      (v.targetType === 'user' && (v.postId || v.replyId))
+    )
+      ctx.addIssue({ code: 'custom', message: '举报目标参数不匹配' })
   })
 
 export async function registerReportRoutes(app: FastifyInstance) {
@@ -66,11 +73,7 @@ export async function registerReportRoutes(app: FastifyInstance) {
               )
         const content = target.rows[0]
         if (!content) return reply.code(404).send({ error: '举报目标不存在' })
-        if (
-          content.author_uid === request.user.uid ||
-          ('post_author_uid' in content &&
-            content.post_author_uid === request.user.uid)
-        )
+        if (content.author_uid === request.user.uid)
           return reply.code(400).send({ error: '不能举报自己发布的内容' })
         if (
           Math.max(content.minimum_reader_level, content.category_level) >
@@ -255,9 +258,12 @@ export async function registerReportRoutes(app: FastifyInstance) {
               statusCode: 400,
             })
           if (action === 'delete_reply')
-            await client.query(
-              `UPDATE replies SET deleted_at=NOW(),deletion_source='admin',author_uid=NULL,body='{"blocks":[]}'::jsonb WHERE id=$1 AND deleted_at IS NULL`,
-              [report.target_reply_id],
+            await deleteReply(
+              client,
+              report.target_post_id!,
+              report.target_reply_id!,
+              request.user.uid,
+              true,
             )
         }
         await client.query(
@@ -273,9 +279,11 @@ export async function registerReportRoutes(app: FastifyInstance) {
               action,
               targetType: report.target_type,
               targetId:
-                report.target_post_id ||
-                report.target_reply_id ||
-                report.target_user_uid,
+                report.target_type === 'reply'
+                  ? report.target_reply_id
+                  : report.target_type === 'post'
+                    ? report.target_post_id
+                    : report.target_user_uid,
               reason: report.reason,
             }),
           ],

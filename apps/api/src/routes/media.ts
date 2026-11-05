@@ -340,18 +340,31 @@ export async function registerMediaRoutes(
             collection: z
               .enum(['library', 'emoji', 'site_icon', 'avatar'])
               .optional(),
+            page: z.coerce.number().int().min(1).max(2147483647).optional(),
           })
           .safeParse(request.query)
         if (!parsed.success)
           return reply.code(400).send({ error: '媒体分类无效' })
-        return (
+        const params = [parsed.data.collection ?? null, admin ? null : request.user.uid]
+        const from = `FROM media_assets m LEFT JOIN emoji_packs p ON p.id=m.emoji_pack_id
+          WHERE ($1::text IS NULL OR m.collection=$1)
+          AND ($2::bigint IS NULL OR (m.created_by=$2 AND m.collection<>'avatar'))`
+        let pagination: { page: number; pageSize: number; total: number; totalPages: number } | undefined
+        if (parsed.data.page !== undefined) {
+          const count = await query<{ total: number }>(`SELECT COUNT(*)::int AS total ${from}`, params)
+          const total = count.rows[0]!.total
+          const pageSize = 50
+          const totalPages = Math.max(1, Math.ceil(total / pageSize))
+          pagination = { page: Math.min(parsed.data.page, totalPages), pageSize, total, totalPages }
+        }
+        const items = (
           await query(
-            `SELECT m.*,p.name AS pack_name,'/uploads/' || m.storage_key AS url FROM media_assets m
-        LEFT JOIN emoji_packs p ON p.id=m.emoji_pack_id WHERE ($1::text IS NULL OR m.collection=$1)
-        AND ($2::bigint IS NULL OR (m.created_by=$2 AND m.collection<>'avatar')) ORDER BY m.created_at DESC`,
-            [parsed.data.collection ?? null, admin ? null : request.user.uid],
+            `SELECT m.*,p.name AS pack_name,'/uploads/' || m.storage_key AS url ${from}
+             ORDER BY m.created_at DESC,m.id DESC ${pagination ? 'LIMIT $3 OFFSET $4' : ''}`,
+            [...params, ...(pagination ? [pagination.pageSize, (pagination.page - 1) * pagination.pageSize] : [])],
           )
         ).rows
+        return pagination ? { items, ...pagination } : items
       },
     )
     app.post(

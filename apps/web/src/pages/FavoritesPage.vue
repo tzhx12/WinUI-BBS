@@ -6,7 +6,7 @@ import { TextBox, ToggleSwitch } from 'winuionweb'
 import { api } from '../api'
 import { useSite } from '../site'
 import { useResource } from '../composables/useResource'
-import type { PageParameter, PostSummary } from '../types'
+import type { PageParameter, PostFeedPage, PostSummary } from '../types'
 import PageHeader from '../components/ui/PageHeader.vue'
 import WinButton from '../components/ui/WinButton.vue'
 import WinDialog from '../components/ui/WinDialog.vue'
@@ -14,6 +14,7 @@ import WinSelect from '../components/ui/WinSelect.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import ResourceState from '../components/ui/ResourceState.vue'
 import PostListItem from '../components/PostListItem.vue'
+import AdminPostPagination from '../components/AdminPostPagination.vue'
 defineOptions({ inheritAttrs: false })
 interface Folder {
   id: string
@@ -23,11 +24,15 @@ interface Folder {
   is_default: boolean
   post_count: number
 }
+interface FolderDetail extends PostFeedPage {
+  folder: Folder
+}
 const props = defineProps<{ Parameter: PageParameter }>()
 const site = useSite(),
   router = useRouter()
 const personal = props.Parameter.path.startsWith('/account/')
 const folderId = props.Parameter.id
+const requestedPage = Math.max(1, Number(props.Parameter.query.page) || 1)
 const { data, loading, error, saving, reload, run } = useResource(
   async () => {
     const folders =
@@ -35,14 +40,25 @@ const { data, loading, error, saving, reload, run } = useResource(
         ? await api<Folder[]>('/api/me/favorite-folders', { token: site.token.value })
         : []
     const detail = folderId
-      ? await api<{ folder: Folder; posts: PostSummary[] }>(`/api/favorite-folders/${folderId}`, {
+      ? await api<FolderDetail>(`/api/favorite-folders/${folderId}?page=${requestedPage}`, {
           token: site.token.value,
         })
       : null
     return { folders, detail }
   },
-  { folders: [] as Folder[], detail: null as { folder: Folder; posts: PostSummary[] } | null },
+  { folders: [] as Folder[], detail: null as FolderDetail | null },
 )
+function goPage(page: number) {
+  if (
+    loading.value ||
+    !data.value.detail ||
+    !Number.isInteger(page) ||
+    page < 1 ||
+    page > data.value.detail.totalPages
+  )
+    return
+  void router.push({ path: props.Parameter.path, query: { ...props.Parameter.query, page: String(page) } })
+}
 const canEdit = computed(
   () =>
     personal &&
@@ -223,6 +239,15 @@ async function move() {
             /><WinButton label="取消收藏" :disabled="saving" @click="removePost(post)" />
           </div>
         </section>
+        <AdminPostPagination
+          v-if="!error && data.detail.totalPages > 1"
+          :page="data.detail.page"
+          :total-pages="data.detail.totalPages"
+          :page-size="data.detail.pageSize"
+          :loading="loading"
+          label="收藏"
+          @change="goPage"
+        />
       </template>
       <WinDialog
         v-model:open="open"

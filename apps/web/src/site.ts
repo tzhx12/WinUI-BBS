@@ -104,6 +104,7 @@ export function createSite() {
   const accent = ref(localStorage.getItem('forum-accent') || 'blue')
   const authOpen = ref(false)
   const unreadCount = ref(0)
+  let userRequestVersion = 0
   const notification = ref('')
   const confirmation = reactive({ open: false, title: '', message: '', action: '确认' })
   watch(
@@ -166,26 +167,31 @@ export function createSite() {
       unreadCount.value = 0
       return
     }
+    const currentToken = token.value
     try {
-      const result = await api<{ count: number }>('/api/me/notifications/unread', { token: token.value })
-      unreadCount.value = result.count
+      const result = await api<{ count: number }>('/api/me/notifications/unread', { token: currentToken })
+      if (token.value === currentToken) unreadCount.value = result.count
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 401) throw error
-      unreadCount.value = 0
+      if (token.value === currentToken) unreadCount.value = 0
     }
   }
 
-  async function refreshUser() {
+  async function refreshUser(withUnread = true) {
+    const version = ++userRequestVersion
+    const currentToken = token.value
     if (!token.value) {
       user.value = null
       return
     }
     try {
-      user.value = await api<User>('/api/auth/me', { token: token.value })
-      await refreshUnread()
+      const result = await api<User>('/api/auth/me', { token: currentToken })
+      if (version !== userRequestVersion || token.value !== currentToken) return
+      user.value = result
+      if (withUnread) await refreshUnread()
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 401) throw error
-      signOut(false)
+      if (version === userRequestVersion && token.value === currentToken) signOut(false)
     }
   }
 
@@ -207,8 +213,10 @@ export function createSite() {
         turnstile_site_key: string
         content_limits: typeof settings.contentLimits
       }>('/api/site'),
-      loadCategories(),
-      refreshUser(),
+      (async () => {
+        await refreshUser()
+        await loadCategories()
+      })(),
     ])
     updateSettings({
       title: value.site_title,

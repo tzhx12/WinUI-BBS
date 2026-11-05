@@ -1,4 +1,4 @@
-import { onMounted, ref, type Ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
 import { useSite } from '../site'
 
 export function useResource<T>(fetcher: () => Promise<T>, initial: T) {
@@ -7,16 +7,19 @@ export function useResource<T>(fetcher: () => Promise<T>, initial: T) {
   const saving = ref(false)
   const error = ref('')
   const site = useSite()
+  let requestVersion = 0
 
   async function reload() {
+    const version = ++requestVersion
     loading.value = true
     error.value = ''
     try {
-      data.value = await fetcher()
+      const result = await fetcher()
+      if (version === requestVersion) data.value = result
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : '加载失败'
+      if (version === requestVersion) error.value = cause instanceof Error ? cause.message : '加载失败'
     } finally {
-      loading.value = false
+      if (version === requestVersion) loading.value = false
     }
   }
 
@@ -36,5 +39,8 @@ export function useResource<T>(fetcher: () => Promise<T>, initial: T) {
   }
 
   onMounted(reload)
+  onBeforeUnmount(() => {
+    requestVersion++
+  })
   return { data, loading, saving, error, reload, run }
 }

@@ -228,10 +228,96 @@ test("reply notifications, notification blocks and content report decisions are 
     ).statusCode,
     200,
   );
+  assert.equal(
+    (await query("SELECT id FROM replies WHERE id=$1", [childId])).rowCount,
+    0,
+  );
+  assert.equal(
+    (
+      await query(
+        "SELECT 1 FROM audit_events WHERE action_key='reply.delete' AND target_id=$1",
+        [childId],
+      )
+    ).rowCount,
+    1,
+  );
+  assert.equal(
+    (
+      await query(
+        "SELECT details->>'targetId' AS target FROM audit_events WHERE action_key='report.resolve' AND target_id=$1",
+        [replyReport.json().id],
+      )
+    ).rows[0].target,
+    childId,
+  );
   assert.ok(
-    (await query("SELECT deleted_at FROM replies WHERE id=$1", [childId]))
+    (await request("GET", "/api/me/notifications", undefined, nested))
+      .json()
+      .some(
+        (notice) =>
+          notice.kind === "moderation" &&
+          notice.body.includes("回复已被管理员删除"),
+      ),
+  );
+
+  // Post authors can report other people's replies on their own threads.
+  const authorReport = await request(
+    "POST",
+    "/api/reports",
+    {
+      targetType: "reply",
+      postId,
+      replyId: rootId,
+      reason: "作者举报他人的主回复",
+    },
+    author,
+  );
+  assert.equal(authorReport.statusCode, 201, authorReport.body);
+  const retained = await request(
+    "POST",
+    `/api/posts/${postId}/replies`,
+    {
+      parentReplyId: rootId,
+      body: body("保留的楼中楼"),
+    },
+    nested,
+  );
+  assert.equal(retained.statusCode, 201, retained.body);
+  const removeRoot = await request(
+    "POST",
+    `/api/admin/reports/${authorReport.json().id}/resolve`,
+    { action: "delete_reply" },
+    manager,
+  );
+  assert.equal(removeRoot.statusCode, 200, removeRoot.body);
+  assert.ok(
+    (await query("SELECT deleted_at FROM replies WHERE id=$1", [rootId]))
       .rows[0].deleted_at,
   );
+  assert.equal(
+    (
+      await query("SELECT id FROM replies WHERE id=$1", [
+        retained.json().reply.id,
+      ])
+    ).rowCount,
+    1,
+  );
+  for (const payload of [
+    { targetType: "post", postId, replyId: rootId },
+    { targetType: "reply", postId, replyId: rootId, userUid: author.user.uid },
+    { targetType: "user", userUid: author.user.uid, postId },
+  ])
+    assert.equal(
+      (
+        await request(
+          "POST",
+          "/api/reports",
+          { ...payload, reason: "混合目标" },
+          reporter,
+        )
+      ).statusCode,
+      400,
+    );
 
   const userReport = await request(
     "POST",

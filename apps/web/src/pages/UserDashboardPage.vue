@@ -2,19 +2,18 @@
 import { postPath } from '../utils'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { InfoBar, ListView, PersonPicture } from 'winuionweb'
+import { InfoBar, PersonPicture } from 'winuionweb'
 import { api } from '../api'
 import { useResource } from '../composables/useResource'
 import { useSite } from '../site'
 import type { PostSummary } from '../types'
-import { itemTemplate } from '../utils'
 import PageHeader from '../components/ui/PageHeader.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import ResourceState from '../components/ui/ResourceState.vue'
 import WinButton from '../components/ui/WinButton.vue'
 import SelectorSwitch from '../components/ui/SelectorSwitch.vue'
 import SelectorPage from '../components/ui/SelectorPage.vue'
-import PostListItem from '../components/PostListItem.vue'
+import PostList from '../components/PostList.vue'
 import AccountProfileEditor from '../components/AccountProfileEditor.vue'
 
 defineOptions({ inheritAttrs: false })
@@ -33,9 +32,6 @@ const filtered = computed(() =>
     ? posts.value
     : posts.value.filter((post) => (post as PostSummary & { status?: string }).status === filter.value),
 )
-const template = computed(() =>
-  itemTemplate(PostListItem, 'item', { canDelete: !site.user.value?.isBanned, onDelete: trashPost }),
-)
 async function trashPost(post: PostSummary) {
   if (!(await site.confirm(`删除“${post.title}”？`, '帖子将移入仅自己可见的回收站。', '移入回收站'))) return
   if (
@@ -46,8 +42,8 @@ async function trashPost(post: PostSummary) {
   )
     await Promise.all([reload(), site.loadCategories()])
 }
-function openPost(_sender: unknown, args: { ClickedItem: PostSummary }) {
-  window.location.hash = postPath(args.ClickedItem)
+function openPost(post: PostSummary) {
+  window.location.hash = postPath(post)
 }
 function openAppearance() {
   window.location.hash = site.user.value?.permissions?.includes('settings.manage')
@@ -152,15 +148,12 @@ const profileEditor = ref<InstanceType<typeof AccountProfileEditor> | null>(null
             title="还没有帖子"
             description="发布一个话题，它会出现在这里。"
             icon="chat"
-          /><ListView
+          /><PostList
             v-else
-            :ItemsSource="filtered"
-            :ItemTemplate="template"
-            SelectionMode="None"
-            :IsItemClickEnabled="true"
-            :ItemContainerStyle="{ Padding: '0', HorizontalContentAlignment: 'Stretch' }"
-            class="post-list"
-            @ItemClick="openPost"
+            :posts="filtered"
+            :can-delete="!site.user.value?.isBanned"
+            @open="openPost"
+            @delete="trashPost"
           />
         </SelectorPage>
       </section>

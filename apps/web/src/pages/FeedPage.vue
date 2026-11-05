@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { InfoBar, ListView, NumberBox, ProgressRing } from 'winuionweb'
+import { InfoBar, NumberBox, ProgressRing } from 'winuionweb'
 import { api } from '../api'
 import { useResource } from '../composables/useResource'
 import { useSite } from '../site'
 import type { PageParameter, PostFeedPage, PostSummary } from '../types'
-import { itemTemplate, postPath } from '../utils'
+import { postPath } from '../utils'
 import PageHeader from '../components/ui/PageHeader.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import WinButton from '../components/ui/WinButton.vue'
 import WinSelect from '../components/ui/WinSelect.vue'
 import CommunityHero from '../components/CommunityHero.vue'
 import CategoryIcon from '../components/CategoryIcon.vue'
-import PostListItem from '../components/PostListItem.vue'
+import PostList from '../components/PostList.vue'
 import MemberCard from '../components/MemberCard.vue'
 
 defineOptions({ inheritAttrs: false })
@@ -93,9 +93,8 @@ function jumpByKeyboard(event: KeyboardEvent) {
   event.preventDefault()
   goPage(Number(event.target.value))
 }
-const template = itemTemplate(PostListItem)
-function openPost(_sender: unknown, args: { ClickedItem: PostSummary }) {
-  void router.push(postPath(args.ClickedItem))
+function openPost(post: PostSummary) {
+  void router.push(postPath(post))
 }
 function compose() {
   if (!site.user.value) site.authOpen.value = true
@@ -175,16 +174,7 @@ function compose() {
             "
             ><WinButton v-if="!isSearch && !isPopular" label="发布帖子" icon="add" @click="compose"
           /></EmptyState>
-          <ListView
-            v-else
-            :ItemsSource="posts"
-            :ItemTemplate="template"
-            :IsItemClickEnabled="true"
-            SelectionMode="None"
-            :ItemContainerStyle="{ Padding: '0', HorizontalContentAlignment: 'Stretch' }"
-            class="post-list"
-            @ItemClick="openPost"
-          />
+          <PostList v-else :posts="posts" @open="openPost" />
           <nav
             v-if="!isSearch && !error && data.totalPages > 1"
             class="feed-pagination"

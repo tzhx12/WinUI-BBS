@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { Button, TextBox, ProgressBar } from 'winuionweb'
 import { api, uploadForm } from '../api'
 import { useSite } from '../site'
 import { useResource } from '../composables/useResource'
-import type { MediaAsset } from '../types'
+import type { MediaAsset, PageParameter } from '../types'
 import type { EmojiPack, MediaLimits, RemoteEmojiSettings } from '../types/admin'
 import { formatBytes } from '../utils'
 import PageHeader from '../components/ui/PageHeader.vue'
@@ -16,8 +17,19 @@ import WinDialog from '../components/ui/WinDialog.vue'
 import WinSelect from '../components/ui/WinSelect.vue'
 import RemoteEmojiBrowser from '../components/RemoteEmojiBrowser.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
+import AdminPostPagination from '../components/AdminPostPagination.vue'
 defineOptions({ inheritAttrs: false })
+const props = defineProps<{ Parameter: PageParameter }>()
 const site = useSite()
+const router = useRouter()
+const requestedPage = Math.max(1, Number(props.Parameter.query.page) || 1)
+interface ImagePage {
+  items: MediaAsset[]
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+}
 interface Usage {
   limits: MediaLimits
   usedBytes: number
@@ -27,14 +39,22 @@ interface Usage {
 const { data, loading, error, saving, reload, run } = useResource(
   async () => {
     const [images, packs, usage] = await Promise.all([
-      api<MediaAsset[]>('/api/me/media', { token: site.token.value }),
+      api<ImagePage>(`/api/me/media?page=${requestedPage}`, { token: site.token.value }),
       api<EmojiPack[]>('/api/me/emoji-packs', { token: site.token.value }),
       api<Usage>('/api/me/media-usage', { token: site.token.value }),
     ])
     return { images, packs, usage }
   },
-  { images: [] as MediaAsset[], packs: [] as EmojiPack[], usage: null as Usage | null },
+  {
+    images: { items: [], page: 1, pageSize: 50, total: 0, totalPages: 1 } as ImagePage,
+    packs: [] as EmojiPack[],
+    usage: null as Usage | null,
+  },
 )
+function goPage(page: number) {
+  if (loading.value || !Number.isInteger(page) || page < 1 || page > data.value.images.totalPages) return
+  void router.push({ path: props.Parameter.path, query: { ...props.Parameter.query, page: String(page) } })
+}
 const tab = ref('images'),
   uploadOpen = ref(false),
   packOpen = ref(false),
@@ -238,9 +258,9 @@ async function copy(image: MediaAsset) {
       </div>
       <SelectorPage :selected="tab">
         <template v-if="tab === 'images'"
-          ><EmptyState v-if="!loading && !data.images.length" title="还没有上传图片" icon="image" />
+          ><EmptyState v-if="!loading && !data.images.items.length" title="还没有上传图片" icon="image" />
           <div class="media-grid">
-            <article v-for="image in data.images" :key="image.id" class="media-card">
+            <article v-for="image in data.images.items" :key="image.id" class="media-card">
               <button
                 class="media-preview"
                 type="button"
@@ -265,8 +285,19 @@ async function copy(image: MediaAsset) {
                   />
                 </div>
               </div>
-            </article></div
-        ></template>
+            </article>
+          </div>
+          <AdminPostPagination
+            v-if="!error && data.images.totalPages > 1"
+            :page="data.images.page"
+            :total-pages="data.images.totalPages"
+            :page-size="data.images.pageSize"
+            :loading="loading"
+            item-unit="张"
+            label="图片"
+            @change="goPage"
+          />
+        </template>
         <template v-else-if="tab === 'packs'"
           ><EmptyState v-if="!data.packs.length" title="还没有个人表情包" icon="emoji" />
           <section v-for="pack in data.packs" :key="pack.id" class="surface-card personal-emoji-pack">

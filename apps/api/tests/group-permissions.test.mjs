@@ -51,6 +51,9 @@ test("single management permissions isolate every admin read endpoint, including
     ...adminPages.filter((page) => page[3]).map((page) => [page[3], page[2]]),
     ["/api/admin/media-settings", "media.manage"],
     ["/api/admin/emoji-packs", "media.manage"],
+    ["/api/admin/media/search?page=1", "media.manage"],
+    ["/api/admin/storage", "media.manage"],
+    ["/api/admin/updates", "settings.manage"],
     ["/api/admin/notification-groups", "settings.manage"],
   ];
   for (const manager of managers)
@@ -62,6 +65,21 @@ test("single management permissions isolate every admin read endpoint, including
         `${manager.permission}: ${url}: ${response.body}`,
       );
     }
+});
+
+test("bans and expired memberships revoke admin access without issuing a replacement token", async () => {
+  const manager = managers.find(user => user.permission === 'posts.manage');
+  await query("UPDATE users SET banned_until=NOW()+INTERVAL '1 hour' WHERE uid=$1", [manager.user.uid]);
+  assert.equal((await request('GET','/api/admin/reports',undefined,manager)).statusCode,403);
+  const banned = (await request('GET','/api/auth/me',undefined,manager)).json();
+  assert.equal(banned.isBanned,true);
+  assert.deepEqual(banned.permissions,[]);
+  await query('UPDATE users SET banned_until=NULL WHERE uid=$1',[manager.user.uid]);
+  await query("UPDATE group_memberships SET expires_at=NOW()-INTERVAL '1 minute' WHERE user_uid=$1 AND group_id=$2",[manager.user.uid,manager.groupId]);
+  assert.equal((await request('GET','/api/admin/reports',undefined,manager)).statusCode,403);
+  assert.ok(!(await request('GET','/api/auth/me',undefined,manager)).json().permissions.includes('posts.manage'));
+  await query('UPDATE group_memberships SET expires_at=NULL WHERE user_uid=$1 AND group_id=$2',[manager.user.uid,manager.groupId]);
+  assert.equal((await request('GET','/api/admin/reports',undefined,manager)).statusCode,200);
 });
 
 test("single management permissions reject writes to the other seven areas before payload validation", async () => {

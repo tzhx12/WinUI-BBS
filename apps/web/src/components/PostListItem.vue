@@ -8,13 +8,18 @@ import IconGlyph from './IconGlyph.vue'
 import WinButton from './ui/WinButton.vue'
 const props = defineProps<{ item: PostSummary; canDelete?: boolean }>()
 defineEmits<{ delete: [post: PostSummary] }>()
-const excerpt = computed(() =>
-  props.item.body.blocks
-    .filter((block) => ['paragraph', 'header', 'quote'].includes(block.type))
-    .map((block) => previewText(block.data.text))
-    .join(' ')
-    .slice(0, 140),
-)
+const excerpt = computed(() => {
+  const parts: string[] = []
+  let length = 0
+  for (const block of props.item.body.blocks) {
+    if (!['paragraph', 'header', 'quote'].includes(block.type)) continue
+    const text = previewText(block.data.text)
+    parts.push(text)
+    length += text.length + (parts.length > 1 ? 1 : 0)
+    if (length >= 140) break
+  }
+  return parts.join(' ').slice(0, 140)
+})
 </script>
 <template>
   <article class="post-list-item">

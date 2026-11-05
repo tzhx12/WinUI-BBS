@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { FontIcon } from 'winuionweb'
 import type { IconName } from './iconNames'
 
 const props = defineProps<{ name: IconName; size?: number | string }>()
@@ -47,11 +46,21 @@ const glyphs: Record<IconName, string> = {
 </script>
 
 <template>
-  <FontIcon
-    class="icon-glyph"
-    :Glyph="glyphs[props.name]"
-    FontFamily="Segoe Fluent Icons"
-    :FontSize="Number(props.size ?? 18)"
-    aria-hidden="true"
-  />
+  <span class="icon-glyph" :style="{ fontSize: `${Number(props.size ?? 18)}px` }" aria-hidden="true">{{
+    glyphs[props.name]
+  }}</span>
 </template>
+
+<style scoped>
+.icon-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  line-height: 1;
+  font-weight: normal;
+  font-style: normal;
+}
+</style>
