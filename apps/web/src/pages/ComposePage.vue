@@ -6,7 +6,9 @@ import { InfoBar, NumberBox, TextBox } from 'winuionweb'
 import { api } from '../api'
 import { useSite } from '../site'
 import type { PageParameter } from '../types'
+import { copyrightOptions } from '../copyright'
 import EditorComposer from '../components/EditorComposer.vue'
+import PostCopyright from '../components/PostCopyright.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import WinButton from '../components/ui/WinButton.vue'
@@ -18,7 +20,8 @@ const site = useSite(),
 const title = ref(''),
   error = ref(''),
   busy = ref(false),
-  readerLevel = ref(0)
+  readerLevel = ref(0),
+  copyrightLicense = ref('none')
 const editor = ref<InstanceType<typeof EditorComposer> | null>(null)
 const allowedCategories = computed(() =>
   site.categories.value.filter((c) => c.minimum_author_level <= (site.user.value?.level || 0)),
@@ -31,12 +34,15 @@ const metadata = computed(() => ({
   title: title.value,
   category: category.value,
   readerLevel: readerLevel.value,
+  copyrightLicense: copyrightLicense.value,
 }))
 function restoreDraft(value: Record<string, unknown>) {
   title.value = String(value.title || '')
   if (!requestedCategory && allowedCategories.value.some((c) => c.id === value.category))
     category.value = String(value.category)
   readerLevel.value = Number(value.readerLevel || 0)
+  copyrightLicense.value =
+    copyrightOptions.find((option) => option.value === value.copyrightLicense)?.value || 'none'
 }
 const requiresReview = computed(() => {
   const permissions = site.user.value?.permissions || []
@@ -61,6 +67,7 @@ async function publish() {
       body: await editor.value!.submission({
         categoryId: category.value,
         title: title.value,
+        copyrightLicense: copyrightLicense.value,
         ...(canSetReaderLevel.value ? { minimumReaderLevel: readerLevel.value } : {}),
       }),
     })
@@ -135,6 +142,12 @@ async function publish() {
             @restored="restoreDraft"
           />
         </section>
+        <section class="copyright-field">
+          <div class="copyright-selection">
+            <WinSelect v-model="copyrightLicense" label="版权声明" :options="copyrightOptions" />
+          </div>
+          <PostCopyright :license="copyrightLicense" :author="site.user.value!.displayName" />
+        </section>
         <p v-if="requiresReview" class="field-hint">此帖需审核，通过后会向社区公开。</p>
         <InfoBar :IsOpen="true" v-if="error" :Message="error" Severity="Error" :IsClosable="false" />
         <div class="form-actions">
@@ -150,3 +163,9 @@ async function publish() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.copyright-selection {
+  max-width: 440px;
+}
+</style>

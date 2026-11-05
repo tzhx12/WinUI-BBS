@@ -9,6 +9,7 @@ import { useSite } from '../../site'
 import type { ReviewPost } from '../../types/admin'
 import { formatDateTime } from '../../utils'
 import PostBody from '../../components/PostBody.vue'
+import PostCopyright from '../../components/PostCopyright.vue'
 import PageHeader from '../../components/ui/PageHeader.vue'
 import ResourceState from '../../components/ui/ResourceState.vue'
 import WinButton from '../../components/ui/WinButton.vue'
@@ -98,6 +99,7 @@ async function decide(action: 'approve' | 'reject' | 'ban') {
           </div>
           <h1>{{ selected.title }}</h1>
           <PostBody :data="selected.body" />
+          <PostCopyright :license="selected.copyright_license" :author="selected.display_name" />
           <p v-if="selected.review_reason" class="notification-body">
             审核原因：{{ selected.review_reason }}
           </p>

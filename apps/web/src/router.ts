@@ -15,6 +15,7 @@ const GroupsPage = () => import('./pages/admin/GroupsPage.vue')
 const LevelsPage = () => import('./pages/admin/LevelsPage.vue')
 const CategoriesPage = () => import('./pages/admin/CategoriesPage.vue')
 const PostsPage = () => import('./pages/admin/PostsPage.vue')
+const ReportsPage = () => import('./pages/admin/ReportsPage.vue')
 const MediaPage = () => import('./pages/admin/MediaPage.vue')
 const SettingsPage = () => import('./pages/admin/SettingsPage.vue')
 const AuditPage = () => import('./pages/admin/AuditPage.vue')
@@ -74,6 +75,7 @@ export const router = createRouter({
       ['home-settings', HomeSettingsPage],
       ['categories', CategoriesPage],
       ['posts', PostsPage],
+      ['reports', ReportsPage],
       ['deleted-posts', DeletedPostsPage],
       ['reviews', ReviewsPage],
       ['review-settings', ReviewSettingsPage],

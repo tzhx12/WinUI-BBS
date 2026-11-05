@@ -42,6 +42,7 @@ export async function createManagementFixture({
     ["invitations", "registerInvitationRoutes"],
     ["reviews", "registerReviewRoutes"],
     ["notifications", "registerNotificationRoutes"],
+    ["reports", "registerReportRoutes"],
     ["email", "registerEmailRoutes"],
     ["favorites", "registerFavoriteRoutes"],
     ["updates", "registerUpdateRoutes"],
@@ -147,6 +148,7 @@ export const adminPages = [
   ["categories", "板块结构", "categories.manage", "/api/admin/categories"],
   ["home-settings", "主页设置", "settings.manage", "/api/admin/home-settings"],
   ["posts", "发帖管理", "posts.manage", "/api/admin/posts"],
+  ["reports", "举报处理", "posts.manage", "/api/admin/reports"],
   [
     "content-settings",
     "发帖与回复设置",

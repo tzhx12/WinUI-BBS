@@ -28,7 +28,9 @@ export async function childReplyPage(rootId: string, page = 1) {
 }
 
 export async function replyPage(request: FastifyRequest, postId: string) {
-  const parsed = pageSchema.safeParse(request.query)
+  const parsed = pageSchema
+    .extend({ reply: z.uuid().optional() })
+    .safeParse(request.query)
   if (!parsed.success) throw mediaError('回复页码无效')
   const pageSize = (await contentLimits()).repliesPerPage
   const counts = await query<{ threads: number; total: number }>(
@@ -39,7 +41,24 @@ export async function replyPage(request: FastifyRequest, postId: string) {
   )
   const totalThreadCount = counts.rows[0]!.threads
   const totalPages = Math.max(1, Math.ceil(totalThreadCount / pageSize))
-  const page = Math.min(parsed.data.page, totalPages)
+  let requestedPage = parsed.data.page
+  if (parsed.data.reply) {
+    const target = await query<{ floor_number: number }>(
+      `SELECT root.floor_number FROM replies target JOIN replies root ON root.id=COALESCE(target.parent_reply_id,target.id)
+       WHERE target.id=$1 AND target.post_id=$2`,
+      [parsed.data.reply, postId],
+    )
+    if (target.rows[0]) {
+      const before = await query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count FROM replies r
+         WHERE r.post_id=$1 AND r.parent_reply_id IS NULL AND r.floor_number<$2
+           AND (r.deleted_at IS NULL OR EXISTS(SELECT 1 FROM replies c WHERE c.parent_reply_id=r.id))`,
+        [postId, target.rows[0].floor_number],
+      )
+      requestedPage = Math.floor(before.rows[0]!.count / pageSize) + 1
+    }
+  }
+  const page = Math.min(requestedPage, totalPages)
   const roots = await query(
     `SELECT ${replyColumns} FROM replies r ${replyJoins}
     WHERE r.post_id=$1 AND r.parent_reply_id IS NULL AND (r.deleted_at IS NULL OR EXISTS(SELECT 1 FROM replies c WHERE c.parent_reply_id=r.id))
@@ -64,7 +83,9 @@ export async function replyPage(request: FastifyRequest, postId: string) {
         ),
       ])
     : [{ rows: [] }, { rows: [] }]
-  const totals = new Map(childCounts.rows.map((row) => [row.parent_reply_id, row.total]))
+  const totals = new Map(
+    childCounts.rows.map((row) => [row.parent_reply_id, row.total]),
+  )
   const children = new Map<string, QueryResultRow[]>()
   for (const child of previews.rows) {
     const rows = children.get(child.parent_reply_id) ?? []

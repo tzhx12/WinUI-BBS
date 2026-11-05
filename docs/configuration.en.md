@@ -104,6 +104,7 @@ On phones, the title bar hides the site name and subtitle while keeping the logo
 | Review settings | Configure whether new posts require review; see the review precedence rules below. |
 | Images and emoji | Manage images, emoji packs, storage and site-icon resources. |
 | Announcements and notifications | Send messages to all users, a group or an individual user. |
+| Reports | Review and page through post, reply and user reports; requires `posts.manage`. |
 | Registration and mail settings | Configure verification, password recovery and account security, send mail through SMTP and check IMAP connections. |
 | Audit history | View recent administration actions. |
 
@@ -130,11 +131,19 @@ Visible Unicode characters count toward the body limit, including nested lists a
 
 Select text to apply italics or use the crossed-eye icon to mark a spoiler. The post editor also shows a lock icon when the author has permission to lock content; replies do not offer content locks. Insert emoji using the button below the editor.
 
-Unsent bodies, titles, categories and selected image blobs stay in the current browser's IndexedDB, isolated by user and reply target. Refreshing or revisiting restores the draft; clearing site data removes it. Images use local previews until the post or reply is submitted. Validation or storage failures roll back files and database records and preserve the draft. Successful submission clears the draft. New attachments are limited to 100 MiB per submission and the user's media allowance.
+Unsent bodies, titles, categories, copyright selections and selected image blobs stay in the current browser's IndexedDB, isolated by user and reply target. Refreshing or revisiting restores the draft; clearing site data removes it. Images use local previews until the post or reply is submitted. Validation or storage failures roll back files and database records and preserve the draft. Successful submission clears the draft. New attachments are limited to 100 MiB per submission and the user's media allowance.
 
 Publishing from a category page preselects that category instead of the draft's saved category, while restoring the title, body and images. Users can still change the selection. General posting entry points restore the saved category, or select the first allowed category without a draft. Categories above the user's author level cannot be preselected.
 
 Direct library uploads from **我的图片** start disabled. Administrators can enable them in the same settings page. Avatar and emoji-pack uploads keep their dedicated entry points.
+
+## Post copyright statements
+
+Choose **版权声明** below the post editor to preview its badge and statement. The default **不适用** adds no statement. Other choices are CC0, CC BY 4.0, CC BY-SA 4.0, CC BY-NC 4.0, CC BY-NC-SA 4.0, CC BY-ND 4.0, CC BY-NC-ND 4.0 and **版权所有声明** (all rights reserved). CC0 uses the 1.0 Public Domain Dedication; other CC choices use the 4.0 International licenses. Each CC badge and license name links to its official Chinese Commons deed.
+
+The statement appears separately after the post body with the author's name and usage conditions. All rights reserved identifies the author as the copyright holder and requires permission to reproduce or adapt the work. Statements do not count toward body limits or apply to replies. Review details, the author's pending posts and recycle-bin details show the same statement; restoring a post preserves its selection.
+
+`POST /api/posts` accepts `copyrightLicense` in JSON or the multipart `payload`: `none`, `cc0`, `cc-by-4.0`, `cc-by-sa-4.0`, `cc-by-nc-4.0`, `cc-by-nc-sa-4.0`, `cc-by-nd-4.0`, `cc-by-nc-nd-4.0` or `all-rights-reserved`. Omitted values default to `none`. Detail responses include `copyright_license`. Migration `030_post_copyright.sql` sets existing posts to `none`, preserving their bodies and existing licensing status.
 
 ## Replies, nested replies and deletion
 
@@ -198,7 +207,9 @@ The built-in **站点管理** group starts with `posts.review` and `posts.bypass
 
 The group-permission migration removes management grants from existing ordinary/public groups, adds the three basic user permissions to management groups, and converts an existing management group with no management permission to a special group while preserving its memberships and capabilities. Removed grants and type conversions are recorded in the management audit log.
 
-Administrators with `settings.manage` use **公告与通知** to send announcements to all current active accounts, an active group's members, or one UID. Recipients use **站内通知** to read announcements and review decisions, mark individual messages or all messages as read, and load older messages. The navigation badge refreshes every 30 seconds. New registrations do not receive earlier announcements.
+Administrators with `settings.manage` use **公告与通知** to send announcements to all current active accounts, an active group's members, or one UID. Recipients use **站内通知** to read announcements, review decisions and **回复我的** messages, mark individual messages or all messages as read, and page reply notifications in groups of 20. A reply notification opens the relevant root or nested reply. **屏蔽管理** blocks a named user's existing and future notifications and supports paged removal. The navigation badge refreshes every 30 seconds. New registrations do not receive earlier announcements.
+
+Posts, replies, nested replies and user profiles expose a report link that requires a signed-in user and a reason. Administrators with `posts.manage` use **举报处理** to page through reports: posts can be hidden, deleted, deleted with an author ban, or dismissed; users can be banned or dismissed; replies can be deleted or dismissed. Existing safeguards prevent banning UID 1, the acting administrator, or the last available group manager.
 
 ## Uploads and emoji packs
 

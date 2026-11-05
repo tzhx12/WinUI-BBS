@@ -170,6 +170,7 @@ export interface ReviewPost {
   id: string
   title: string
   body?: import('../types').EditorData
+  copyright_license?: import('../copyright').CopyrightLicense
   status: 'pending' | 'published' | 'rejected'
   created_at: string
   author_ip: string | null
@@ -197,4 +198,31 @@ export interface Announcement {
   recipient_count: number
   read_count: number
   audience: { type: 'all' | 'group' | 'user'; id?: string }
+}
+
+export interface ContentReport {
+  id: string
+  target_type: 'post' | 'reply' | 'user'
+  target_post_id: string | null
+  target_reply_id: string | null
+  target_user_uid: string | null
+  post_title: string | null
+  post_status: string | null
+  post_author_uid: string | null
+  category_slug: string | null
+  reply_body: import('../types').EditorData | null
+  reply_author_uid: string | null
+  floor_number: number | null
+  child_number: number | null
+  target_username: string | null
+  target_display_name: string | null
+  banned_until: string | null
+  reason: string
+  status: 'pending' | 'resolved'
+  resolution: string | null
+  created_at: string
+  resolved_at: string | null
+  reporter_name: string | null
+  reporter_uid: string | null
+  resolver_name: string | null
 }

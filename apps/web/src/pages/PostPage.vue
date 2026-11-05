@@ -9,12 +9,14 @@ import type { PageParameter, PostSummary, ReplyThread as Thread } from '../types
 import { categoryPath, postPath, formatDate, formatDateTime } from '../utils'
 import EditorComposer from '../components/EditorComposer.vue'
 import PostBody from '../components/PostBody.vue'
+import PostCopyright from '../components/PostCopyright.vue'
 import IconGlyph from '../components/IconGlyph.vue'
 import WinButton from '../components/ui/WinButton.vue'
 import UserAvatar from '../components/UserAvatar.vue'
 import FavoriteButton from '../components/FavoriteButton.vue'
 import ReplyThread from '../components/ReplyThread.vue'
 import FollowButton from '../components/FollowButton.vue'
+import ReportLink from '../components/ReportLink.vue'
 defineOptions({ inheritAttrs: false })
 interface Detail {
   post: PostSummary
@@ -33,14 +35,26 @@ const site = useSite(),
   router = useRouter()
 const isTrash = props.Parameter.path.startsWith('/account/trash/')
 const page = ref(1)
+const targetLocation = ref<{ replyId: string; rootId: string; childPage: number | null } | null>(null)
+let locatedReply = ''
 const likeButton = ref<InstanceType<typeof ToggleButton> | null>(null)
-const { data, loading, error, saving, reload, run } = useResource<Detail | null>(
-  () =>
-    api(`${isTrash ? '/api/me/trash' : '/api/posts'}/${props.Parameter.id}?page=${page.value}`, {
-      token: site.token.value,
-    }),
-  null,
-)
+const { data, loading, error, saving, reload, run } = useResource<Detail | null>(async () => {
+  const replyId = !isTrash ? props.Parameter.query.reply : undefined
+  if (replyId && locatedReply !== replyId) {
+    const location = await api<{ page: number; childPage: number | null; rootId: string }>(
+      `/api/posts/${props.Parameter.id}/replies/${replyId}/location`,
+      { token: site.token.value },
+    )
+    page.value = location.page
+    targetLocation.value = { replyId, rootId: location.rootId, childPage: location.childPage }
+    locatedReply = replyId
+  }
+  const query = new URLSearchParams({ page: String(page.value) })
+  if (replyId) query.set('reply', replyId)
+  return api(`${isTrash ? '/api/me/trash' : '/api/posts'}/${props.Parameter.id}?${query}`, {
+    token: site.token.value,
+  })
+}, null)
 const replyEditor = ref<InstanceType<typeof EditorComposer> | null>(null)
 const editorVersion = ref(0)
 const isPublic = computed(() => ['published', 'hidden'].includes(data.value?.post.status || ''))
@@ -48,12 +62,27 @@ const canReply = computed(
   () => !isTrash && isPublic.value && site.user.value?.permissions?.includes('replies.create'),
 )
 watch(site.token, reload)
+watch(
+  () => props.Parameter.query.reply,
+  (replyId) => {
+    if (replyId === locatedReply) return
+    locatedReply = ''
+    page.value = 1
+    targetLocation.value = null
+    void reload()
+  },
+)
 watch(data, (value) => {
   if (isTrash || !value) return
   const path = postPath(value.post)
   if (props.Parameter.path !== path) void router.replace({ path, query: props.Parameter.query })
 })
 async function goPage(value: number) {
+  if (targetLocation.value) {
+    targetLocation.value = null
+    locatedReply = ''
+    void router.replace({ path: props.Parameter.path, query: { ...props.Parameter.query, reply: undefined } })
+  }
   page.value = value
   await reload()
 }
@@ -211,6 +240,7 @@ async function reply() {
             />
           </div>
           <PostBody :data="data.post.body" @unlock="unlock" />
+          <PostCopyright :license="data.post.copyright_license" :author="data.post.display_name" />
           <p v-if="data.post.status === 'rejected' && data.post.review_reason" class="notification-body">
             审核原因：{{ data.post.review_reason }}
           </p>
@@ -230,7 +260,13 @@ async function reply() {
               :post-id="props.Parameter.id!"
               :disabled="site.user.value?.isBanned"
             /><span><IconGlyph name="eye" :size="16" />{{ data.post.view_count }} 次浏览</span
-            ><span><IconGlyph name="chat" :size="16" />{{ data.totalReplyCount }} 条评论</span>
+            ><span><IconGlyph name="chat" :size="16" />{{ data.totalReplyCount }} 条评论</span
+            ><ReportLink
+              v-if="!isTrash"
+              target-type="post"
+              :post-id="data.post.id"
+              :owner-uid="data.post.author_uid"
+            />
           </div>
         </article>
         <section class="replies-section">
@@ -245,6 +281,8 @@ async function reply() {
             :key="`${site.user.value?.uid || 'guest'}:${entry.id}`"
             :post-id="props.Parameter.id!"
             :entry="entry"
+            :target-reply-id="targetLocation?.rootId === entry.id ? targetLocation.replyId : undefined"
+            :target-child-page="targetLocation?.rootId === entry.id ? targetLocation.childPage : undefined"
             :trash="isTrash"
             :read-only="isTrash || !isPublic"
             :can-reply="!!canReply"

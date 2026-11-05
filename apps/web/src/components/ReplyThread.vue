@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { NumberBox } from 'winuionweb'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
@@ -11,12 +11,15 @@ import PostBody from './PostBody.vue'
 import EditorComposer from './EditorComposer.vue'
 import WinButton from './ui/WinButton.vue'
 import ReplyDeleteButton from './ReplyDeleteButton.vue'
+import ReportLink from './ReportLink.vue'
 const props = defineProps<{
   postId: string
   entry: Thread
   trash?: boolean
   canReply: boolean
   readOnly?: boolean
+  targetReplyId?: string
+  targetChildPage?: number | null
 }>()
 const emit = defineEmits<{ changed: [delta: number]; removed: [] }>()
 const site = useSite(),
@@ -40,6 +43,18 @@ watch(
 )
 const endpoint = computed(
   () => `${props.trash ? '/api/me/trash' : '/api/posts'}/${props.postId}/replies/${props.entry.id}/children`,
+)
+watch(
+  () => [props.targetReplyId, props.targetChildPage] as const,
+  async ([replyId, childPage]) => {
+    if (!replyId) return
+    if (childPage && childPage > 1) await loadPage(childPage)
+    await nextTick()
+    document
+      .querySelector<HTMLElement>(`[data-reply-id="${replyId}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  },
+  { immediate: true },
 )
 async function loadPage(page: number) {
   loading.value = true
@@ -136,6 +151,13 @@ async function childDeleted(result: { removedCount: number }) {
             @deleted="emit('removed')"
           />
         </div>
+        <ReportLink
+          v-if="!readOnly"
+          target-type="reply"
+          :post-id="postId"
+          :reply-id="entry.id"
+          :owner-uid="entry.author_uid || undefined"
+        />
       </footer>
       <section
         v-if="children.total"
@@ -185,6 +207,13 @@ async function childDeleted(result: { removedCount: number }) {
                   @deleted="childDeleted"
                 />
               </div>
+              <ReportLink
+                v-if="!readOnly"
+                target-type="reply"
+                :post-id="postId"
+                :reply-id="child.id"
+                :owner-uid="child.author_uid || undefined"
+              />
             </footer>
           </div>
         </article>

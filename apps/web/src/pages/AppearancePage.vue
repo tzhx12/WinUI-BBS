@@ -61,7 +61,10 @@ function reset() {
   localStorage.removeItem('forum-accent')
   localStorage.removeItem('forum-theme')
   document.documentElement.style.setProperty('--forum-font-scale', '1')
-  delete document.documentElement.dataset.accent
+  // Keep the explicit default accent marker.  WinUI's Edge theme variables fall
+  // back to the browser's AccentColorText when the marker is absent, which makes
+  // the selected radio dot briefly black until the next reload.
+  document.documentElement.dataset.accent = 'blue'
   site.notify('已恢复默认外观')
 }
 </script>

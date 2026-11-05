@@ -26,6 +26,8 @@ and generator are in `apps/web/icons/fluent-system-icons.json` and
 
 ## Project links
 
+Creative Commons license badges in `apps/web/src/assets/copyright/` use artwork from the [official downloads](https://creativecommons.org/mission/downloads/); trailing whitespace is normalized in the local SVG copies. They are served locally to identify the license or CC0 dedication selected by a post's author. Each badge links to the corresponding Commons deed. The marks belong to Creative Commons and are used under its [Trademark Policy](https://creativecommons.org/policies/#trademark).
+
 [hevue-img-preview](https://github.com/heyongsheng/hevue-img-preview) 7.1.3 provides post and reply image previews. Its package metadata declares MIT; the upstream LICENSE file is empty. Attribution, provenance and the standard MIT text are included in `licenses/hevue-img-preview-MIT.txt`.
 
 [node-qrcode](https://github.com/soldair/node-qrcode) 1.5.4 generates authenticator setup QR codes locally in the browser under MIT. Its license is included in `licenses/qrcode-MIT.txt`. Cloudflare Turnstile loads its widget from `challenges.cloudflare.com` when verification is enabled.

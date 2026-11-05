@@ -294,7 +294,7 @@ export async function registerForumRoutes(
   app.get('/api/me/trash/:id', { preHandler: authenticate }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const post = await query(
-      `SELECT p.id, p.category_id, p.title, p.body, p.status, p.is_pinned, p.minimum_reader_level,
+      `SELECT p.id, p.category_id, p.title, p.body, p.copyright_license, p.status, p.is_pinned, p.minimum_reader_level,
       p.view_count, p.created_at, p.deleted_at, p.purge_after, p.review_reason,
       c.slug AS category_slug, c.name AS category_name, c.accent_color AS category_color,
       u.uid AS author_uid, u.username, u.display_name, u.avatar_url, u.experience, u.level_offset
@@ -335,7 +335,7 @@ export async function registerForumRoutes(
     }
     const { id } = request.params as { id: string }
     const post = await query(
-      `SELECT p.id, p.category_id, p.title, p.body, p.status, p.is_pinned, p.minimum_reader_level,
+      `SELECT p.id, p.category_id, p.title, p.body, p.copyright_license, p.status, p.is_pinned, p.minimum_reader_level,
               p.view_count, p.created_at, p.review_reason, c.slug AS category_slug, c.name AS category_name, c.accent_color AS category_color,
               c.minimum_reader_level AS category_minimum_reader_level,
               u.uid AS author_uid, u.username, u.display_name, u.avatar_url, u.experience, u.level_offset
@@ -381,9 +381,27 @@ export async function registerForumRoutes(
           title: z.string().trim().min(4).max(180),
           body: editorBodySchema,
           minimumReaderLevel: z.number().int().min(0).default(0),
+          copyrightLicense: z
+            .enum([
+              'none',
+              'cc0',
+              'cc-by-4.0',
+              'cc-by-sa-4.0',
+              'cc-by-nc-4.0',
+              'cc-by-nc-sa-4.0',
+              'cc-by-nd-4.0',
+              'cc-by-nc-nd-4.0',
+              'all-rights-reserved',
+            ])
+            .default('none'),
         })
         .safeParse(submission.payload)
-      if (!parsed.success) return reply.code(400).send({ error: '请填写标题、版块和正文' })
+      if (!parsed.success)
+        return reply.code(400).send({
+          error: parsed.error.issues.some((issue) => issue.path[0] === 'copyrightLicense')
+            ? '版权声明无效'
+            : '请填写标题、版块和正文',
+        })
       await validateContent(parsed.data.body, 'post')
       await validateContentLocks(parsed.data.body, request.user.uid, 'post')
       if (parsed.data.minimumReaderLevel > 0) {
@@ -427,8 +445,8 @@ export async function registerForumRoutes(
         uploadRoot,
         async (client) => {
           const created = await client.query(
-            `INSERT INTO posts (category_id, author_uid, title, body, minimum_reader_level, status, author_ip)
-         VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7) RETURNING id, status`,
+            `INSERT INTO posts (category_id, author_uid, title, body, minimum_reader_level, status, author_ip, copyright_license)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8) RETURNING id, status`,
             [
               parsed.data.categoryId,
               request.user.uid,
@@ -437,6 +455,7 @@ export async function registerForumRoutes(
               parsed.data.minimumReaderLevel,
               requiresReview ? 'pending' : 'published',
               request.ip,
+              parsed.data.copyrightLicense,
             ],
           )
           const experience = await awardExperience(request.user.uid, 'create_post', client)

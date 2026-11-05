@@ -409,6 +409,9 @@ test("admin deletion stays outside author trash and only administrators can rest
 });
 
 test("announcements target all users, groups or one user and read state is private", async () => {
+  // Reply notifications are now part of the same inbox; start this announcement
+  // assertion with the member's earlier reply activity acknowledged.
+  await request("POST", "/api/me/notifications/read-all", undefined, member);
   assert.equal(
     (
       await request(

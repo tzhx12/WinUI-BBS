@@ -53,7 +53,7 @@ export async function registerReviewRoutes(app: FastifyInstance) {
   })
   app.get('/api/admin/reviews/:id', { preHandler: guard }, async (request, reply) => {
     const result = await query(
-      `SELECT p.id, p.title, p.body, p.status, p.created_at, host(p.author_ip) AS author_ip,
+      `SELECT p.id, p.title, p.body, p.copyright_license, p.status, p.created_at, host(p.author_ip) AS author_ip,
               p.review_reason, c.name AS category_name, u.uid AS author_uid, u.display_name,
               ARRAY(SELECT g.name FROM group_memberships gm JOIN user_groups g ON g.id = gm.group_id
                     WHERE gm.user_uid = u.uid AND (gm.expires_at IS NULL OR gm.expires_at > NOW()) ORDER BY g.name) AS groups

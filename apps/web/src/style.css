@@ -1212,6 +1212,68 @@ html.theme-dark {
 .reply-delete {
   margin-left: auto;
 }
+.report-link {
+  color: var(--accent-text-fill-color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.report-link:hover {
+  color: var(--accent);
+}
+.profile-username {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.notification-list,
+.notification-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.notification-block-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+.notification-block-form > .win-textbox {
+  flex: 1 1 240px;
+}
+.notification-block-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.notification-block-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.report-card h2,
+.report-card p {
+  margin: 0;
+}
+.report-reason {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.report-decisions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
 .reply-floor,
 .reply-footer time {
   white-space: nowrap;
@@ -2080,7 +2142,7 @@ html.theme-dark {
   --forum-accent-light: #946200;
   --forum-accent-dark: #f5cf70;
 }
-/* WinUI theme scopes declare their own palette, including those portaled to body. */
+/* Forum accent colors are independent of the browser's AccentColorText system color. */
 :root[data-accent],
 :root[data-accent] .win-theme-scope {
   --accent-base: var(--forum-accent-light);
@@ -2118,6 +2180,14 @@ html.theme-dark {
   --SystemAccentColorLight2: color-mix(in srgb, var(--accent-base) 80%, white);
   --SystemAccentColorLight3: color-mix(in srgb, var(--accent-base) 65%, white);
   --SystemFillColorAttentionBrush: var(--accent-base);
+}
+:root[data-accent]:not(.theme-dark),
+:root[data-accent]:not(.theme-dark) .win-theme-scope {
+  --accent-text: #fff;
+  --accent-text-secondary: rgb(255 255 255 / 70%);
+  --TextOnAccentFillColorPrimaryBrush: var(--accent-text);
+  --TextOnAccentFillColorSecondaryBrush: var(--accent-text-secondary);
+  --TextOnAccentFillColorDisabledBrush: var(--accent-text);
 }
 :root[data-accent].theme-dark,
 :root[data-accent].theme-dark .win-theme-scope {

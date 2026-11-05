@@ -84,6 +84,7 @@ export interface PostSummary {
   id: string
   title: string
   body: EditorData
+  copyright_license?: import('./copyright').CopyrightLicense
   minimum_reader_level: number
   is_pinned: boolean
   view_count: number
@@ -118,13 +119,29 @@ export interface SiteNotification {
   id: string
   title: string
   body: string
-  kind: 'announcement' | 'review' | 'moderation' | 'storage'
+  kind: 'announcement' | 'review' | 'moderation' | 'storage' | 'reply'
   post_id: string | null
+  reply_id: string | null
   post_status: PostSummary['status'] | null
   category_slug: string | null
   created_at: string
   read_at: string | null
   sender_name: string | null
+}
+
+export interface NotificationBlock {
+  uid: string
+  username: string
+  display_name: string
+  created_at?: string
+}
+
+export interface NotificationBlockPage {
+  blocks: NotificationBlock[]
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
 }
 
 export interface MediaAsset {

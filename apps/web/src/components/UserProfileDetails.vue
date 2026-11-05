@@ -4,6 +4,7 @@ import type { User } from '../types'
 import { useSite } from '../site'
 import { formatDate, groupTypes } from '../utils'
 import WinButton from './ui/WinButton.vue'
+import ReportLink from './ReportLink.vue'
 defineProps<{ user: User }>()
 const site = useSite()
 async function copyUuid(uuid: string) {
@@ -23,7 +24,10 @@ async function copyUuid(uuid: string) {
         />
         <div>
           <h2>{{ user.displayName }}</h2>
-          <p class="secondary-text">@{{ user.username }}</p>
+          <p class="profile-username secondary-text">
+            @{{ user.username }}
+            <ReportLink target-type="user" :user-uid="user.uid" label="举报用户" />
+          </p>
           <p class="user-space-followers" aria-live="polite">
             <strong>{{ (user.followerCount || 0).toLocaleString() }}</strong
             ><span class="secondary-text">粉丝</span>
@@ -62,9 +66,7 @@ async function copyUuid(uuid: string) {
           <strong>{{ group.name }}</strong
           ><small
             >{{ groupTypes.find((type) => type.value === group.group_type)?.label
-            }}<template v-if="group.expires_at">
-              · {{ formatDate(group.expires_at) }} 到期</template
-            ></small
+            }}<template v-if="group.expires_at"> · {{ formatDate(group.expires_at) }} 到期</template></small
           >
         </div>
       </div>

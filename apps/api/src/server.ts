@@ -14,21 +14,33 @@ import { registerAdminRoutes } from './routes/admin.js'
 import { registerMediaRoutes } from './routes/media.js'
 import { registerInvitationRoutes } from './routes/invitations.js'
 import { registerNotificationRoutes } from './routes/notifications.js'
+import { registerReportRoutes } from './routes/reports.js'
 import { registerReviewRoutes } from './routes/reviews.js'
 import { registerEmailRoutes } from './routes/email.js'
 import { registerFavoriteRoutes } from './routes/favorites.js'
-import { registerUpdateRoutes, startAutomaticUpdates } from './routes/updates.js'
+import {
+  registerUpdateRoutes,
+  startAutomaticUpdates,
+} from './routes/updates.js'
 import { setupPath } from './setup.js'
 import { currentVersion } from './version.js'
 import { registerWebAssets } from './webAssets.js'
-import { registerRequestSecurity, sessionSecret, trustedProxies } from './requestSecurity.js'
+import {
+  registerRequestSecurity,
+  sessionSecret,
+  trustedProxies,
+} from './requestSecurity.js'
 import {
   monitorStorage,
   flushStorageDeletions,
   withStorageLock,
 } from './storage.js'
 
-const app = Fastify({ logger: true, bodyLimit: 1_500_000, trustProxy: trustedProxies() })
+const app = Fastify({
+  logger: true,
+  bodyLimit: 1_500_000,
+  trustProxy: trustedProxies(),
+})
 const uploadRoot = resolve(process.cwd(), 'data/uploads')
 
 async function start() {
@@ -58,6 +70,7 @@ async function start() {
   await registerAdminRoutes(app, uploadRoot)
   await registerInvitationRoutes(app)
   await registerNotificationRoutes(app)
+  await registerReportRoutes(app)
   await registerReviewRoutes(app)
   await registerEmailRoutes(app)
   await registerFavoriteRoutes(app)
@@ -95,7 +108,10 @@ async function start() {
 
   const port = Number(process.env.PORT ?? 4000)
   startAutomaticUpdates(app)
-  const address = await app.listen({ host: process.env.HOST || '127.0.0.1', port })
+  const address = await app.listen({
+    host: process.env.HOST || '127.0.0.1',
+    port,
+  })
   const entry = await setupPath()
   if (entry) {
     const socket = app.server.address()
@@ -103,7 +119,10 @@ async function start() {
     const origin =
       process.env.WEB_ORIGIN ??
       (process.env.FORUM_WEB_ROOT ? `http://127.0.0.1:${boundPort}` : address)
-    app.log.info({ setupPath: entry, setupUrl: `${origin}${entry}` }, '首次安装：请通过此安全入口创建管理员')
+    app.log.info(
+      { setupPath: entry, setupUrl: `${origin}${entry}` },
+      '首次安装：请通过此安全入口创建管理员',
+    )
   }
 }
 
