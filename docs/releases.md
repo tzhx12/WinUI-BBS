@@ -4,15 +4,15 @@
 
 ## 发布一个版本
 
-当前正式版为 **1.0.2**，修复与升级事项见 [1.0.2 更新说明](release-1.0.2.md)。未特别指定时，下一正式版取当前正式版的下一个次版本并将修订号归零：`1.0.2 → 1.1.0 → 1.2.0`。
+当前正式版为 **1.0.3**，修复与升级事项见 [1.0.3 更新说明](release-1.0.3.md)。未特别指定时，下一正式版取当前正式版的下一个次版本并将修订号归零：`1.0.3 → 1.1.0 → 1.2.0`。
 
-| 操作                        | Actions 结果              | 1.0.2 发布后的示例    |
+| 操作                        | Actions 结果              | 1.0.3 发布后的示例    |
 | --------------------------- | ------------------------- | --------------------- |
 | 推送 dev                    | Artifacts 中的 Alpha 构建 | `1.1.0-Alpha.5939d46` |
 | dev 合并 main，项目版本不变 | GitHub Pre-release        | `1.1.0-rc.1`          |
 | 设定正式版本后合并 main     | GitHub Release            | `1.1.0`               |
 
-版本遵循 SemVer：`1.0.2 < 1.1.0-Alpha.5939d46 < 1.1.0-rc.1 < 1.1.0-rc.2 < 1.1.0-rc.10 < 1.1.0`。预发布号以**下一正式版**为基础，阶段与编号用点号分隔；RC 编号按数值比较。Alpha 的 commit 标识使用 7 位短编号，仅标识构建，不表示提交先后。正式渠道可从 RC 升至对应正式版。
+版本遵循 SemVer：`1.0.3 < 1.1.0-Alpha.5939d46 < 1.1.0-rc.1 < 1.1.0-rc.2 < 1.1.0-rc.10 < 1.1.0`。预发布号以**下一正式版**为基础，阶段与编号用点号分隔；RC 编号按数值比较。Alpha 的 commit 标识使用 7 位短编号，仅标识构建，不表示提交先后。正式渠道可从 RC 升至对应正式版。
 
 ### 指定目标与正式发布
 
@@ -62,6 +62,19 @@ README 中的一键命令下载最新正式版的安装脚本。支持 Debian 12
 源码运行的 Windows/Linux 实例仍可检查更新和保存渠道；自动安装需要上述 systemd 服务。原有 `npm run dev` 和手动构建部署方式继续可用。
 
 源码生产部署需保留 `apps/web/dist` 内的 `.br`、`.gz` 文件，并通过 `FORUM_WEB_ROOT` 指向完整构建目录；内置服务会协商压缩和缓存。API 启动时自动执行迁移，首次应用回复计数迁移 027 会锁表回填并创建索引，大库应安排维护时段。详细设置见[生产部署与性能](configuration.md#生产部署与性能)和[更新已有部署](configuration.md#更新已有部署)。
+
+### 修复旧安装的上传临时目录权限
+
+如果头像或其他图片上传返回“服务暂时不可用”，且日志包含 `EROFS: read-only file system, mkdtemp '/tmp/forum-media-*'` 或 `forum-submission-*`，为应用服务添加独立临时目录：
+
+```sh
+sudo install -d -m 755 /etc/systemd/system/winui-bbs.service.d
+printf '[Service]\nPrivateTmp=true\n' | sudo tee /etc/systemd/system/winui-bbs.service.d/30-private-tmp.conf >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl restart winui-bbs
+```
+
+该配置保留 `ProtectSystem=strict`，仅让服务使用可写、独立的 `/tmp` 和 `/var/tmp`。覆盖文件随程序更新保留；新安装由安装脚本直接配置。
 
 ## 备份与恢复
 

@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [English](configuration.en.md)
 
-**当前版本：1.0.2** · **开源许可：GPL-3.0-only**
+**当前版本：1.0.3** · **开源许可：GPL-3.0-only**
 
 WinUI-BBS 是一个采用 WinUI 风格的开源论坛系统，使用 Vue 3、WinUIonWeb、Fastify 和 PostgreSQL 构建。它提供可视化管理后台、用户组权限、分级板块、图文发帖、内容审核、站内通知与个人图床。
 
@@ -31,6 +31,8 @@ API 默认监听 <http://127.0.0.1:4000/>，健康检查地址为 `/api/health`�
 前端按路由加载页面，后台和编辑器依赖在访问相应页面时加载。WinUIonWeb 使用仓库内固定的 `0.2.0-forum.4` 包，以组件导入代替全量注册，内部图标、提示和网格列定义由控件局部导入；安全补丁移除 XAML 的动态脚本求值，将 Vue 动态字符串保留为数据。补丁与可复现构建说明见 [vendor/winuionweb/README.md](../vendor/winuionweb/README.md)。
 
 密码计算使用至多两个工作线程，保留现有 bcrypt 哈希和 cost；等待队列达到 64 项时返回 503，稍后可重试。图片上传和发布附件在系统临时目录流式暂存，通过校验并取得存储写锁后才写入图库，成功或失败都会清理临时文件；运行账号需要临时目录的读写权限。
+
+systemd 服务同时使用 `ProtectSystem=strict` 时，需配置 `PrivateTmp=true`，为头像、图床、表情和帖子/回复附件提供可写的独立临时目录。安装脚本已包含此项；旧安装出现 `EROFS` / `mkdtemp /tmp/forum-media-*` 错误时，按[发布与恢复指南](releases.md#修复旧安装的上传临时目录权限)添加持久覆盖配置。
 
 ### 公网部署的安全设置
 
@@ -278,7 +280,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 ## 关于与开源致谢
 
-导航底部的“关于”位于“外观设置”或“管理后台”上方，游客和登录用户均可访问。页面展示 WinUI-BBS 项目介绍、当前版本 1.0.2，以及相关开源项目的超链接按钮。版本号读取根目录 `package.json`，站点名称可在后台独立配置。
+导航底部的“关于”位于“外观设置”或“管理后台”上方，游客和登录用户均可访问。页面展示 WinUI-BBS 项目介绍、当前版本 1.0.3，以及相关开源项目的超链接按钮。版本号读取根目录 `package.json`，站点名称可在后台独立配置。
 
 主要项目包括 [WinUIonWeb](https://github.com/Furry-Xiyi/WinUIonWeb)、[Vue](https://vuejs.org/)、[Vue Router](https://router.vuejs.org/)、[Editor.js](https://github.com/codex-team/editor.js)、[DOMPurify](https://github.com/cure53/DOMPurify)、[Fastify](https://fastify.dev/)、[PostgreSQL](https://www.postgresql.org/)、[Vite](https://vite.dev/) 和 [TypeScript](https://www.typescriptlang.org/)。更多依赖及其用途见应用内“关于”页。
 

@@ -2,7 +2,7 @@
 
 [Project home](../README.en.md) · [简体中文](configuration.md)
 
-**Version 1.0.2** · GPL-3.0-only
+**Version 1.0.3** · GPL-3.0-only
 
 WinUI-BBS is an open-source discussion forum with a Vue 3 frontend, WinUIonWeb controls, a Fastify API and PostgreSQL.
 
@@ -27,6 +27,8 @@ After `npm run build`, deploy the complete `apps/web/dist`, including `.br` and 
 Pages load by route, deferring administration and editor dependencies until their pages are opened. WinUIonWeb uses the pinned `0.2.0-forum.4` archive with direct component imports instead of registering the full library; controls import their internal icons, tooltips and grid definitions locally. The security patch removes dynamic JavaScript evaluation from XAML and preserves Vue-bound strings as data. See [vendor/winuionweb/README.md](../vendor/winuionweb/README.md) for patches and reproducible build instructions.
 
 Password calculations use at most two worker threads while preserving existing bcrypt hashes and costs. A full queue of 64 waiting jobs returns 503 so callers can retry later. Uploads and post attachments stream into the system temporary directory before validation and the storage write lock. Temporary files are removed on success or failure; the service account needs read/write access to that directory.
+
+For a systemd service using `ProtectSystem=strict`, set `PrivateTmp=true` to provide writable private temporary storage for avatars, media, emoji and post/reply attachments. The installer includes this setting. Existing installations with `EROFS` / `mkdtemp /tmp/forum-media-*` errors need the persistent override described in the [release and recovery guide](releases.md#修复旧安装的上传临时目录权限).
 
 ### Security for public deployment
 
@@ -251,7 +253,7 @@ Image management searches filenames, descriptions and pack names, combines searc
 
 ## About and open-source credits
 
-Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 1.0.2 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
+Open **关于** from the bottom of the navigation pane, above **外观设置** or **管理后台**. The page introduces WinUI-BBS, displays version 1.0.3 and provides links to its open-source dependencies. It is available to visitors and signed-in users.
 
 The project version comes from the root `package.json`. Site administrators can configure their own community name independently.
 

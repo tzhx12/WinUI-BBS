@@ -111,6 +111,7 @@ RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
+PrivateTmp=true
 ReadWritePaths=$root/shared/data $root/shared/update
 UMask=0027
 [Install]

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
+import { verifyImageUploads } from './smoke-uploads.mjs'
 const origin = 'http://127.0.0.1:4000'
 async function api(path, options = {}) {
   const response = await fetch(origin + path, {
@@ -38,6 +39,7 @@ const owner = await api('/api/setup/initialize', {
   }),
 })
 const headers = { authorization: `Bearer ${owner.token}` }
+await verifyImageUploads(origin, owner.token)
 let status = await api('/api/admin/updates', { headers })
 assert.equal(status.managed, true)
 assert.equal(status.settings.automatic, false)
